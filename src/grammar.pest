@@ -1,0 +1,29 @@
+prog = { function_decl* ~ stmt+ ~ EOI }
+
+function_decl =  { type ~ ident ~ "(" ~ argument_list? ~ ")" ~ braced_stmts }
+argument      =  { type ~ ident }
+argument_list = _{ argument ~ ("," ~ argument)* }
+
+stmt         =  { assignment | declaration | while | write | return | if }
+braced_stmts = _{ "{" ~ stmt+ ~ "}" }
+
+declaration = { type ~ ident ~ ("=" ~ expr)? ~ ";" }
+assignment  = { ident ~ "=" ~ expr ~ ";" }
+while       = { "tantque" ~ "(" ~ expr ~ ")" ~ braced_stmts }
+write       = { "ecrire" ~ "(" ~ expr ~ ")" ~ ";" }
+if          = { "si" ~ "(" ~ expr ~ ")" ~ braced_stmts }
+return      = { "retourner" ~ expr ~ ";" }
+
+type = { "entier" | "booleen" }
+
+expr      =  { integer | boolean | function_call | read | ident }
+expr_list = _{ expr ~ ("," ~ expr)* }
+
+integer       = @{ ASCII_DIGIT+ }
+boolean       =  { "Vrai" | "Faux" }
+read          =  { "lire()" }
+function_call =  { ident ~ "(" ~ expr_list? ~ ")" }
+
+ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+
+WHITESPACE = _{ " " | "\t" | NEWLINE }

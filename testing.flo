@@ -1,0 +1,6 @@
+entier max(entier a) {
+  ecrire(2);
+  retourner a;
+}
+
+ecrire(max(6));

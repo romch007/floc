@@ -1,0 +1,15 @@
+[package]
+name = "floc"
+authors = ["Romain Chardiny <romain.chardiny@gmail.com>"]
+description = "Flo Compiler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+from-pest = "0.3.2"
+inkwell = { version = "0.4.0", features = ["llvm17-0-prefer-dynamic"] }
+pest = "2.7.10"
+pest-ast = "0.3.4"
+pest_derive = "2.7.10"
+thiserror = "1.0.61"
