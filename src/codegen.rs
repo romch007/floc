@@ -5,7 +5,7 @@ use inkwell::{
     context::Context,
     module::Module,
     support::LLVMString,
-    types::{BasicMetadataTypeEnum, IntType},
+    types::{BasicMetadataTypeEnum, BasicType, IntType},
     values::{BasicMetadataValueEnum, FunctionValue, GlobalValue, IntValue, PointerValue},
     AddressSpace, IntPredicate,
 };
@@ -14,7 +14,7 @@ use crate::ast;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("LLVM builder error")]
+    #[error("LLVM builder error: {0}")]
     Builder(#[from] inkwell::builder::BuilderError),
 
     #[error("variable '{0}' not found")]
@@ -42,8 +42,13 @@ pub struct CodeGen<'ctx> {
     current_function: Option<FunctionValue<'ctx>>,
     variables: Vec<HashMap<String, Variable<'ctx>>>,
     functions: HashMap<String, Function<'ctx>>,
+
     printf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
     scanf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
+    rand: FunctionValue<'ctx>,
+
+    srand: FunctionValue<'ctx>,
+    time: FunctionValue<'ctx>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -52,6 +57,7 @@ impl<'ctx> CodeGen<'ctx> {
         let builder = context.create_builder();
         let printf = CodeGen::create_printf(context, &module);
         let scanf = CodeGen::create_scanf(context, &module);
+        let (rand, srand, time) = CodeGen::create_rand(context, &module);
 
         Self {
             context,
@@ -59,6 +65,9 @@ impl<'ctx> CodeGen<'ctx> {
             builder,
             printf,
             scanf,
+            rand,
+            srand,
+            time,
             current_function: None,
             variables: vec![],
             functions: HashMap::default(),
@@ -110,6 +119,8 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.current_function = Some(main_function);
 
+        self.emit_srand_init()?;
+
         self.push_stack_frame();
         for stmt in &prog.statements {
             self.emit_statement(stmt)?;
@@ -160,6 +171,42 @@ impl<'ctx> CodeGen<'ctx> {
         let scanf_fn = module.add_function("scanf", scanf_type, None);
 
         (scanf_fn, scanf_format_global)
+    }
+
+    fn create_rand(
+        context: &'ctx Context,
+        module: &Module<'ctx>,
+    ) -> (
+        FunctionValue<'ctx>,
+        FunctionValue<'ctx>,
+        FunctionValue<'ctx>,
+    ) {
+        let rand_fn = module.add_function("rand", context.i32_type().fn_type(&[], false), None);
+
+        let srand_type = context
+            .void_type()
+            .fn_type(&[context.i32_type().into()], false);
+        let srand_fn = module.add_function("srand", srand_type, None);
+
+        let time_type = context
+            .i32_type()
+            .fn_type(&[context.i64_type().into()], false);
+        let time_fn = module.add_function("time", time_type, None);
+
+        (rand_fn, srand_fn, time_fn)
+    }
+
+    fn emit_srand_init(&mut self) -> Result<(), Error> {
+        let time_null_ptr = self.context.i64_type().const_int(0_u64, false);
+        let retval = self
+            .builder
+            .build_call(self.time, &[time_null_ptr.into()], "time_call")?;
+
+        let current_time = retval.try_as_basic_value().unwrap_left().into_int_value();
+        self.builder
+            .build_call(self.srand, &[current_time.into()], "srand_call")?;
+
+        Ok(())
     }
 
     pub fn emit_function_declaration(
@@ -413,6 +460,7 @@ impl<'ctx> CodeGen<'ctx> {
             ast::Expression::Variable(var) => self.emit_variable(var)?,
             ast::Expression::FunctionCall(fn_call) => self.emit_function_call(fn_call)?,
             ast::Expression::Read => self.emit_read()?,
+            ast::Expression::Random { max } => self.emit_rand(max)?,
             ast::Expression::BinaryOp { left, op, right } => {
                 self.emit_binary_op(left, op, right)?
             }
@@ -495,6 +543,19 @@ impl<'ctx> CodeGen<'ctx> {
                 .build_load(self.context.i32_type(), result_value, "read_result")?;
 
         Ok(value.into_int_value())
+    }
+
+    pub fn emit_rand(&mut self, max: &ast::Expression) -> Result<IntValue<'ctx>, Error> {
+        let max = self.emit_expression(max)?;
+
+        let ret = self.builder.build_call(self.rand, &[], "rand_call")?;
+
+        let big_retval = ret.try_as_basic_value().unwrap_left().into_int_value();
+        let retval = self
+            .builder
+            .build_int_signed_rem(big_retval, max, "rand_mod")?;
+
+        Ok(retval)
     }
 
     pub fn emit_binary_op(
