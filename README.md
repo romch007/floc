@@ -1,6 +1,6 @@
 # floc
 
-Compiler for the Flo programming language, with a few additions.
+Compiler for the Flo programming language.
 
 ## The Flo programming language
 
