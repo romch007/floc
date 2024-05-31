@@ -434,7 +434,11 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_unconditional_branch(end_bb)?;
 
         self.builder.position_at_end(else_bb);
-        // TODO: else condition
+        if let Some(statements_else) = &i.statements_else {
+            for stmt in statements_else {
+                self.emit_statement(stmt)?;
+            }
+        }
         self.builder.build_unconditional_branch(end_bb)?;
 
         self.builder.position_at_end(end_bb);

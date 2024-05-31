@@ -13,7 +13,7 @@ declaration = { type ~ ident ~ ("=" ~ expr)? ~ ";" }
 assignment  = { ident ~ "=" ~ expr ~ ";" }
 while       = { "tantque" ~ "(" ~ expr ~ ")" ~ braced_stmts }
 write       = { "ecrire" ~ "(" ~ expr ~ ")" ~ ";" }
-if          = { "si" ~ "(" ~ expr ~ ")" ~ braced_stmts }
+if          = { "si" ~ "(" ~ expr ~ ")" ~ braced_stmts ~ ("sinon" ~ (braced_stmts | if))? }
 return      = { "retourner" ~ expr ~ ";" }
 
 type = { "entier" | "booleen" }
@@ -49,4 +49,3 @@ function_call =  { ident ~ "(" ~ expr_list? ~ ")" }
 ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 
 WHITESPACE = _{ " " | "\t" | NEWLINE }
-

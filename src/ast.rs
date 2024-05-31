@@ -262,6 +262,7 @@ impl Node for While {
 pub struct If {
     pub condition: Expression,
     pub statements: Vec<Statement>,
+    pub statements_else: Option<Vec<Statement>>,
 }
 
 impl Node for If {
@@ -275,10 +276,31 @@ impl Node for If {
             .into_inner()
             .map(Statement::parse)
             .collect();
+        let mut statements_else = None;
+
+        let next_pair = pairs.peek().map(|pair| pair.as_rule());
+
+        match next_pair {
+            Some(Rule::stmt_list) => {
+                statements_else = Some(
+                    pairs
+                        .next()
+                        .unwrap()
+                        .into_inner()
+                        .map(Statement::parse)
+                        .collect(),
+                );
+            }
+            Some(Rule::r#if) => {
+                statements_else = Some(vec![Statement::If(If::parse(pairs.next().unwrap()))]);
+            }
+            _ => {}
+        };
 
         Self {
             condition,
             statements,
+            statements_else,
         }
     }
 }
