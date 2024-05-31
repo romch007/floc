@@ -601,6 +601,8 @@ impl<'ctx> CodeGen<'ctx> {
                 self.builder
                     .build_int_compare(IntPredicate::SGE, left, right, "gte")?
             }
+            ast::BinaryOpType::LogicAnd => self.builder.build_and(left, right, "and")?,
+            ast::BinaryOpType::LogicOr => self.builder.build_or(left, right, "or")?,
         };
 
         Ok(result)
@@ -615,7 +617,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let result = match op {
             ast::UnaryOpType::Neg => self.builder.build_int_neg(operand, "neg")?,
-            ast::UnaryOpType::Not => self.builder.build_not(operand, "not")?,
+            ast::UnaryOpType::LogicNot => self.builder.build_not(operand, "not")?,
         };
 
         Ok(result)

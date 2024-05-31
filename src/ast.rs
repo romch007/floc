@@ -9,6 +9,7 @@ lazy_static! {
         use pest::pratt_parser::Op;
 
         PrattParser::new()
+            .op(Op::infix(Rule::logic_or, Left) | Op::infix(Rule::logic_and, Left))
             .op(Op::infix(Rule::r#eq, Left) | Op::infix(Rule::neq, Left))
             .op(Op::infix(Rule::lt, Left)
                 | Op::infix(Rule::lte, Left)
@@ -18,7 +19,7 @@ lazy_static! {
             .op(Op::infix(Rule::mul, Left)
                 | Op::infix(Rule::div, Left)
                 | Op::infix(Rule::r#mod, Left))
-            .op(Op::prefix(Rule::neg) | Op::prefix(Rule::not))
+            .op(Op::prefix(Rule::neg) | Op::prefix(Rule::logic_not))
     };
 }
 
@@ -98,6 +99,8 @@ pub enum BinaryOpType {
     Lte,
     Gt,
     Gte,
+    LogicAnd,
+    LogicOr,
 }
 
 impl BinaryOpType {
@@ -114,6 +117,8 @@ impl BinaryOpType {
             Rule::lte => Self::Lte,
             Rule::gt => Self::Gt,
             Rule::gte => Self::Gte,
+            Rule::logic_or => Self::LogicOr,
+            Rule::logic_and => Self::LogicAnd,
             _ => unreachable!(),
         }
     }
@@ -122,14 +127,14 @@ impl BinaryOpType {
 #[derive(Debug)]
 pub enum UnaryOpType {
     Neg,
-    Not,
+    LogicNot,
 }
 
 impl UnaryOpType {
     pub fn from_pair(pair: Pair<Rule>) -> Self {
         match pair.as_rule() {
             Rule::neg => Self::Neg,
-            Rule::not => Self::Not,
+            Rule::logic_not => Self::LogicNot,
             _ => unreachable!(),
         }
     }

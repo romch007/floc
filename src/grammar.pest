@@ -21,7 +21,7 @@ type = { "entier" | "booleen" }
 expr      = { prefix? ~ primary ~ (infix ~ prefix? ~ primary)* }
 expr_list = { expr ~ ("," ~ expr)* }
 
-infix = _{ add | sub | mul | div | pow | mod | eq | neq | lte | gte | lt | gt }
+infix = _{ add | sub | mul | div | pow | mod | eq | neq | lte | gte | lt | gt | logic_and | logic_or }
 add   =  { "+" }
 sub   =  { "-" }
 mul   =  { "*" }
@@ -34,10 +34,12 @@ lte   =  { "<=" }
 gte   =  { ">=" }
 lt    =  { "<" }
 gt    =  { ">" }
+logic_and = { "et" }
+logic_or  = { "ou" }
 
-prefix = _{ neg | not }
-neg    =  { "-" }
-not    =  { "!" }
+prefix       = _{ neg | logic_not }
+neg          =  { "-" }
+logic_not    =  { "non" }
 
 primary       = _{ integer | boolean | read | random | function_call | ident | "(" ~ expr ~ ")" }
 integer       = @{ ASCII_DIGIT+ }
