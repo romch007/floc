@@ -224,7 +224,7 @@ impl<'ctx> CodeGen<'ctx> {
         let default_ret_val = fn_decl
             .return_type
             .to_llvm(self.context)
-            .const_int(0 as u64, false);
+            .const_int(0_u64, false);
 
         self.builder.build_return(Some(&default_ret_val))?;
 
@@ -396,7 +396,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub fn emit_write(&mut self, value: &ast::Expression) -> Result<(), Error> {
-        let value = self.emit_expression(&value)?;
+        let value = self.emit_expression(value)?;
 
         let args: &[BasicMetadataValueEnum<'ctx>] =
             &[self.printf.1.as_pointer_value().into(), value.into()];
@@ -416,7 +416,7 @@ impl<'ctx> CodeGen<'ctx> {
             ast::Expression::BinaryOp { left, op, right } => {
                 self.emit_binary_op(left, op, right)?
             }
-            ast::Expression::UnaryOp { op, operand } => self.emit_unary_op(op, &operand)?,
+            ast::Expression::UnaryOp { op, operand } => self.emit_unary_op(op, operand)?,
         })
     }
 
@@ -425,14 +425,12 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub fn emit_boolean(&mut self, value: bool) -> Result<IntValue<'ctx>, Error> {
-        let int_val = if value { 1 } else { 0 };
-
-        Ok(self.context.bool_type().const_int(int_val, false))
+        Ok(self.context.bool_type().const_int(value.into(), false))
     }
 
     pub fn emit_variable(&mut self, name: &str) -> Result<IntValue<'ctx>, Error> {
         let variable = self
-            .get_variable(&name)
+            .get_variable(name)
             .ok_or(Error::VariableNotFound(name.to_string()))?;
 
         let value = self
