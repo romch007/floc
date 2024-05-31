@@ -1,0 +1,24 @@
+booleen is_prime(entier nb) {
+  entier i = 2;
+
+  tantque (i < nb) {
+    si (nb % i == 0) {
+      retourner Faux;
+    }
+
+    i = i + 1;
+  }
+
+  retourner Vrai;
+}
+
+entier i = 0;
+entier max = 50;
+
+tantque (i < max) {
+  si (is_prime(i)) {
+    ecrire(i);
+  }
+
+  i = i + 1;
+}
