@@ -403,7 +403,7 @@ impl<'ctx> CodeGen<'ctx> {
         let args: &[BasicMetadataValueEnum<'ctx>] =
             &[self.printf.1.as_pointer_value().into(), value.into()];
 
-        self.builder.build_call(self.printf.0, args, "")?;
+        self.builder.build_call(self.printf.0, args, "write_call")?;
 
         Ok(())
     }
@@ -478,7 +478,9 @@ impl<'ctx> CodeGen<'ctx> {
             exprs.push(expr.into());
         }
 
-        let retval = self.builder.build_call(function.func, &exprs, "")?;
+        let retval =
+            self.builder
+                .build_call(function.func, &exprs, &format!("{}_call", &fn_call.name))?;
         Ok(retval.try_as_basic_value().unwrap_left().into_int_value())
     }
 
@@ -490,7 +492,7 @@ impl<'ctx> CodeGen<'ctx> {
         let args: &[BasicMetadataValueEnum<'ctx>] =
             &[self.scanf.1.as_pointer_value().into(), result_value.into()];
 
-        self.builder.build_call(self.scanf.0, args, "")?;
+        self.builder.build_call(self.scanf.0, args, "read_call")?;
 
         let value =
             self.builder
@@ -551,8 +553,8 @@ impl<'ctx> CodeGen<'ctx> {
         let operand = self.emit_expression(operand)?;
 
         let result = match op {
-            ast::UnaryOpType::Neg => self.builder.build_int_neg(operand, "")?,
-            ast::UnaryOpType::Not => self.builder.build_not(operand, "")?,
+            ast::UnaryOpType::Neg => self.builder.build_int_neg(operand, "neg")?,
+            ast::UnaryOpType::Not => self.builder.build_not(operand, "not")?,
         };
 
         Ok(result)
