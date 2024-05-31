@@ -20,7 +20,7 @@ fn main() {
         Ok(output) => output,
         Err(err) => {
             eprintln!("{err}");
-            std::process::exit(1);
+            process::exit(1);
         }
     };
 
