@@ -320,32 +320,24 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub fn emit_while(&mut self, whil: &ast::While) -> Result<(), Error> {
-        let condition_bb = self
-            .context
-            .append_basic_block(self.current_function.unwrap(), "while.condition");
-
         let body_bb = self
             .context
             .append_basic_block(self.current_function.unwrap(), "while.body");
+
+        let condition_bb = self
+            .context
+            .append_basic_block(self.current_function.unwrap(), "while.condition");
 
         let end_bb = self
             .context
             .append_basic_block(self.current_function.unwrap(), "while.end");
 
+        // Jump to condition
         self.builder.build_unconditional_branch(condition_bb)?;
-
-        self.builder.position_at_end(condition_bb);
-
-        let condition = self.emit_expression(&whil.condition)?;
-        let condition =
-            self.builder
-                .build_int_cast(condition, self.context.bool_type(), "condition")?;
-
-        self.builder
-            .build_conditional_branch(condition, body_bb, end_bb)?;
 
         self.builder.position_at_end(body_bb);
 
+        // Emit while body
         self.push_stack_frame();
         for stmt in &whil.statements {
             self.emit_statement(stmt)?;
@@ -353,6 +345,14 @@ impl<'ctx> CodeGen<'ctx> {
         self.pop_stack_frame();
 
         self.builder.build_unconditional_branch(condition_bb)?;
+
+        self.builder.position_at_end(condition_bb);
+
+        // Evaluate condition
+        let condition = self.emit_expression(&whil.condition)?;
+
+        self.builder
+            .build_conditional_branch(condition, body_bb, end_bb)?;
 
         self.builder.position_at_end(end_bb);
 
@@ -363,6 +363,7 @@ impl<'ctx> CodeGen<'ctx> {
         let then_bb = self
             .context
             .append_basic_block(self.current_function.unwrap(), "if.then");
+
         let else_bb = self
             .context
             .append_basic_block(self.current_function.unwrap(), "if.else");
@@ -372,9 +373,6 @@ impl<'ctx> CodeGen<'ctx> {
             .append_basic_block(self.current_function.unwrap(), "if.end");
 
         let condition = self.emit_expression(&i.condition)?;
-        let condition =
-            self.builder
-                .build_int_cast(condition, self.context.bool_type(), "condition")?;
 
         self.builder
             .build_conditional_branch(condition, then_bb, else_bb)?;
