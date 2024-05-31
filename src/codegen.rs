@@ -221,8 +221,12 @@ impl<'ctx> CodeGen<'ctx> {
         }
         self.pop_stack_frame();
 
-        self.builder
-            .build_return(Some(&self.context.i32_type().const_int(0 as u64, false)))?;
+        let default_ret_val = fn_decl
+            .return_type
+            .to_llvm(self.context)
+            .const_int(0 as u64, false);
+
+        self.builder.build_return(Some(&default_ret_val))?;
 
         Ok(())
     }
@@ -505,34 +509,34 @@ impl<'ctx> CodeGen<'ctx> {
         let right = self.emit_expression(right)?;
 
         let result = match op {
-            ast::BinaryOpType::Add => self.builder.build_int_add(left, right, "")?,
-            ast::BinaryOpType::Sub => self.builder.build_int_sub(left, right, "")?,
-            ast::BinaryOpType::Mul => self.builder.build_int_mul(left, right, "")?,
-            ast::BinaryOpType::Div => self.builder.build_int_signed_div(left, right, "")?,
-            ast::BinaryOpType::Mod => self.builder.build_int_signed_rem(left, right, "")?,
+            ast::BinaryOpType::Add => self.builder.build_int_add(left, right, "add")?,
+            ast::BinaryOpType::Sub => self.builder.build_int_sub(left, right, "sub")?,
+            ast::BinaryOpType::Mul => self.builder.build_int_mul(left, right, "mul")?,
+            ast::BinaryOpType::Div => self.builder.build_int_signed_div(left, right, "div")?,
+            ast::BinaryOpType::Mod => self.builder.build_int_signed_rem(left, right, "mod")?,
             ast::BinaryOpType::Eq => {
                 self.builder
-                    .build_int_compare(IntPredicate::EQ, left, right, "")?
+                    .build_int_compare(IntPredicate::EQ, left, right, "eq")?
             }
             ast::BinaryOpType::Neq => {
                 self.builder
-                    .build_int_compare(IntPredicate::NE, left, right, "")?
+                    .build_int_compare(IntPredicate::NE, left, right, "neq")?
             }
             ast::BinaryOpType::Lt => {
                 self.builder
-                    .build_int_compare(IntPredicate::SLT, left, right, "")?
+                    .build_int_compare(IntPredicate::SLT, left, right, "lt")?
             }
             ast::BinaryOpType::Lte => {
                 self.builder
-                    .build_int_compare(IntPredicate::SLE, left, right, "")?
+                    .build_int_compare(IntPredicate::SLE, left, right, "lte")?
             }
             ast::BinaryOpType::Gt => {
                 self.builder
-                    .build_int_compare(IntPredicate::SGT, left, right, "")?
+                    .build_int_compare(IntPredicate::SGT, left, right, "gt")?
             }
             ast::BinaryOpType::Gte => {
                 self.builder
-                    .build_int_compare(IntPredicate::SGE, left, right, "")?
+                    .build_int_compare(IntPredicate::SGE, left, right, "gte")?
             }
         };
 
