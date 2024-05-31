@@ -1,5 +1,3 @@
-use std::io;
-
 use crate::parser::Rule;
 use lazy_static::lazy_static;
 use pest::{iterators::Pair, pratt_parser::PrattParser};
@@ -24,15 +22,6 @@ lazy_static! {
     };
 }
 
-fn debug_print<T>(w: &mut impl io::Write, value: T, indent: usize) -> Result<(), io::Error>
-where
-    T: std::fmt::Display,
-{
-    writeln!(w, "{}{}", " ".repeat(indent), value)?;
-
-    Ok(())
-}
-
 fn parse_bool(input: &str) -> Option<bool> {
     match input {
         "Vrai" => Some(true),
@@ -42,8 +31,6 @@ fn parse_bool(input: &str) -> Option<bool> {
 }
 
 pub trait Node {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error>;
-
     fn parse(pair: Pair<Rule>) -> Self;
 }
 
@@ -54,10 +41,6 @@ pub enum Type {
 }
 
 impl Node for Type {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
-        todo!();
-    }
-
     fn parse(pair: Pair<Rule>) -> Self {
         match pair.as_str() {
             "entier" => Self::Integer,
@@ -87,10 +70,6 @@ pub struct FunctionCall {
 }
 
 impl Node for FunctionCall {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
-        todo!()
-    }
-
     fn parse(pair: Pair<Rule>) -> Self {
         let mut pairs = pair.into_inner();
 
@@ -175,10 +154,6 @@ pub enum Expression {
 }
 
 impl Node for Expression {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
-        todo!()
-    }
-
     fn parse(pair: Pair<Rule>) -> Self {
         let pairs = pair.into_inner();
 
@@ -212,10 +187,6 @@ pub struct Assignment {
 }
 
 impl Node for Assignment {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
-        todo!()
-    }
-
     fn parse(pair: Pair<Rule>) -> Self {
         let mut pairs = pair.into_inner();
 
@@ -234,10 +205,6 @@ pub struct Declaration {
 }
 
 impl Node for Declaration {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
-        todo!()
-    }
-
     fn parse(pair: Pair<Rule>) -> Self {
         let mut pairs = pair.into_inner();
 
@@ -264,10 +231,6 @@ pub struct While {
 }
 
 impl Node for While {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
-        todo!()
-    }
-
     fn parse(pair: Pair<Rule>) -> Self {
         let mut pairs = pair.into_inner();
 
@@ -293,10 +256,6 @@ pub struct If {
 }
 
 impl Node for If {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
-        todo!()
-    }
-
     fn parse(pair: Pair<Rule>) -> Self {
         let mut pairs = pair.into_inner();
 
@@ -326,18 +285,6 @@ pub enum Statement {
 }
 
 impl Node for Statement {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
-        match self {
-            Statement::Assignment(assign) => assign.debug_print(w, indent),
-            Statement::Declaration(decl) => decl.debug_print(w, indent),
-            Statement::While(whil) => whil.debug_print(w, indent),
-            Statement::If(i) => i.debug_print(w, indent),
-            _ => todo!(),
-        }?;
-
-        Ok(())
-    }
-
     fn parse(pair: Pair<Rule>) -> Self {
         match pair.as_rule() {
             Rule::assignment => Self::Assignment(Assignment::parse(pair)),
@@ -362,10 +309,6 @@ pub struct Argument {
 }
 
 impl Node for Argument {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
-        todo!()
-    }
-
     fn parse(pair: Pair<Rule>) -> Self {
         let mut pairs = pair.into_inner();
 
@@ -385,10 +328,6 @@ pub struct FunctionDeclaration {
 }
 
 impl Node for FunctionDeclaration {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
-        todo!()
-    }
-
     fn parse(pair: Pair<Rule>) -> Self {
         let mut pairs = pair.into_inner();
 
@@ -423,10 +362,6 @@ pub struct Program {
 }
 
 impl Node for Program {
-    fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
-        todo!()
-    }
-
     fn parse(pair: Pair<Rule>) -> Self {
         let mut pairs = pair.into_inner();
 

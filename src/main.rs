@@ -3,11 +3,7 @@ mod cli;
 mod codegen;
 mod parser;
 
-use std::{
-    fs,
-    io::{self, Write},
-    process,
-};
+use std::{fs, io::Write, process};
 
 use ast::Node;
 use clap::Parser as ClapParser;
@@ -31,9 +27,7 @@ fn main() {
     let ast_prog = ast::Program::parse(pest_output.next().unwrap());
 
     if args.emit_ast {
-        ast_prog
-            .debug_print(&mut io::stderr(), 0)
-            .expect("cannot write debug output");
+        eprintln!("{ast_prog:#?}");
 
         return;
     }

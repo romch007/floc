@@ -15,7 +15,7 @@ use crate::ast;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("LLVM builder error")]
-    BuilderError(#[from] inkwell::builder::BuilderError),
+    Builder(#[from] inkwell::builder::BuilderError),
 
     #[error("variable '{0}' not found")]
     VariableNotFound(String),
