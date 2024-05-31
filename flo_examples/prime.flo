@@ -12,7 +12,7 @@ booleen is_prime(entier nb) {
   retourner Vrai;
 }
 
-entier i = 0;
+entier i = 2;
 entier max = 50;
 
 tantque (i < max) {
