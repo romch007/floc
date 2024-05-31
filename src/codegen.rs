@@ -5,7 +5,7 @@ use inkwell::{
     context::Context,
     module::Module,
     support::LLVMString,
-    types::{BasicMetadataTypeEnum, BasicType, IntType},
+    types::{BasicMetadataTypeEnum, IntType},
     values::{BasicMetadataValueEnum, FunctionValue, GlobalValue, IntValue, PointerValue},
     AddressSpace, IntPredicate,
 };
