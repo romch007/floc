@@ -47,7 +47,11 @@ fn main() {
 
     let llvm_context = inkwell::context::Context::create();
     let mut codegen = codegen::CodeGen::new(&llvm_context, module_name);
-    codegen.emit_program(&ast_prog).expect("codegen error");
+    if let Err(error) = codegen.emit_program(&ast_prog) {
+        eprintln!("Compilation error: ");
+        eprintln!("{error}");
+        process::exit(1);
+    }
 
     if args.emit_ir {
         codegen.dump_to_stderr();
