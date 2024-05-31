@@ -1,0 +1,10 @@
+entier fibonacci(entier n) {
+  si (n == 0) {
+    retourner 1;
+  }
+  
+  retourner n * fibonacci(n - 1);
+}
+
+entier n = lire();
+ecrire(fibonacci(n));
