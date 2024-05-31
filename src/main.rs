@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate pest_ast;
-
 mod ast;
 mod cli;
 mod codegen;
@@ -14,7 +11,6 @@ use std::{
 
 use ast::Node;
 use clap::Parser as ClapParser;
-use from_pest::FromPest;
 use pest::Parser;
 
 use parser::FloParser;
@@ -32,7 +28,8 @@ fn main() {
         }
     };
 
-    let ast_prog = ast::Program::from_pest(&mut pest_output).expect("cannot convert to AST");
+    let ast_prog = ast::Program::parse(pest_output.next().unwrap());
+    eprintln!("{ast_prog:?}");
 
     if args.emit_ast {
         ast_prog
