@@ -40,6 +40,7 @@ pub struct CodeGen<'ctx> {
     variables: Vec<HashMap<String, PointerValue<'ctx>>>,
     functions: HashMap<String, Function<'ctx>>,
     printf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
+    scanf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -47,12 +48,14 @@ impl<'ctx> CodeGen<'ctx> {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
         let printf = CodeGen::create_printf(context, &module);
+        let scanf = CodeGen::create_scanf(context, &module);
 
         Self {
             context,
             module,
             builder,
             printf,
+            scanf,
             current_function: None,
             variables: vec![],
             functions: HashMap::default(),
@@ -121,17 +124,39 @@ impl<'ctx> CodeGen<'ctx> {
         module: &Module<'ctx>,
     ) -> (FunctionValue<'ctx>, GlobalValue<'ctx>) {
         let printf_format = "%d\n";
-        let printf_format_type = context.i8_type().array_type(4);
+        let printf_format_type = context
+            .i8_type()
+            .array_type((printf_format.len() + 1) as u32);
         let printf_format_global = module.add_global(printf_format_type, None, "write_format");
 
         printf_format_global.set_initializer(&context.const_string(printf_format.as_bytes(), true));
 
         let printf_args = [context.i32_type().ptr_type(AddressSpace::default()).into()];
 
-        let printf_type = context.i32_type().fn_type(&printf_args, false);
+        let printf_type = context.i32_type().fn_type(&printf_args, true);
         let printf_fn = module.add_function("printf", printf_type, None);
 
         (printf_fn, printf_format_global)
+    }
+
+    fn create_scanf(
+        context: &'ctx Context,
+        module: &Module<'ctx>,
+    ) -> (FunctionValue<'ctx>, GlobalValue<'ctx>) {
+        let scanf_format = "%d";
+        let scanf_format_type = context
+            .i8_type()
+            .array_type((scanf_format.len() + 1) as u32);
+        let scanf_format_global = module.add_global(scanf_format_type, None, "read_format");
+
+        scanf_format_global.set_initializer(&context.const_string(scanf_format.as_bytes(), true));
+
+        let scanf_args = [context.i32_type().ptr_type(AddressSpace::default()).into()];
+
+        let scanf_type = context.i32_type().fn_type(&scanf_args, true);
+        let scanf_fn = module.add_function("scanf", scanf_type, None);
+
+        (scanf_fn, scanf_format_global)
     }
 
     pub fn emit_function_declaration(
@@ -143,10 +168,10 @@ impl<'ctx> CodeGen<'ctx> {
         let function_type = self.context.i32_type().fn_type(&function_params, false);
         let function = self
             .module
-            .add_function(fn_decl.name.as_ref(), function_type, None);
+            .add_function(&fn_decl.name.value, function_type, None);
 
         self.functions.insert(
-            fn_decl.name.as_ref().to_string(),
+            fn_decl.name.value.clone(),
             Function {
                 func: function,
                 args_count: fn_decl.arguments.len(),
@@ -166,10 +191,10 @@ impl<'ctx> CodeGen<'ctx> {
 
             let alloca_ptr = self
                 .builder
-                .build_alloca(self.context.i32_type(), arg.name.as_ref())?;
+                .build_alloca(self.context.i32_type(), &arg.name.value)?;
 
             self.builder.build_store(alloca_ptr, value)?;
-            self.insert_variable(arg.name.as_ref(), alloca_ptr);
+            self.insert_variable(&arg.name.value, alloca_ptr);
         }
 
         for stmt in &fn_decl.statements {
@@ -200,9 +225,9 @@ impl<'ctx> CodeGen<'ctx> {
     pub fn emit_declaration(&mut self, decl: &ast::Declaration) -> Result<(), Error> {
         let alloca_ptr = self
             .builder
-            .build_alloca(self.context.i32_type(), decl.variable.as_ref())?;
+            .build_alloca(self.context.i32_type(), &decl.variable.value)?;
 
-        self.insert_variable(decl.variable.as_ref(), alloca_ptr);
+        self.insert_variable(&decl.variable.value, alloca_ptr);
 
         if let Some(default_value) = &decl.value {
             let init_val = self.emit_expression(default_value)?;
@@ -214,7 +239,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     pub fn emit_assignment(&mut self, assign: &ast::Assignment) -> Result<(), Error> {
         let ptr = self
-            .get_variable(assign.variable.as_ref())
+            .get_variable(&assign.variable.value)
             .ok_or(Error::VariableNotFound(assign.variable.value.clone()))?;
 
         let val = self.emit_expression(&assign.value)?;
@@ -232,6 +257,42 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub fn emit_while(&mut self, whil: &ast::While) -> Result<(), Error> {
+        let condition_bb = self
+            .context
+            .append_basic_block(self.current_function.unwrap(), "while.condition");
+
+        let body_bb = self
+            .context
+            .append_basic_block(self.current_function.unwrap(), "while.body");
+
+        let end_bb = self
+            .context
+            .append_basic_block(self.current_function.unwrap(), "while.end");
+
+        self.builder.build_unconditional_branch(condition_bb)?;
+
+        self.builder.position_at_end(condition_bb);
+
+        let condition = self.emit_expression(&whil.condition)?;
+        let condition =
+            self.builder
+                .build_int_cast(condition, self.context.bool_type(), "condition")?;
+
+        self.builder
+            .build_conditional_branch(condition, body_bb, end_bb)?;
+
+        self.builder.position_at_end(body_bb);
+
+        self.push_stack_frame();
+        for stmt in &whil.statements {
+            self.emit_statement(stmt)?;
+        }
+        self.pop_stack_frame();
+
+        self.builder.build_unconditional_branch(condition_bb)?;
+
+        self.builder.position_at_end(end_bb);
+
         Ok(())
     }
 
@@ -281,6 +342,7 @@ impl<'ctx> CodeGen<'ctx> {
             ast::Expression::Integer(int) => self.emit_integer(int)?,
             ast::Expression::Variable(var) => self.emit_variable(var)?,
             ast::Expression::FunctionCall(fn_call) => self.emit_function_call(fn_call)?,
+            ast::Expression::Read(read) => self.emit_read(read)?,
             _ => unimplemented!("unimplemented {expr:?}"),
         })
     }
@@ -291,12 +353,12 @@ impl<'ctx> CodeGen<'ctx> {
 
     pub fn emit_variable(&mut self, var: &ast::Identifier) -> Result<IntValue<'ctx>, Error> {
         let ptr = self
-            .get_variable(var.value.as_ref())
+            .get_variable(&var.value)
             .ok_or(Error::VariableNotFound(var.value.clone()))?;
 
         let value = self
             .builder
-            .build_load(self.context.i32_type(), ptr, var.as_ref())?;
+            .build_load(self.context.i32_type(), ptr, &var.value)?;
 
         Ok(value.into_int_value())
     }
@@ -307,7 +369,7 @@ impl<'ctx> CodeGen<'ctx> {
     ) -> Result<IntValue<'ctx>, Error> {
         let function = self
             .functions
-            .get(fn_call.name.as_ref())
+            .get(&fn_call.name.value)
             .cloned()
             .ok_or(Error::FunctionNotFound(fn_call.name.value.clone()))?;
 
@@ -327,6 +389,23 @@ impl<'ctx> CodeGen<'ctx> {
 
         let retval = self.builder.build_call(function.func, &exprs, "")?;
         Ok(retval.try_as_basic_value().unwrap_left().into_int_value())
+    }
+
+    pub fn emit_read(&mut self, _read: &ast::Read) -> Result<IntValue<'ctx>, Error> {
+        let result_value = self
+            .builder
+            .build_alloca(self.context.i32_type(), "read_result")?;
+
+        let args: &[BasicMetadataValueEnum<'ctx>] =
+            &[self.scanf.1.as_pointer_value().into(), result_value.into()];
+
+        self.builder.build_call(self.scanf.0, args, "")?;
+
+        let value =
+            self.builder
+                .build_load(self.context.i32_type(), result_value, "read_result")?;
+
+        Ok(value.into_int_value())
     }
 }
 

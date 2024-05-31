@@ -12,7 +12,7 @@ use std::{
     process,
 };
 
-use ast::Print;
+use ast::Node;
 use clap::Parser as ClapParser;
 use from_pest::FromPest;
 use pest::Parser;

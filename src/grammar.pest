@@ -16,7 +16,7 @@ return      = { "retourner" ~ expr ~ ";" }
 
 type = { "entier" | "booleen" }
 
-expr      =  { integer | boolean | function_call | read | ident }
+expr      =  { integer | boolean | read | function_call |  ident }
 expr_list = _{ expr ~ ("," ~ expr)* }
 
 integer       = @{ ASCII_DIGIT+ }

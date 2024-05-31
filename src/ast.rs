@@ -28,7 +28,7 @@ where
     Ok(())
 }
 
-pub trait Print {
+pub trait Node {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error>;
 }
 
@@ -39,7 +39,7 @@ pub struct Type {
     pub name: String,
 }
 
-impl Print for Type {
+impl Node for Type {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, &self.name, indent)?;
 
@@ -60,7 +60,7 @@ pub struct Integer {
     pub value: u32,
 }
 
-impl Print for Integer {
+impl Node for Integer {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, self.value, indent)?;
 
@@ -81,7 +81,7 @@ pub struct Boolean {
     pub value: bool,
 }
 
-impl Print for Boolean {
+impl Node for Boolean {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, self.value, indent)?;
 
@@ -99,7 +99,7 @@ impl AsRef<bool> for Boolean {
 #[pest_ast(rule(parser::Rule::read))]
 pub struct Read;
 
-impl Print for Read {
+impl Node for Read {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, "Read", indent)?;
 
@@ -114,7 +114,7 @@ pub struct FunctionCall {
     pub arguments: Vec<Expression>,
 }
 
-impl Print for FunctionCall {
+impl Node for FunctionCall {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, "FunctionCall", indent)?;
 
@@ -138,7 +138,7 @@ pub enum Expression {
     FunctionCall(FunctionCall),
 }
 
-impl Print for Expression {
+impl Node for Expression {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         match self {
             Expression::Integer(integer) => integer.debug_print(w, indent),
@@ -159,7 +159,7 @@ pub struct Identifier {
     pub value: String,
 }
 
-impl Print for Identifier {
+impl Node for Identifier {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, &self.value, indent)?;
 
@@ -180,7 +180,7 @@ pub struct Assignment {
     pub value: Expression,
 }
 
-impl Print for Assignment {
+impl Node for Assignment {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, "Assignment", indent)?;
         self.variable.debug_print(w, indent + 2)?;
@@ -199,7 +199,7 @@ pub struct Declaration {
     pub value: Option<Expression>,
 }
 
-impl Print for Declaration {
+impl Node for Declaration {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, "Declaration", indent)?;
         self.r#type.debug_print(w, indent + 2)?;
@@ -219,7 +219,7 @@ pub struct Write {
     pub value: Expression,
 }
 
-impl Print for Write {
+impl Node for Write {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, "Write", indent)?;
         self.value.debug_print(w, indent + 2)?;
@@ -234,7 +234,7 @@ pub struct Return {
     pub value: Expression,
 }
 
-impl Print for Return {
+impl Node for Return {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, "Return", indent)?;
         self.value.debug_print(w, indent + 2)?;
@@ -250,7 +250,7 @@ pub struct While {
     pub statements: Vec<Statement>,
 }
 
-impl Print for While {
+impl Node for While {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, "While", indent)?;
         self.condition.debug_print(w, indent + 2)?;
@@ -269,7 +269,7 @@ pub struct If {
     pub statements: Vec<Statement>,
 }
 
-impl Print for If {
+impl Node for If {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, "If", indent)?;
         self.condition.debug_print(w, indent + 2)?;
@@ -292,7 +292,7 @@ pub enum Statement {
     If(If),
 }
 
-impl Print for Statement {
+impl Node for Statement {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         match self {
             Statement::Assignment(assign) => assign.debug_print(w, indent),
@@ -314,7 +314,7 @@ pub struct Argument {
     pub name: Identifier,
 }
 
-impl Print for Argument {
+impl Node for Argument {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, "Argument", indent)?;
         self.r#type.debug_print(w, indent + 2)?;
@@ -333,7 +333,7 @@ pub struct FunctionDeclaration {
     pub statements: Vec<Statement>,
 }
 
-impl Print for FunctionDeclaration {
+impl Node for FunctionDeclaration {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, "FunctionDeclaration", indent)?;
         self.return_type.debug_print(w, indent + 2)?;
@@ -359,7 +359,7 @@ pub struct Program {
     _eoi: Eoi,
 }
 
-impl Print for Program {
+impl Node for Program {
     fn debug_print(&self, w: &mut impl io::Write, indent: usize) -> Result<(), io::Error> {
         debug_print(w, "Program", indent)?;
 
