@@ -73,13 +73,6 @@ impl<'ctx> CodeGen<'ctx> {
         self.variables.pop();
     }
 
-    fn int_type(&self, ast_type: &ast::Type) -> IntType<'ctx> {
-        match ast_type {
-            ast::Type::Integer => self.context.i32_type(),
-            ast::Type::Boolean => self.context.bool_type(),
-        }
-    }
-
     fn get_variable(&self, name: &str) -> Option<Variable<'ctx>> {
         for stack_frame in self.variables.iter().rev() {
             if let Some(variable) = stack_frame.get(name) {
@@ -173,16 +166,28 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         fn_decl: &ast::FunctionDeclaration,
     ) -> Result<(), Error> {
-        let function_params: Vec<BasicMetadataTypeEnum<'ctx>> =
-            vec![self.context.i32_type().into(); fn_decl.arguments.len()];
-        let function_type = self.context.i32_type().fn_type(&function_params, false);
+        let function_params = fn_decl
+            .arguments
+            .iter()
+            .map(|arg| arg.r#type.to_llvm(self.context).into())
+            .collect::<Vec<BasicMetadataTypeEnum<'ctx>>>();
+
+        let function_type = fn_decl
+            .return_type
+            .to_llvm(self.context)
+            .fn_type(&function_params, false);
+
         let function = self.module.add_function(&fn_decl.name, function_type, None);
 
         self.functions.insert(
             fn_decl.name.clone(),
             Function {
                 func: function,
-                args_count: fn_decl.arguments.len(),
+                args: fn_decl
+                    .arguments
+                    .iter()
+                    .map(|arg| arg.r#type.clone())
+                    .collect(),
             },
         );
 
@@ -236,7 +241,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub fn emit_declaration(&mut self, decl: &ast::Declaration) -> Result<(), Error> {
-        let int_type = self.int_type(&decl.r#type);
+        let int_type = decl.r#type.to_llvm(self.context);
 
         let alloca_ptr = self.builder.build_alloca(int_type, &decl.variable)?;
 
@@ -250,6 +255,15 @@ impl<'ctx> CodeGen<'ctx> {
 
         if let Some(default_value) = &decl.value {
             let init_val = self.emit_expression(default_value)?;
+            let init_val_type = init_val.get_type().to_ast();
+
+            if init_val_type != decl.r#type {
+                return Err(Error::TypeMismatch {
+                    expected: decl.r#type.clone(),
+                    got: init_val_type.clone(),
+                });
+            }
+
             self.builder.build_store(alloca_ptr, init_val)?;
         }
 
@@ -262,6 +276,15 @@ impl<'ctx> CodeGen<'ctx> {
             .ok_or(Error::VariableNotFound(assign.variable.clone()))?;
 
         let val = self.emit_expression(&assign.value)?;
+        let val_type = val.get_type().to_ast();
+
+        if val_type != variable.r#type {
+            return Err(Error::TypeMismatch {
+                expected: variable.r#type.clone(),
+                got: val_type.clone(),
+            });
+        }
+
         self.builder.build_store(variable.ptr, val)?;
 
         Ok(())
@@ -269,6 +292,23 @@ impl<'ctx> CodeGen<'ctx> {
 
     pub fn emit_return(&mut self, retval: &ast::Expression) -> Result<(), Error> {
         let ret_val = self.emit_expression(retval)?;
+
+        let ret_val_type = ret_val.get_type().to_ast();
+        let fn_return_type = self
+            .current_function
+            .unwrap()
+            .get_type()
+            .get_return_type()
+            .unwrap()
+            .into_int_type()
+            .to_ast();
+
+        if ret_val_type != fn_return_type {
+            return Err(Error::TypeMismatch {
+                expected: fn_return_type.clone(),
+                got: ret_val_type.clone(),
+            });
+        }
 
         self.builder.build_return(Some(&ret_val))?;
 
@@ -410,19 +450,29 @@ impl<'ctx> CodeGen<'ctx> {
             .cloned()
             .ok_or(Error::FunctionNotFound(fn_call.name.clone()))?;
 
-        if function.args_count != fn_call.arguments.len() {
+        if function.args.len() != fn_call.arguments.len() {
             return Err(Error::ArgumentCountMismatch {
                 func: fn_call.name.clone(),
-                expected: function.args_count,
+                expected: function.args.len(),
                 got: fn_call.arguments.len(),
             });
         }
 
-        let exprs = fn_call
-            .arguments
-            .iter()
-            .map(|arg| self.emit_expression(&arg).map(Into::into))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut exprs = Vec::<BasicMetadataValueEnum<'ctx>>::with_capacity(function.args.len());
+
+        for (fn_call_arg, function_arg) in fn_call.arguments.iter().zip(&function.args) {
+            let expr = self.emit_expression(fn_call_arg)?;
+            let expr_type = expr.get_type().to_ast();
+
+            if &expr_type != function_arg {
+                return Err(Error::TypeMismatch {
+                    expected: function_arg.clone(),
+                    got: expr_type.clone(),
+                });
+            }
+
+            exprs.push(expr.into());
+        }
 
         let retval = self.builder.build_call(function.func, &exprs, "")?;
         Ok(retval.try_as_basic_value().unwrap_left().into_int_value())
@@ -508,11 +558,38 @@ impl<'ctx> CodeGen<'ctx> {
 #[derive(Debug, Clone)]
 struct Function<'ctx> {
     pub func: FunctionValue<'ctx>,
-    pub args_count: usize,
+    pub args: Vec<ast::Type>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Variable<'ctx> {
     ptr: PointerValue<'ctx>,
     r#type: ast::Type,
+}
+
+trait ToAstType {
+    fn to_ast(&self) -> ast::Type;
+}
+
+impl ToAstType for IntType<'_> {
+    fn to_ast(&self) -> ast::Type {
+        match self.get_bit_width() {
+            1 => ast::Type::Boolean,
+            32 => ast::Type::Integer,
+            width => unreachable!("unknown IntType of width {width}"),
+        }
+    }
+}
+
+trait ToLlvmType {
+    fn to_llvm<'ctx>(&self, context: &'ctx Context) -> IntType<'ctx>;
+}
+
+impl ToLlvmType for ast::Type {
+    fn to_llvm<'ctx>(&self, context: &'ctx Context) -> IntType<'ctx> {
+        match self {
+            ast::Type::Integer => context.i32_type(),
+            ast::Type::Boolean => context.bool_type(),
+        }
+    }
 }

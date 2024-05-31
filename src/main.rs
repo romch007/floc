@@ -29,7 +29,6 @@ fn main() {
     };
 
     let ast_prog = ast::Program::parse(pest_output.next().unwrap());
-    eprintln!("{ast_prog:?}");
 
     if args.emit_ast {
         ast_prog
