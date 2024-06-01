@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use clap::crate_version;
 use clap::CommandFactory;
 use clap::FromArgMatches;
@@ -22,7 +20,7 @@ pub struct Args {
     pub emit_ir: bool,
 
     /// Source file to compile
-    pub source_file: PathBuf,
+    pub source_file: String,
 
     /// Additional params to pass to clang
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]

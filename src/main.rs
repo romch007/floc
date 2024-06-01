@@ -4,7 +4,12 @@ mod cli;
 mod codegen;
 mod parser;
 
-use std::{fs, io::Write, process};
+use std::{
+    fs,
+    io::{self, Read, Write},
+    path::Path,
+    process,
+};
 
 use ast::Node;
 use pest::Parser;
@@ -13,7 +18,16 @@ use parser::FloParser;
 
 fn main() {
     let args = cli::parse();
-    let source = fs::read_to_string(&args.source_file).expect("cannot read file");
+    let source = match args.source_file.as_str() {
+        "-" => {
+            let mut input = String::new();
+            io::stdin()
+                .read_to_string(&mut input)
+                .expect("cannot read stdin");
+            input
+        }
+        file => fs::read_to_string(file).expect("cannot read file"),
+    };
 
     let pest_output = FloParser::parse(parser::Rule::prog, &source);
     let mut pest_output = match pest_output {
@@ -31,8 +45,7 @@ fn main() {
         return;
     }
 
-    let module_name = args
-        .source_file
+    let module_name = Path::new(&args.source_file)
         .file_name()
         .expect("no filename")
         .to_str()
