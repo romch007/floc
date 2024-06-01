@@ -1,4 +1,5 @@
 mod ast;
+
 mod cli;
 mod codegen;
 mod parser;
@@ -6,13 +7,12 @@ mod parser;
 use std::{fs, io::Write, process};
 
 use ast::Node;
-use clap::Parser as ClapParser;
 use pest::Parser;
 
 use parser::FloParser;
 
 fn main() {
-    let args = cli::Args::parse();
+    let args = cli::parse();
     let source = fs::read_to_string(&args.source_file).expect("cannot read file");
 
     let pest_output = FloParser::parse(parser::Rule::prog, &source);

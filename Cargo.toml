@@ -6,7 +6,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.5.4", features = ["derive"] }
+clap = { version = "4.5.4", features = ["derive", "cargo"] }
 inkwell = { version = "0.4.0", features = ["llvm17-0-prefer-dynamic"] }
 lazy_static = "1.4.0"
 pest = "2.7.10"
