@@ -485,9 +485,9 @@ impl<'ctx> CodeGen<'ctx> {
             .get_variable(name)
             .ok_or(Error::VariableNotFound(name.to_string()))?;
 
-        let value = self
-            .builder
-            .build_load(self.context.i32_type(), variable.ptr, name)?;
+        let value =
+            self.builder
+                .build_load(variable.r#type.to_llvm(self.context), variable.ptr, name)?;
 
         Ok(value.into_int_value())
     }
