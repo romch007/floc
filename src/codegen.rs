@@ -26,7 +26,7 @@ pub enum Error {
     #[error("expected type '{expected}' but got '{got}'")]
     TypeMismatch { expected: ast::Type, got: ast::Type },
 
-    #[error("function '{func}' expected '{expected}' arguments but got '{got}'")]
+    #[error("function '{func}' expected {expected} arguments but got {got}")]
     ArgumentCountMismatch {
         func: String,
         expected: usize,
