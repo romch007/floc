@@ -5,7 +5,7 @@ use pest::{iterators::Pair, pratt_parser::PrattParser};
 lazy_static! {
     static ref PRATT_PARSER: PrattParser<Rule> = {
         use crate::parser::Rule;
-        use pest::pratt_parser::Assoc::*;
+        use pest::pratt_parser::Assoc::Left;
         use pest::pratt_parser::Op;
 
         PrattParser::new()
@@ -46,7 +46,7 @@ impl Node for Type {
         match pair.as_str() {
             "entier" => Self::Integer,
             "booleen" => Self::Boolean,
-            _ => unreachable!("invalid type '{}'", pair.as_str()),
+            pair => unreachable!("invalid type '{pair}'"),
         }
     }
 }
@@ -119,7 +119,7 @@ impl BinaryOpType {
             Rule::gte => Self::Gte,
             Rule::logic_or => Self::LogicOr,
             Rule::logic_and => Self::LogicAnd,
-            _ => unreachable!(),
+            rule => unreachable!("invalid binary op {rule:?}"),
         }
     }
 }
@@ -135,7 +135,7 @@ impl UnaryOpType {
         match pair.as_rule() {
             Rule::neg => Self::Neg,
             Rule::logic_not => Self::LogicNot,
-            _ => unreachable!(),
+            rule => unreachable!("invalid unary op {rule:?}"),
         }
     }
 }
@@ -179,7 +179,7 @@ impl Node for Expression {
                 }
                 Rule::read => Self::Read,
                 Rule::function_call => Self::FunctionCall(FunctionCall::parse(primary)),
-                _ => unreachable!("invalid primary expr '{:?}'", primary.as_rule()),
+                rule => unreachable!("invalid primary expr '{rule:?}'"),
             })
             .map_prefix(|op, rhs| Self::UnaryOp {
                 op: UnaryOpType::from_pair(op),
@@ -333,7 +333,7 @@ impl Node for Statement {
             },
             Rule::r#while => Self::While(While::parse(pair)),
             Rule::r#if => Self::If(If::parse(pair)),
-            _ => unreachable!("invalid statement '{:?}'", pair.as_rule()),
+            rule => unreachable!("invalid statement '{rule:?}'"),
         }
     }
 }

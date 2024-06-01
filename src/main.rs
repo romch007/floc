@@ -28,7 +28,6 @@ fn main() {
 
     if args.emit_ast {
         eprintln!("{ast_prog:#?}");
-
         return;
     }
 
@@ -53,7 +52,6 @@ fn main() {
     }
 
     let ir = codegen.dump_to_string();
-
     let mut compilation_params = vec!["-x", "ir", "-"];
 
     if cfg!(target_os = "windows") {

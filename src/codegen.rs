@@ -342,9 +342,9 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub fn emit_return(&mut self, retval: &ast::Expression) -> Result<(), Error> {
-        let ret_val = self.emit_expression(retval)?;
+        let retval = self.emit_expression(retval)?;
 
-        let ret_val_type = ret_val.get_type().to_ast();
+        let ret_val_type = retval.get_type().to_ast();
         let fn_return_type = self
             .current_function
             .unwrap()
@@ -361,7 +361,7 @@ impl<'ctx> CodeGen<'ctx> {
             });
         }
 
-        self.builder.build_return(Some(&ret_val))?;
+        self.builder.build_return(Some(&retval))?;
 
         Ok(())
     }
@@ -459,8 +459,8 @@ impl<'ctx> CodeGen<'ctx> {
 
     pub fn emit_expression(&mut self, expr: &ast::Expression) -> Result<IntValue<'ctx>, Error> {
         Ok(match expr {
-            ast::Expression::Integer(value) => self.emit_integer(*value)?,
-            ast::Expression::Boolean(value) => self.emit_boolean(*value)?,
+            ast::Expression::Integer(value) => self.emit_integer(*value),
+            ast::Expression::Boolean(value) => self.emit_boolean(*value),
             ast::Expression::Variable(var) => self.emit_variable(var)?,
             ast::Expression::FunctionCall(fn_call) => self.emit_function_call(fn_call)?,
             ast::Expression::Read => self.emit_read()?,
@@ -472,12 +472,12 @@ impl<'ctx> CodeGen<'ctx> {
         })
     }
 
-    pub fn emit_integer(&mut self, value: u32) -> Result<IntValue<'ctx>, Error> {
-        Ok(self.context.i32_type().const_int(value as u64, false))
+    pub fn emit_integer(&mut self, value: u32) -> IntValue<'ctx> {
+        self.context.i32_type().const_int(u64::from(value), false)
     }
 
-    pub fn emit_boolean(&mut self, value: bool) -> Result<IntValue<'ctx>, Error> {
-        Ok(self.context.bool_type().const_int(value.into(), false))
+    pub fn emit_boolean(&mut self, value: bool) -> IntValue<'ctx> {
+        self.context.bool_type().const_int(value.into(), false)
     }
 
     pub fn emit_variable(&mut self, name: &str) -> Result<IntValue<'ctx>, Error> {
