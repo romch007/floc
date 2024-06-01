@@ -54,8 +54,15 @@ fn main() {
 
     let ir = codegen.dump_to_string();
 
+    let mut compilation_params = vec!["-x", "ir", "-"];
+
+    if cfg!(target_os = "windows") {
+        // See https://learn.microsoft.com/en-us/cpp/porting/visual-cpp-change-history-2003-2015?view=msvc-170#stdio_and_conio
+        compilation_params.push("-llegacy_stdio_definitions");
+    }
+
     let mut child = process::Command::new("clang")
-        .args(["-x", "ir", "-"])
+        .args(&compilation_params)
         .args(&args.clang_params)
         .stdin(process::Stdio::piped())
         .spawn()

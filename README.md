@@ -18,8 +18,10 @@ $ cargo build --release
 ```
 
 ```bash
-$ target/release/floc flo_examples/fibonacci.flo [args to pass to clang]
+$ target/release/floc[.exe] flo_examples/fibonacci.flo [args to pass to clang]
 ```
+
+Note: If you are on Windows, make sure you are in a MSVC x64 native tools command prompt, or clang will fail to compile programs.
 
 ## How to code in Flo
 [Link to the reference](FLO_REFERENCE.md)
