@@ -65,7 +65,7 @@ fn main() {
     }
 
     let ir = codegen.dump_to_string();
-    let mut compilation_params = vec!["-x", "ir", "-"];
+    let mut compilation_params = vec!["-x", "ir", "-", "-Wno-override-module"];
 
     if cfg!(target_os = "windows") {
         // See https://learn.microsoft.com/en-us/cpp/porting/visual-cpp-change-history-2003-2015?view=msvc-170#stdio_and_conio
