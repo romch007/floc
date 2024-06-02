@@ -1,9 +1,9 @@
-prog = { SOI ~ function_decl_list ~ stmt_list+ ~ EOI }
+prog = { SOI ~ function_decl_list ~ stmt_list ~ EOI }
 
 function_decl_list = { function_decl* }
-function_decl      = { type ~ ident ~ "(" ~ argument_list? ~ ")" ~ braced_stmts }
+function_decl      = { type ~ ident ~ "(" ~ argument_list ~ ")" ~ braced_stmts }
 argument           = { type ~ ident }
-argument_list      = { argument ~ ("," ~ argument)* }
+argument_list      = { (argument ~ ("," ~ argument)*)? }
 
 stmt         = _{ assignment | declaration | while | write | return | if }
 stmt_list    =  { stmt+ }
@@ -19,7 +19,7 @@ return      = { "retourner" ~ expr ~ ";" }
 type = { "entier" | "booleen" }
 
 expr      = { prefix? ~ primary ~ (infix ~ prefix? ~ primary)* }
-expr_list = { expr ~ ("," ~ expr)* }
+expr_list = { (expr ~ ("," ~ expr)*)? }
 
 infix = _{ add | sub | mul | div | pow | mod | eq | neq | lte | gte | lt | gt | logic_and | logic_or }
 add   =  { "+" }
@@ -46,7 +46,7 @@ integer       = @{ ASCII_DIGIT+ }
 boolean       =  { "Vrai" | "Faux" }
 read          =  { "lire" ~ "(" ~ ")" }
 random        =  { "aleatoire" ~ "(" ~ expr ~ ")" }
-function_call =  { ident ~ "(" ~ expr_list? ~ ")" }
+function_call =  { ident ~ "(" ~ expr_list ~ ")" }
 
 ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 
