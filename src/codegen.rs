@@ -82,14 +82,11 @@ impl<'ctx> CodeGen<'ctx> {
         self.variables.pop();
     }
 
-    fn get_variable(&self, name: &str) -> Option<Variable<'ctx>> {
-        for stack_frame in self.variables.iter().rev() {
-            if let Some(variable) = stack_frame.get(name) {
-                return Some(variable.clone());
-            }
-        }
-
-        None
+    fn get_variable(&self, name: &str) -> Option<&Variable<'ctx>> {
+        self.variables
+            .iter()
+            .rev()
+            .find_map(|stack_frame| stack_frame.get(name))
     }
 
     fn insert_variable(&mut self, name: &str, variable: Variable<'ctx>) {
@@ -324,7 +321,8 @@ impl<'ctx> CodeGen<'ctx> {
     pub fn emit_assignment(&mut self, assign: &ast::Assignment) -> Result<(), Error> {
         let variable = self
             .get_variable(&assign.variable)
-            .ok_or(Error::VariableNotFound(assign.variable.clone()))?;
+            .ok_or(Error::VariableNotFound(assign.variable.clone()))?
+            .clone();
 
         let val = self.emit_expression(&assign.value)?;
         let val_type = val.get_type().to_ast();
