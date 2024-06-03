@@ -142,7 +142,7 @@ impl UnaryOpType {
 
 #[derive(Debug)]
 pub enum Expression {
-    Integer(u32),
+    Integer(u64),
     Variable(String),
     Boolean(bool),
     Read,

@@ -108,7 +108,7 @@ impl<'ctx> CodeGen<'ctx> {
             self.emit_function_declaration(fn_decl)?;
         }
 
-        let main_function_type = self.context.i32_type().fn_type(&[], false);
+        let main_function_type = self.context.i64_type().fn_type(&[], false);
         let main_function = self.module.add_function("main", main_function_type, None);
 
         let bb = self.context.append_basic_block(main_function, "entry");
@@ -125,7 +125,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.pop_stack_frame();
 
         self.builder
-            .build_return(Some(&self.context.i32_type().const_int(0, false)))?;
+            .build_return(Some(&self.context.i64_type().const_int(0, false)))?;
 
         Ok(())
     }
@@ -134,7 +134,7 @@ impl<'ctx> CodeGen<'ctx> {
         context: &'ctx Context,
         module: &Module<'ctx>,
     ) -> (FunctionValue<'ctx>, GlobalValue<'ctx>) {
-        let printf_format = "%d\n";
+        let printf_format = "%llu\n";
         let printf_format_type = context
             .i8_type()
             .array_type((printf_format.len() + 1) as u32);
@@ -142,9 +142,9 @@ impl<'ctx> CodeGen<'ctx> {
 
         printf_format_global.set_initializer(&context.const_string(printf_format.as_bytes(), true));
 
-        let printf_args = [context.i32_type().ptr_type(AddressSpace::default()).into()];
+        let printf_args = [context.i64_type().ptr_type(AddressSpace::default()).into()];
 
-        let printf_type = context.i32_type().fn_type(&printf_args, true);
+        let printf_type = context.i64_type().fn_type(&printf_args, true);
         let printf_fn = module.add_function("printf", printf_type, None);
 
         (printf_fn, printf_format_global)
@@ -154,7 +154,7 @@ impl<'ctx> CodeGen<'ctx> {
         context: &'ctx Context,
         module: &Module<'ctx>,
     ) -> (FunctionValue<'ctx>, GlobalValue<'ctx>) {
-        let scanf_format = "%d";
+        let scanf_format = "%llu";
         let scanf_format_type = context
             .i8_type()
             .array_type((scanf_format.len() + 1) as u32);
@@ -162,9 +162,9 @@ impl<'ctx> CodeGen<'ctx> {
 
         scanf_format_global.set_initializer(&context.const_string(scanf_format.as_bytes(), true));
 
-        let scanf_args = [context.i32_type().ptr_type(AddressSpace::default()).into()];
+        let scanf_args = [context.i64_type().ptr_type(AddressSpace::default()).into()];
 
-        let scanf_type = context.i32_type().fn_type(&scanf_args, true);
+        let scanf_type = context.i64_type().fn_type(&scanf_args, true);
         let scanf_fn = module.add_function("scanf", scanf_type, None);
 
         (scanf_fn, scanf_format_global)
@@ -178,15 +178,15 @@ impl<'ctx> CodeGen<'ctx> {
         FunctionValue<'ctx>,
         FunctionValue<'ctx>,
     ) {
-        let rand_fn = module.add_function("rand", context.i32_type().fn_type(&[], false), None);
+        let rand_fn = module.add_function("rand", context.i64_type().fn_type(&[], false), None);
 
         let srand_type = context
             .void_type()
-            .fn_type(&[context.i32_type().into()], false);
+            .fn_type(&[context.i64_type().into()], false);
         let srand_fn = module.add_function("srand", srand_type, None);
 
         let time_type = context
-            .i32_type()
+            .i64_type()
             .fn_type(&[context.i64_type().into()], false);
         let time_fn = module.add_function("time", time_type, None);
 
@@ -248,7 +248,7 @@ impl<'ctx> CodeGen<'ctx> {
 
             let alloca_ptr = self
                 .builder
-                .build_alloca(self.context.i32_type(), &arg.name)?;
+                .build_alloca(self.context.i64_type(), &arg.name)?;
 
             self.builder.build_store(alloca_ptr, value)?;
             self.insert_variable(
@@ -470,8 +470,8 @@ impl<'ctx> CodeGen<'ctx> {
         })
     }
 
-    pub fn emit_integer(&mut self, value: u32) -> IntValue<'ctx> {
-        self.context.i32_type().const_int(u64::from(value), false)
+    pub fn emit_integer(&mut self, value: u64) -> IntValue<'ctx> {
+        self.context.i64_type().const_int(value, false)
     }
 
     pub fn emit_boolean(&mut self, value: bool) -> IntValue<'ctx> {
@@ -533,7 +533,7 @@ impl<'ctx> CodeGen<'ctx> {
     pub fn emit_read(&mut self) -> Result<IntValue<'ctx>, Error> {
         let result_value = self
             .builder
-            .build_alloca(self.context.i32_type(), "read_result")?;
+            .build_alloca(self.context.i64_type(), "read_result")?;
 
         let args: &[BasicMetadataValueEnum<'ctx>] =
             &[self.scanf.1.as_pointer_value().into(), result_value.into()];
@@ -542,7 +542,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let value =
             self.builder
-                .build_load(self.context.i32_type(), result_value, "read_result")?;
+                .build_load(self.context.i64_type(), result_value, "read_result")?;
 
         Ok(value.into_int_value())
     }
@@ -642,7 +642,7 @@ impl ToAstType for IntType<'_> {
     fn to_ast(&self) -> ast::Type {
         match self.get_bit_width() {
             1 => ast::Type::Boolean,
-            32 => ast::Type::Integer,
+            64 => ast::Type::Integer,
             width => unreachable!("unknown IntType of width {width}"),
         }
     }
@@ -655,7 +655,7 @@ trait ToLlvmType {
 impl ToLlvmType for ast::Type {
     fn to_llvm<'ctx>(&self, context: &'ctx Context) -> IntType<'ctx> {
         match self {
-            ast::Type::Integer => context.i32_type(),
+            ast::Type::Integer => context.i64_type(),
             ast::Type::Boolean => context.bool_type(),
         }
     }
