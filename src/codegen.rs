@@ -134,7 +134,7 @@ impl<'ctx> CodeGen<'ctx> {
         context: &'ctx Context,
         module: &Module<'ctx>,
     ) -> (FunctionValue<'ctx>, GlobalValue<'ctx>) {
-        let printf_format = "%llu\n";
+        let printf_format = "%lld\n";
         let printf_format_type = context
             .i8_type()
             .array_type((printf_format.len() + 1) as u32);
@@ -154,7 +154,7 @@ impl<'ctx> CodeGen<'ctx> {
         context: &'ctx Context,
         module: &Module<'ctx>,
     ) -> (FunctionValue<'ctx>, GlobalValue<'ctx>) {
-        let scanf_format = "%llu";
+        let scanf_format = "%lld";
         let scanf_format_type = context
             .i8_type()
             .array_type((scanf_format.len() + 1) as u32);
