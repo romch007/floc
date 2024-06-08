@@ -1,5 +1,4 @@
 mod ast;
-
 mod cli;
 mod codegen;
 mod parser;
@@ -16,33 +15,41 @@ use pest::Parser;
 
 use parser::FloParser;
 
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error("OS error:\n{0}")]
+    Io(#[from] io::Error),
+
+    #[error("Parsing error:\n{0}")]
+    Parsing(#[from] pest::error::Error<parser::Rule>),
+
+    #[error("Code generation error:\n{0}")]
+    CodeGen(#[from] codegen::Error),
+}
+
 fn main() {
+    if let Err(err) = run() {
+        eprintln!("{err}");
+        process::exit(1);
+    }
+}
+
+fn run() -> Result<(), Error> {
     let args = cli::parse();
     let source = match args.source_file.as_str() {
         "-" => {
             let mut input = String::new();
-            io::stdin()
-                .read_to_string(&mut input)
-                .expect("cannot read stdin");
-            input
+            io::stdin().read_to_string(&mut input).map(|_| input)?
         }
-        file => fs::read_to_string(file).expect("cannot read file"),
+        file => fs::read_to_string(file)?,
     };
 
-    let pest_output = FloParser::parse(parser::Rule::prog, &source);
-    let mut pest_output = match pest_output {
-        Ok(output) => output,
-        Err(err) => {
-            eprintln!("{err}");
-            process::exit(1);
-        }
-    };
-
+    let mut pest_output = FloParser::parse(parser::Rule::prog, &source)?;
     let ast_prog = ast::Program::parse(pest_output.next().unwrap());
 
     if args.emit_ast {
-        eprintln!("{ast_prog:#?}");
-        return;
+        println!("{ast_prog:#?}");
+        return Ok(());
     }
 
     let module_name = Path::new(&args.source_file)
@@ -53,15 +60,12 @@ fn main() {
 
     let llvm_context = inkwell::context::Context::create();
     let mut codegen = codegen::CodeGen::new(&llvm_context, module_name);
-    if let Err(error) = codegen.emit_program(&ast_prog) {
-        eprintln!("Compilation error: ");
-        eprintln!("{error}");
-        process::exit(1);
-    }
+
+    codegen.emit_program(&ast_prog)?;
 
     if args.emit_ir {
         codegen.dump_to_stderr();
-        return;
+        return Ok(());
     }
 
     let ir = codegen.dump_to_string();
@@ -76,13 +80,12 @@ fn main() {
         .args(&compilation_params)
         .args(&args.clang_params)
         .stdin(process::Stdio::piped())
-        .spawn()
-        .expect("cannot run clang");
+        .spawn()?;
 
     let child_stdin = child.stdin.as_mut().expect("no stdin");
-    child_stdin
-        .write_all(ir.to_bytes())
-        .expect("cannot write to stdin");
+    child_stdin.write_all(ir.to_bytes())?;
 
-    let _status = child.wait().expect("cannot wait for child");
+    let _status = child.wait()?;
+
+    Ok(())
 }

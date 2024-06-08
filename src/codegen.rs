@@ -17,16 +17,16 @@ pub enum Error {
     #[error("LLVM builder error: {0}")]
     Builder(#[from] inkwell::builder::BuilderError),
 
-    #[error("variable '{0}' not found")]
+    #[error("Variable '{0}' not found")]
     VariableNotFound(String),
 
-    #[error("function '{0}' not found")]
+    #[error("Function '{0}' not found")]
     FunctionNotFound(String),
 
-    #[error("expected type '{expected}' but got '{got}'")]
+    #[error("Expected type '{expected}' but got '{got}'")]
     TypeMismatch { expected: ast::Type, got: ast::Type },
 
-    #[error("function '{func}' expected {expected} arguments but got {got}")]
+    #[error("Function '{func}' expected {expected} arguments but got {got}")]
     ArgumentCountMismatch {
         func: String,
         expected: usize,
