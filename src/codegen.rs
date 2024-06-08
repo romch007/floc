@@ -200,7 +200,7 @@ impl<'ctx> CodeGen<'ctx> {
                 arg.name.clone(),
                 Variable {
                     ptr: alloca_ptr,
-                    r#type: arg.r#type.clone(),
+                    r#type: arg.r#type,
                 },
             );
         }
@@ -244,7 +244,7 @@ impl<'ctx> CodeGen<'ctx> {
             decl.variable.clone(),
             Variable {
                 ptr: alloca_ptr,
-                r#type: decl.r#type.clone(),
+                r#type: decl.r#type,
             },
         );
 

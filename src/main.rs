@@ -22,13 +22,13 @@ enum Error {
     Io(#[from] io::Error),
 
     #[error("Parsing error:\n{0}")]
-    Parsing(#[from] pest::error::Error<parser::Rule>),
+    Parsing(#[from] Box<pest::error::Error<parser::Rule>>),
 
     #[error("Analyze error:\n{0}")]
     Analyze(#[from] analyzer::Error),
 
     #[error("LLVM builder error:\n{0}")]
-    LLVM(#[from] inkwell::builder::BuilderError),
+    CodeGen(#[from] inkwell::builder::BuilderError),
 }
 
 fn main() {
@@ -48,7 +48,7 @@ fn run() -> Result<(), Error> {
         file => fs::read_to_string(file)?,
     };
 
-    let mut pest_output = FloParser::parse(parser::Rule::prog, &source)?;
+    let mut pest_output = FloParser::parse(parser::Rule::prog, &source).map_err(Box::new)?;
     let ast_prog = ast::Program::parse(pest_output.next().unwrap());
 
     if args.emit_ast {

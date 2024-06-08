@@ -157,7 +157,7 @@ impl Analyzer {
         self.enter_block();
 
         for stmt in stmts {
-            self.analyze_statement(&stmt)?;
+            self.analyze_statement(stmt)?;
         }
 
         self.leave_block();
@@ -191,7 +191,7 @@ impl Analyzer {
         self.analyze_block(&i.statements)?;
 
         if let Some(stmts_else) = &i.statements_else {
-            self.analyze_block(&stmts_else)?;
+            self.analyze_block(stmts_else)?;
         }
 
         Ok(())
@@ -238,7 +238,7 @@ impl Analyzer {
         match expr {
             ast::Expression::Integer(_) => Ok(ast::Type::Integer),
             ast::Expression::Boolean(_) => Ok(ast::Type::Boolean),
-            ast::Expression::Variable(var) => self.analyze_variable(&var),
+            ast::Expression::Variable(var) => self.analyze_variable(var),
             ast::Expression::Read => Ok(ast::Type::Integer),
             ast::Expression::Random { max } => {
                 match_type!(ast::Type::Integer, self.analyze_expr(max)?)?;
