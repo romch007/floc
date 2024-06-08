@@ -14,7 +14,7 @@ use crate::{analyzer, ast};
 use inkwell::builder::BuilderError;
 
 #[derive(Debug)]
-pub struct CodeGen<'ctx> {
+pub struct Compiler<'ctx> {
     context: &'ctx Context,
     module: Module<'ctx>,
     builder: Builder<'ctx>,
@@ -30,13 +30,13 @@ pub struct CodeGen<'ctx> {
     time: FunctionValue<'ctx>,
 }
 
-impl<'ctx> CodeGen<'ctx> {
+impl<'ctx> Compiler<'ctx> {
     pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
-        let printf = CodeGen::create_printf(context, &module);
-        let scanf = CodeGen::create_scanf(context, &module);
-        let (rand, srand, time) = CodeGen::create_rand(context, &module);
+        let printf = Compiler::create_printf(context, &module);
+        let scanf = Compiler::create_scanf(context, &module);
+        let (rand, srand, time) = Compiler::create_rand(context, &module);
 
         Self {
             context,

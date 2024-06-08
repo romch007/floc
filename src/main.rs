@@ -66,7 +66,7 @@ fn run() -> Result<(), Error> {
         .expect("invalid filename");
 
     let llvm_context = inkwell::context::Context::create();
-    let mut codegen = codegen::CodeGen::new(&llvm_context, module_name);
+    let mut codegen = codegen::Compiler::new(&llvm_context, module_name);
 
     let declared_functions = analyzer.functions.values().collect::<Vec<_>>();
 
