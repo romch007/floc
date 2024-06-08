@@ -1,0 +1,11 @@
+entier ack(entier m, entier n) {
+  si (m == 0) {
+    retourner n + 1;
+  } sinon si (n == 0) {
+    retourner ack(m - 1, 1);
+  } sinon {
+    retourner ack(m - 1, ack(m, n - 1));
+  }
+}
+
+ecrire(ack(3, 7));
