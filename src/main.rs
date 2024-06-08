@@ -11,11 +11,6 @@ use std::{
     process,
 };
 
-use ast::Node;
-use pest::Parser;
-
-use parser::FloParser;
-
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("OS error:\n{0}")]
@@ -48,8 +43,7 @@ fn run() -> Result<(), Error> {
         file => fs::read_to_string(file)?,
     };
 
-    let mut pest_output = FloParser::parse(parser::Rule::prog, &source).map_err(Box::new)?;
-    let ast_prog = ast::Program::parse(pest_output.next().unwrap());
+    let ast_prog = parser::parse(&source)?;
 
     if args.emit_ast {
         println!("{ast_prog:#?}");
