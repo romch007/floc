@@ -11,28 +11,7 @@ use inkwell::{
 };
 
 use crate::ast;
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("LLVM builder error: {0}")]
-    Builder(#[from] inkwell::builder::BuilderError),
-
-    #[error("Variable '{0}' not found")]
-    VariableNotFound(String),
-
-    #[error("Function '{0}' not found")]
-    FunctionNotFound(String),
-
-    #[error("Expected type '{expected}' but got '{got}'")]
-    TypeMismatch { expected: ast::Type, got: ast::Type },
-
-    #[error("Function '{func}' expected {expected} arguments but got {got}")]
-    ArgumentCountMismatch {
-        func: String,
-        expected: usize,
-        got: usize,
-    },
-}
+use inkwell::builder::BuilderError;
 
 #[derive(Debug)]
 pub struct CodeGen<'ctx> {
@@ -40,7 +19,7 @@ pub struct CodeGen<'ctx> {
     module: Module<'ctx>,
     builder: Builder<'ctx>,
     current_function: Option<FunctionValue<'ctx>>,
-    variables: Vec<HashMap<String, Variable<'ctx>>>,
+    variables: HashMap<String, Variable<'ctx>>,
     functions: HashMap<String, Function<'ctx>>,
 
     printf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
@@ -69,30 +48,9 @@ impl<'ctx> CodeGen<'ctx> {
             srand,
             time,
             current_function: None,
-            variables: vec![],
+            variables: HashMap::default(),
             functions: HashMap::default(),
         }
-    }
-
-    fn push_stack_frame(&mut self) {
-        self.variables.push(HashMap::default());
-    }
-
-    fn pop_stack_frame(&mut self) {
-        self.variables.pop();
-    }
-
-    fn get_variable(&self, name: &str) -> Option<&Variable<'ctx>> {
-        self.variables
-            .iter()
-            .rev()
-            .find_map(|stack_frame| stack_frame.get(name))
-    }
-
-    fn insert_variable(&mut self, name: &str, variable: Variable<'ctx>) {
-        let current_stack_frame = self.variables.last_mut().unwrap();
-
-        current_stack_frame.insert(name.to_string(), variable);
     }
 
     pub fn dump_to_stderr(&self) {
@@ -103,7 +61,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.module.print_to_string()
     }
 
-    pub fn emit_program(&mut self, prog: &ast::Program) -> Result<(), Error> {
+    pub fn emit_program(&mut self, prog: &ast::Program) -> Result<(), BuilderError> {
         for fn_decl in &prog.function_decls {
             self.emit_function_declaration(fn_decl)?;
         }
@@ -118,11 +76,9 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.emit_srand_init()?;
 
-        self.push_stack_frame();
         for stmt in &prog.statements {
             self.emit_statement(stmt)?;
         }
-        self.pop_stack_frame();
 
         self.builder
             .build_return(Some(&self.context.i64_type().const_int(0, false)))?;
@@ -193,7 +149,7 @@ impl<'ctx> CodeGen<'ctx> {
         (rand_fn, srand_fn, time_fn)
     }
 
-    fn emit_srand_init(&mut self) -> Result<(), Error> {
+    fn emit_srand_init(&mut self) -> Result<(), BuilderError> {
         let time_null_ptr = self.context.i64_type().const_int(0_u64, false);
         let retval = self
             .builder
@@ -209,7 +165,7 @@ impl<'ctx> CodeGen<'ctx> {
     pub fn emit_function_declaration(
         &mut self,
         fn_decl: &ast::FunctionDeclaration,
-    ) -> Result<(), Error> {
+    ) -> Result<(), BuilderError> {
         let function_params = fn_decl
             .arguments
             .iter()
@@ -223,25 +179,14 @@ impl<'ctx> CodeGen<'ctx> {
 
         let function = self.module.add_function(&fn_decl.name, function_type, None);
 
-        self.functions.insert(
-            fn_decl.name.clone(),
-            Function {
-                func: function,
-                args: fn_decl
-                    .arguments
-                    .iter()
-                    .map(|arg| arg.r#type.clone())
-                    .collect(),
-            },
-        );
+        self.functions
+            .insert(fn_decl.name.clone(), Function { ptr: function });
 
         let bb = self.context.append_basic_block(function, "entry");
 
         self.current_function = Some(function);
 
         self.builder.position_at_end(bb);
-
-        self.push_stack_frame();
 
         for (idx, arg) in fn_decl.arguments.iter().enumerate() {
             let value = function.get_nth_param(idx as u32).unwrap();
@@ -251,8 +196,8 @@ impl<'ctx> CodeGen<'ctx> {
                 .build_alloca(self.context.i64_type(), &arg.name)?;
 
             self.builder.build_store(alloca_ptr, value)?;
-            self.insert_variable(
-                &arg.name,
+            self.variables.insert(
+                arg.name.clone(),
                 Variable {
                     ptr: alloca_ptr,
                     r#type: arg.r#type.clone(),
@@ -263,7 +208,6 @@ impl<'ctx> CodeGen<'ctx> {
         for stmt in &fn_decl.statements {
             self.emit_statement(stmt)?;
         }
-        self.pop_stack_frame();
 
         let default_ret_val = fn_decl
             .return_type
@@ -275,7 +219,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    pub fn emit_statement(&mut self, stmt: &ast::Statement) -> Result<(), Error> {
+    pub fn emit_statement(&mut self, stmt: &ast::Statement) -> Result<(), BuilderError> {
         match stmt {
             ast::Statement::Declaration(decl) => self.emit_declaration(decl)?,
             ast::Statement::Return { value } => self.emit_return(value)?,
@@ -291,13 +235,13 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    pub fn emit_declaration(&mut self, decl: &ast::Declaration) -> Result<(), Error> {
+    pub fn emit_declaration(&mut self, decl: &ast::Declaration) -> Result<(), BuilderError> {
         let int_type = decl.r#type.to_llvm(self.context);
 
         let alloca_ptr = self.builder.build_alloca(int_type, &decl.variable)?;
 
-        self.insert_variable(
-            &decl.variable,
+        self.variables.insert(
+            decl.variable.clone(),
             Variable {
                 ptr: alloca_ptr,
                 r#type: decl.r#type.clone(),
@@ -306,14 +250,6 @@ impl<'ctx> CodeGen<'ctx> {
 
         if let Some(default_value) = &decl.value {
             let init_val = self.emit_expression(default_value)?;
-            let init_val_type = init_val.get_type().to_ast();
-
-            if init_val_type != decl.r#type {
-                return Err(Error::TypeMismatch {
-                    expected: decl.r#type.clone(),
-                    got: init_val_type.clone(),
-                });
-            }
 
             self.builder.build_store(alloca_ptr, init_val)?;
         }
@@ -321,53 +257,25 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    pub fn emit_assignment(&mut self, assign: &ast::Assignment) -> Result<(), Error> {
-        let variable = self
-            .get_variable(&assign.variable)
-            .ok_or(Error::VariableNotFound(assign.variable.clone()))?
-            .clone();
+    pub fn emit_assignment(&mut self, assign: &ast::Assignment) -> Result<(), BuilderError> {
+        let variable = self.variables.get(&assign.variable).unwrap().clone();
 
         let val = self.emit_expression(&assign.value)?;
-        let val_type = val.get_type().to_ast();
-
-        if val_type != variable.r#type {
-            return Err(Error::TypeMismatch {
-                expected: variable.r#type.clone(),
-                got: val_type.clone(),
-            });
-        }
 
         self.builder.build_store(variable.ptr, val)?;
 
         Ok(())
     }
 
-    pub fn emit_return(&mut self, retval: &ast::Expression) -> Result<(), Error> {
+    pub fn emit_return(&mut self, retval: &ast::Expression) -> Result<(), BuilderError> {
         let retval = self.emit_expression(retval)?;
-
-        let ret_val_type = retval.get_type().to_ast();
-        let fn_return_type = self
-            .current_function
-            .unwrap()
-            .get_type()
-            .get_return_type()
-            .unwrap()
-            .into_int_type()
-            .to_ast();
-
-        if ret_val_type != fn_return_type {
-            return Err(Error::TypeMismatch {
-                expected: fn_return_type.clone(),
-                got: ret_val_type.clone(),
-            });
-        }
 
         self.builder.build_return(Some(&retval))?;
 
         Ok(())
     }
 
-    pub fn emit_while(&mut self, whil: &ast::While) -> Result<(), Error> {
+    pub fn emit_while(&mut self, whil: &ast::While) -> Result<(), BuilderError> {
         let body_bb = self
             .context
             .append_basic_block(self.current_function.unwrap(), "while.body");
@@ -386,11 +294,9 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.position_at_end(body_bb);
 
         // Emit while body
-        self.push_stack_frame();
         for stmt in &whil.statements {
             self.emit_statement(stmt)?;
         }
-        self.pop_stack_frame();
 
         self.builder.build_unconditional_branch(condition_bb)?;
 
@@ -407,7 +313,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    pub fn emit_if(&mut self, i: &ast::If) -> Result<(), Error> {
+    pub fn emit_if(&mut self, i: &ast::If) -> Result<(), BuilderError> {
         let then_bb = self
             .context
             .append_basic_block(self.current_function.unwrap(), "if.then");
@@ -427,11 +333,9 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.builder.position_at_end(then_bb);
 
-        self.push_stack_frame();
         for stmt in &i.statements {
             self.emit_statement(stmt)?;
         }
-        self.pop_stack_frame();
         self.builder.build_unconditional_branch(end_bb)?;
 
         self.builder.position_at_end(else_bb);
@@ -447,7 +351,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    pub fn emit_write(&mut self, value: &ast::Expression) -> Result<(), Error> {
+    pub fn emit_write(&mut self, value: &ast::Expression) -> Result<(), BuilderError> {
         let value = self.emit_expression(value)?;
 
         let args: &[BasicMetadataValueEnum<'ctx>] =
@@ -458,7 +362,10 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    pub fn emit_expression(&mut self, expr: &ast::Expression) -> Result<IntValue<'ctx>, Error> {
+    pub fn emit_expression(
+        &mut self,
+        expr: &ast::Expression,
+    ) -> Result<IntValue<'ctx>, BuilderError> {
         Ok(match expr {
             ast::Expression::Integer(value) => self.emit_integer(*value),
             ast::Expression::Boolean(value) => self.emit_boolean(*value),
@@ -481,10 +388,8 @@ impl<'ctx> CodeGen<'ctx> {
         self.context.bool_type().const_int(value.into(), false)
     }
 
-    pub fn emit_variable(&mut self, name: &str) -> Result<IntValue<'ctx>, Error> {
-        let variable = self
-            .get_variable(name)
-            .ok_or(Error::VariableNotFound(name.to_string()))?;
+    pub fn emit_variable(&mut self, name: &str) -> Result<IntValue<'ctx>, BuilderError> {
+        let variable = self.variables.get(name).unwrap();
 
         let value =
             self.builder
@@ -496,44 +401,23 @@ impl<'ctx> CodeGen<'ctx> {
     pub fn emit_function_call(
         &mut self,
         fn_call: &ast::FunctionCall,
-    ) -> Result<IntValue<'ctx>, Error> {
-        let function = self
-            .functions
-            .get(&fn_call.name)
-            .cloned()
-            .ok_or(Error::FunctionNotFound(fn_call.name.clone()))?;
+    ) -> Result<IntValue<'ctx>, BuilderError> {
+        let function = self.functions.get(&fn_call.name).cloned().unwrap();
 
-        if function.args.len() != fn_call.arguments.len() {
-            return Err(Error::ArgumentCountMismatch {
-                func: fn_call.name.clone(),
-                expected: function.args.len(),
-                got: fn_call.arguments.len(),
-            });
-        }
-
-        let mut exprs = Vec::<BasicMetadataValueEnum<'ctx>>::with_capacity(function.args.len());
-
-        for (fn_call_arg, function_arg) in fn_call.arguments.iter().zip(&function.args) {
-            let expr = self.emit_expression(fn_call_arg)?;
-            let expr_type = expr.get_type().to_ast();
-
-            if &expr_type != function_arg {
-                return Err(Error::TypeMismatch {
-                    expected: function_arg.clone(),
-                    got: expr_type.clone(),
-                });
-            }
-
-            exprs.push(expr.into());
-        }
+        let exprs: Vec<BasicMetadataValueEnum<'ctx>> = fn_call
+            .arguments
+            .iter()
+            .map(|arg| self.emit_expression(arg).map(Into::into))
+            .collect::<Result<_, _>>()?;
 
         let retval =
             self.builder
-                .build_call(function.func, &exprs, &format!("{}_call", &fn_call.name))?;
+                .build_call(function.ptr, &exprs, &format!("{}_call", &fn_call.name))?;
+
         Ok(retval.try_as_basic_value().unwrap_left().into_int_value())
     }
 
-    pub fn emit_read(&mut self) -> Result<IntValue<'ctx>, Error> {
+    pub fn emit_read(&mut self) -> Result<IntValue<'ctx>, BuilderError> {
         let result_value = self
             .builder
             .build_alloca(self.context.i64_type(), "read_result")?;
@@ -550,7 +434,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(value.into_int_value())
     }
 
-    pub fn emit_rand(&mut self, max: &ast::Expression) -> Result<IntValue<'ctx>, Error> {
+    pub fn emit_rand(&mut self, max: &ast::Expression) -> Result<IntValue<'ctx>, BuilderError> {
         let max = self.emit_expression(max)?;
 
         let ret = self.builder.build_call(self.rand, &[], "rand_call")?;
@@ -568,7 +452,7 @@ impl<'ctx> CodeGen<'ctx> {
         left: &ast::Expression,
         op: &ast::BinaryOpType,
         right: &ast::Expression,
-    ) -> Result<IntValue<'ctx>, Error> {
+    ) -> Result<IntValue<'ctx>, BuilderError> {
         let left = self.emit_expression(left)?;
         let right = self.emit_expression(right)?;
 
@@ -613,7 +497,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         op: &ast::UnaryOpType,
         operand: &ast::Expression,
-    ) -> Result<IntValue<'ctx>, Error> {
+    ) -> Result<IntValue<'ctx>, BuilderError> {
         let operand = self.emit_expression(operand)?;
 
         let result = match op {
@@ -627,28 +511,13 @@ impl<'ctx> CodeGen<'ctx> {
 
 #[derive(Debug, Clone)]
 struct Function<'ctx> {
-    pub func: FunctionValue<'ctx>,
-    pub args: Vec<ast::Type>,
+    pub ptr: FunctionValue<'ctx>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Variable<'ctx> {
     ptr: PointerValue<'ctx>,
     r#type: ast::Type,
-}
-
-trait ToAstType {
-    fn to_ast(&self) -> ast::Type;
-}
-
-impl ToAstType for IntType<'_> {
-    fn to_ast(&self) -> ast::Type {
-        match self.get_bit_width() {
-            1 => ast::Type::Boolean,
-            64 => ast::Type::Integer,
-            width => unreachable!("unknown IntType of width {width}"),
-        }
-    }
 }
 
 trait ToLlvmType {

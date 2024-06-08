@@ -27,8 +27,8 @@ enum Error {
     #[error("Analyze error:\n{0}")]
     Analyze(#[from] analyzer::Error),
 
-    #[error("Code generation error:\n{0}")]
-    CodeGen(#[from] codegen::Error),
+    #[error("LLVM builder error:\n{0}")]
+    LLVM(#[from] inkwell::builder::BuilderError),
 }
 
 fn main() {
