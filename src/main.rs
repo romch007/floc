@@ -1,3 +1,4 @@
+mod analyzer;
 mod ast;
 mod cli;
 mod codegen;
@@ -22,6 +23,9 @@ enum Error {
 
     #[error("Parsing error:\n{0}")]
     Parsing(#[from] pest::error::Error<parser::Rule>),
+
+    #[error("Analyze error:\n{0}")]
+    Analyze(#[from] analyzer::Error),
 
     #[error("Code generation error:\n{0}")]
     CodeGen(#[from] codegen::Error),
@@ -51,6 +55,9 @@ fn run() -> Result<(), Error> {
         println!("{ast_prog:#?}");
         return Ok(());
     }
+
+    let mut analyzer = analyzer::Analyzer::new();
+    analyzer.analyze_program(&ast_prog)?;
 
     let module_name = Path::new(&args.source_file)
         .file_name()

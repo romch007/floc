@@ -35,7 +35,7 @@ pub trait Node {
     fn parse(pair: Pair<Rule>) -> Self;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Type {
     Integer,
     Boolean,
