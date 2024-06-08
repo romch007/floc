@@ -40,7 +40,7 @@ pub enum Error {
     #[error("Function '{0}' not found")]
     FunctionNotFound(String),
 
-    #[error("Return outside function body")]
+    #[error("Return statement outside of function body")]
     ReturnOutsideFunction,
 
     #[error("Function '{func}' expected {expected} arguments but got {got}")]
