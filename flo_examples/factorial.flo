@@ -1,0 +1,10 @@
+entier factorial(entier n) {
+  si (n == 0) {
+    retourner 1;
+  }
+  
+  retourner n * factorial(n - 1);
+}
+
+entier n = lire();
+ecrire(factorial(n));
