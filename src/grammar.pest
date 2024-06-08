@@ -5,7 +5,7 @@ function_decl      = { type ~ ident ~ "(" ~ argument_list ~ ")" ~ braced_stmts }
 argument           = { type ~ ident }
 argument_list      = { (argument ~ ("," ~ argument)*)? }
 
-stmt         = _{ assignment | declaration | while | write | return | if }
+stmt         = _{ assignment | declaration | while | write | return | if | discard_fn_call }
 stmt_list    =  { stmt+ }
 braced_stmts = _{ "{" ~ stmt_list ~ "}" }
 
@@ -15,6 +15,7 @@ while       = { "tantque" ~ "(" ~ expr ~ ")" ~ braced_stmts }
 write       = { "ecrire" ~ "(" ~ expr ~ ")" ~ ";" }
 if          = { "si" ~ "(" ~ expr ~ ")" ~ braced_stmts ~ ("sinon" ~ (braced_stmts | if))? }
 return      = { "retourner" ~ expr ~ ";" }
+discard_fn_call = { function_call ~ ";" }
 
 type = { "entier" | "booleen" }
 

@@ -318,6 +318,7 @@ pub enum Statement {
     Return { value: Expression },
     While(While),
     If(If),
+    DiscardFunctionCall(FunctionCall),
 }
 
 impl Node for Statement {
@@ -333,6 +334,9 @@ impl Node for Statement {
             },
             Rule::r#while => Self::While(While::parse(pair)),
             Rule::r#if => Self::If(If::parse(pair)),
+            Rule::discard_fn_call => {
+                Self::DiscardFunctionCall(FunctionCall::parse(pair.into_inner().next().unwrap()))
+            }
             rule => unreachable!("invalid statement '{rule:?}'"),
         }
     }

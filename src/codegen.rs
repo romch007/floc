@@ -283,6 +283,9 @@ impl<'ctx> CodeGen<'ctx> {
             ast::Statement::While(whil) => self.emit_while(whil)?,
             ast::Statement::If(i) => self.emit_if(i)?,
             ast::Statement::Write { value } => self.emit_write(value)?,
+            ast::Statement::DiscardFunctionCall(fn_call) => {
+                let _ = self.emit_function_call(fn_call)?;
+            }
         };
 
         Ok(())
