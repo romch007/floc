@@ -68,6 +68,9 @@ fn run() -> Result<(), Error> {
     let llvm_context = inkwell::context::Context::create();
     let mut codegen = codegen::CodeGen::new(&llvm_context, module_name);
 
+    let declared_functions = analyzer.functions.values().collect::<Vec<_>>();
+
+    codegen.declare_functions(&declared_functions[..])?;
     codegen.emit_program(&ast_prog)?;
 
     if args.emit_ir {

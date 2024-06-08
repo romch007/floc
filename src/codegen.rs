@@ -10,7 +10,7 @@ use inkwell::{
     AddressSpace, IntPredicate,
 };
 
-use crate::ast;
+use crate::{analyzer, ast};
 use inkwell::builder::BuilderError;
 
 #[derive(Debug)]
@@ -162,25 +162,38 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
+    pub fn declare_functions(
+        &mut self,
+        functions: &[&analyzer::Function],
+    ) -> Result<(), BuilderError> {
+        for function in functions {
+            let function_params = function
+                .arguments
+                .iter()
+                .map(|arg| arg.to_llvm(self.context).into())
+                .collect::<Vec<BasicMetadataTypeEnum<'ctx>>>();
+
+            let function_type = function
+                .return_type
+                .to_llvm(self.context)
+                .fn_type(&function_params, false);
+
+            let llvm_function = self
+                .module
+                .add_function(&function.name, function_type, None);
+
+            self.functions
+                .insert(function.name.clone(), Function { ptr: llvm_function });
+        }
+
+        Ok(())
+    }
+
     pub fn emit_function_declaration(
         &mut self,
         fn_decl: &ast::FunctionDeclaration,
     ) -> Result<(), BuilderError> {
-        let function_params = fn_decl
-            .arguments
-            .iter()
-            .map(|arg| arg.r#type.to_llvm(self.context).into())
-            .collect::<Vec<BasicMetadataTypeEnum<'ctx>>>();
-
-        let function_type = fn_decl
-            .return_type
-            .to_llvm(self.context)
-            .fn_type(&function_params, false);
-
-        let function = self.module.add_function(&fn_decl.name, function_type, None);
-
-        self.functions
-            .insert(fn_decl.name.clone(), Function { ptr: function });
+        let function = self.functions.get(&fn_decl.name).unwrap().ptr;
 
         let bb = self.context.append_basic_block(function, "entry");
 

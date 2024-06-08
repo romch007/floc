@@ -22,8 +22,9 @@ pub struct Variable {
 
 #[derive(Debug, Clone)]
 pub struct Function {
-    return_type: ast::Type,
-    args: Vec<ast::Type>,
+    pub name: String,
+    pub return_type: ast::Type,
+    pub arguments: Vec<ast::Type>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -53,7 +54,7 @@ pub enum Error {
 
 pub struct Analyzer {
     variables: Vec<HashMap<String, Variable>>,
-    functions: HashMap<String, Function>,
+    pub functions: HashMap<String, Function>,
     parent_function: Option<String>,
 }
 
@@ -96,8 +97,9 @@ impl Analyzer {
             self.functions.insert(
                 fn_decl.name.clone(),
                 Function {
+                    name: fn_decl.name.clone(),
                     return_type: fn_decl.return_type,
-                    args,
+                    arguments: args,
                 },
             );
         }
@@ -259,15 +261,16 @@ impl Analyzer {
             .cloned()
             .ok_or(Error::FunctionNotFound(fn_call.name.clone()))?;
 
-        if function.args.len() != fn_call.arguments.len() {
+        if function.arguments.len() != fn_call.arguments.len() {
             return Err(Error::ArgumentCountMismatch {
                 func: fn_call.name.clone(),
-                expected: function.args.len(),
+                expected: function.arguments.len(),
                 got: fn_call.arguments.len(),
             });
         }
 
-        for (fn_call_arg, expected_type) in fn_call.arguments.iter().zip(function.args.iter()) {
+        for (fn_call_arg, expected_type) in fn_call.arguments.iter().zip(function.arguments.iter())
+        {
             let arg_type = self.analyze_expr(fn_call_arg)?;
 
             match_type!(*expected_type, arg_type)?;
