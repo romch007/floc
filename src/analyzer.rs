@@ -139,9 +139,7 @@ impl Analyzer {
             ast::Statement::Declaration(decl) => self.analyze_declaration(decl),
             ast::Statement::Write { value } => {
                 // We can print whatever type we want, can we?
-
                 self.analyze_expr(value)?;
-
                 Ok(())
             }
             ast::Statement::Return { value } => self.analyze_return(value),
@@ -149,7 +147,6 @@ impl Analyzer {
             ast::Statement::If(i) => self.analyze_if(i),
             ast::Statement::DiscardFunctionCall(fn_call) => {
                 self.analyze_function_call(fn_call)?;
-
                 Ok(())
             }
         }
@@ -180,7 +177,6 @@ impl Analyzer {
             .return_type;
 
         let value_type = self.analyze_expr(value)?;
-
         match_type!(function_ret_type, value_type)?;
 
         Ok(())
@@ -230,7 +226,6 @@ impl Analyzer {
             .ok_or(Error::VariableNotFound(assignment.variable.clone()))?;
 
         let expr_type = self.analyze_expr(&assignment.value)?;
-
         match_type!(variable_type, expr_type)?;
 
         Ok(())
@@ -272,7 +267,6 @@ impl Analyzer {
         for (fn_call_arg, expected_type) in fn_call.arguments.iter().zip(function.arguments.iter())
         {
             let arg_type = self.analyze_expr(fn_call_arg)?;
-
             match_type!(*expected_type, arg_type)?;
         }
 
@@ -309,6 +303,9 @@ impl Analyzer {
     ) -> Result<ast::Type, Error> {
         use ast::BinaryOpType::*;
 
+        // NOTE: this forbids 'example == Vrai', because:
+        // 1. I'm lazy
+        // 2. Nobody should ever write that
         let expected_operand_type = match op {
             Add | Sub | Mul | Div | Mod | Eq | Neq | Lt | Lte | Gt | Gte => ast::Type::Integer,
             LogicAnd | LogicOr => ast::Type::Boolean,
