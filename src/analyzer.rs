@@ -38,6 +38,9 @@ pub enum Error {
     #[error("Variable '{0}' is already defined")]
     VariableAlreadyDefined(String),
 
+    #[error("Function '{0}' is already defined")]
+    FunctionAlreadyDefined(String),
+
     #[error("Function '{0}' not found")]
     FunctionNotFound(String),
 
@@ -75,11 +78,18 @@ impl Analyzer {
         self.variables.pop();
     }
 
-    fn get_variable(&mut self, var_name: &str) -> Option<&Variable> {
+    fn get_variable(&self, var_name: &str) -> Option<&Variable> {
         self.variables
             .iter()
             .rev()
             .find_map(|block| block.get(var_name))
+    }
+
+    fn variable_exists(&self, var_name: &str) -> bool {
+        self.variables
+            .iter()
+            .rev()
+            .any(|block| block.contains_key(var_name))
     }
 
     fn declare_variable(&mut self, var_name: &str, r#type: ast::Type) {
@@ -92,6 +102,10 @@ impl Analyzer {
     pub fn analyze_program(&mut self, prog: &ast::Program) -> Result<(), Error> {
         // Register all functions
         for fn_decl in &prog.function_decls {
+            if self.functions.contains_key(&fn_decl.name) {
+                return Err(Error::FunctionAlreadyDefined(fn_decl.name.clone()));
+            }
+
             let args = fn_decl.arguments.iter().map(|arg| arg.r#type).collect();
 
             self.functions.insert(
@@ -205,7 +219,7 @@ impl Analyzer {
     }
 
     fn analyze_declaration(&mut self, declaration: &ast::Declaration) -> Result<(), Error> {
-        if self.get_variable(&declaration.variable).is_some() {
+        if self.variable_exists(&declaration.variable) {
             return Err(Error::VariableAlreadyDefined(declaration.variable.clone()));
         }
 
