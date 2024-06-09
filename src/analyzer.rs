@@ -247,10 +247,9 @@ impl Analyzer {
 
     fn analyze_expr(&mut self, expr: &ast::Expression) -> Result<ast::Type, Error> {
         match expr {
-            ast::Expression::Integer(_) => Ok(ast::Type::Integer),
+            ast::Expression::Integer(_) | ast::Expression::Read => Ok(ast::Type::Integer),
             ast::Expression::Boolean(_) => Ok(ast::Type::Boolean),
             ast::Expression::Variable(var) => self.analyze_variable(var),
-            ast::Expression::Read => Ok(ast::Type::Integer),
             ast::Expression::Random { max } => {
                 match_type!(ast::Type::Integer, self.analyze_expr(max)?)?;
                 Ok(ast::Type::Integer)

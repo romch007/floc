@@ -162,10 +162,7 @@ impl<'ctx> Compiler<'ctx> {
         Ok(())
     }
 
-    pub fn declare_functions(
-        &mut self,
-        functions: &[&analyzer::Function],
-    ) -> Result<(), BuilderError> {
+    pub fn declare_functions(&mut self, functions: &[&analyzer::Function]) {
         for function in functions {
             let function_params = function
                 .arguments
@@ -185,8 +182,6 @@ impl<'ctx> Compiler<'ctx> {
             self.functions
                 .insert(function.name.clone(), Function { ptr: llvm_function });
         }
-
-        Ok(())
     }
 
     pub fn emit_function_declaration(
