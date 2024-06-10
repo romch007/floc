@@ -1,26 +1,38 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 use inkwell::{
+    basic_block::BasicBlock,
     builder::Builder,
     context::Context,
     module::Module,
-    support::LLVMString,
     types::{BasicMetadataTypeEnum, IntType},
     values::{BasicMetadataValueEnum, FunctionValue, GlobalValue, IntValue, PointerValue},
     AddressSpace, IntPredicate,
 };
 
 use crate::{analyzer, ast};
-use inkwell::builder::BuilderError;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Builder error: {0}")]
+    Builer(#[from] inkwell::builder::BuilderError),
+
+    #[error("Verification error:\n{0}")]
+    Verification(String),
+}
 
 #[derive(Debug)]
 pub struct Compiler<'ctx> {
     context: &'ctx Context,
     module: Module<'ctx>,
     builder: Builder<'ctx>,
-    current_function: Option<FunctionValue<'ctx>>,
+
     variables: HashMap<String, Variable<'ctx>>,
     functions: HashMap<String, Function<'ctx>>,
+
+    current_function: Option<FunctionValue<'ctx>>,
+    return_value: Option<PointerValue<'ctx>>,
+    return_bb: Option<BasicBlock<'ctx>>,
 
     printf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
     scanf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
@@ -48,6 +60,8 @@ impl<'ctx> Compiler<'ctx> {
             srand,
             time,
             current_function: None,
+            return_value: None,
+            return_bb: None,
             variables: HashMap::default(),
             functions: HashMap::default(),
         }
@@ -57,11 +71,17 @@ impl<'ctx> Compiler<'ctx> {
         self.module.print_to_stderr();
     }
 
-    pub fn dump_to_string(&self) -> LLVMString {
-        self.module.print_to_string()
+    pub fn write_bitcode(&self, path: &Path) {
+        self.module.write_bitcode_to_path(path);
     }
 
-    pub fn emit_program(&mut self, prog: &ast::Program) -> Result<(), BuilderError> {
+    pub fn verify(&self) -> Result<(), Error> {
+        self.module
+            .verify()
+            .map_err(|llvm_str| Error::Verification(llvm_str.to_string()))
+    }
+
+    pub fn emit_program(&mut self, prog: &ast::Program) -> Result<(), Error> {
         for fn_decl in &prog.function_decls {
             self.emit_function_declaration(fn_decl)?;
         }
@@ -149,7 +169,7 @@ impl<'ctx> Compiler<'ctx> {
         (rand_fn, srand_fn, time_fn)
     }
 
-    fn emit_srand_init(&mut self) -> Result<(), BuilderError> {
+    fn emit_srand_init(&mut self) -> Result<(), Error> {
         let time_null_ptr = self.context.i64_type().const_int(0_u64, false);
         let retval = self
             .builder
@@ -187,14 +207,19 @@ impl<'ctx> Compiler<'ctx> {
     pub fn emit_function_declaration(
         &mut self,
         fn_decl: &ast::FunctionDeclaration,
-    ) -> Result<(), BuilderError> {
+    ) -> Result<(), Error> {
         let function = self.functions.get(&fn_decl.name).unwrap().ptr;
 
-        let bb = self.context.append_basic_block(function, "entry");
+        let entry_bb = self.context.append_basic_block(function, "entry");
+        let return_bb = self.context.append_basic_block(function, "return");
 
         self.current_function = Some(function);
+        self.return_bb = Some(return_bb);
 
-        self.builder.position_at_end(bb);
+        self.builder.position_at_end(entry_bb);
+
+        let return_type = fn_decl.return_type.to_llvm(self.context);
+        self.return_value = Some(self.builder.build_alloca(return_type, "retval")?);
 
         for (idx, arg) in fn_decl.arguments.iter().enumerate() {
             let value = function.get_nth_param(idx as u32).unwrap();
@@ -217,17 +242,19 @@ impl<'ctx> Compiler<'ctx> {
             self.emit_statement(stmt)?;
         }
 
-        let default_ret_val = fn_decl
-            .return_type
-            .to_llvm(self.context)
-            .const_int(0_u64, false);
+        self.builder.build_unconditional_branch(return_bb)?;
+        self.builder.position_at_end(return_bb);
 
-        self.builder.build_return(Some(&default_ret_val))?;
+        let retval = self
+            .builder
+            .build_load(return_type, self.return_value.unwrap(), "")?;
+
+        self.builder.build_return(Some(&retval))?;
 
         Ok(())
     }
 
-    pub fn emit_statement(&mut self, stmt: &ast::Statement) -> Result<(), BuilderError> {
+    pub fn emit_statement(&mut self, stmt: &ast::Statement) -> Result<(), Error> {
         match stmt {
             ast::Statement::Declaration(decl) => self.emit_declaration(decl)?,
             ast::Statement::Return { value } => self.emit_return(value)?,
@@ -243,7 +270,7 @@ impl<'ctx> Compiler<'ctx> {
         Ok(())
     }
 
-    pub fn emit_declaration(&mut self, decl: &ast::Declaration) -> Result<(), BuilderError> {
+    pub fn emit_declaration(&mut self, decl: &ast::Declaration) -> Result<(), Error> {
         let int_type = decl.r#type.to_llvm(self.context);
 
         let alloca_ptr = self.builder.build_alloca(int_type, &decl.variable)?;
@@ -265,7 +292,7 @@ impl<'ctx> Compiler<'ctx> {
         Ok(())
     }
 
-    pub fn emit_assignment(&mut self, assign: &ast::Assignment) -> Result<(), BuilderError> {
+    pub fn emit_assignment(&mut self, assign: &ast::Assignment) -> Result<(), Error> {
         let variable = self.variables.get(&assign.variable).unwrap().clone();
 
         let val = self.emit_expression(&assign.value)?;
@@ -275,15 +302,19 @@ impl<'ctx> Compiler<'ctx> {
         Ok(())
     }
 
-    pub fn emit_return(&mut self, retval: &ast::Expression) -> Result<(), BuilderError> {
+    pub fn emit_return(&mut self, retval: &ast::Expression) -> Result<(), Error> {
         let retval = self.emit_expression(retval)?;
 
-        self.builder.build_return(Some(&retval))?;
+        self.builder
+            .build_store(self.return_value.unwrap(), retval)?;
+
+        self.builder
+            .build_unconditional_branch(self.return_bb.unwrap())?;
 
         Ok(())
     }
 
-    pub fn emit_while(&mut self, whil: &ast::While) -> Result<(), BuilderError> {
+    pub fn emit_while(&mut self, whil: &ast::While) -> Result<(), Error> {
         let body_bb = self
             .context
             .append_basic_block(self.current_function.unwrap(), "while.body");
@@ -321,14 +352,10 @@ impl<'ctx> Compiler<'ctx> {
         Ok(())
     }
 
-    pub fn emit_if(&mut self, i: &ast::If) -> Result<(), BuilderError> {
+    pub fn emit_if(&mut self, i: &ast::If) -> Result<(), Error> {
         let then_bb = self
             .context
             .append_basic_block(self.current_function.unwrap(), "if.then");
-
-        let else_bb = self
-            .context
-            .append_basic_block(self.current_function.unwrap(), "if.else");
 
         let end_bb = self
             .context
@@ -336,30 +363,42 @@ impl<'ctx> Compiler<'ctx> {
 
         let condition = self.emit_expression(&i.condition)?;
 
-        self.builder
-            .build_conditional_branch(condition, then_bb, else_bb)?;
-
-        self.builder.position_at_end(then_bb);
-
-        for stmt in &i.statements {
-            self.emit_statement(stmt)?;
-        }
-        self.builder.build_unconditional_branch(end_bb)?;
-
-        self.builder.position_at_end(else_bb);
         if let Some(statements_else) = &i.statements_else {
+            let else_bb = self
+                .context
+                .append_basic_block(self.current_function.unwrap(), "if.else");
+
+            self.builder
+                .build_conditional_branch(condition, then_bb, else_bb)?;
+
+            self.builder.position_at_end(then_bb);
+            for stmt in &i.statements {
+                self.emit_statement(stmt)?;
+            }
+            self.builder.build_unconditional_branch(end_bb)?;
+
+            self.builder.position_at_end(else_bb);
             for stmt in statements_else {
                 self.emit_statement(stmt)?;
             }
+            self.builder.build_unconditional_branch(end_bb)?;
+        } else {
+            self.builder
+                .build_conditional_branch(condition, then_bb, end_bb)?;
+
+            self.builder.position_at_end(then_bb);
+            for stmt in &i.statements {
+                self.emit_statement(stmt)?;
+            }
+            self.builder.build_unconditional_branch(end_bb)?;
         }
-        self.builder.build_unconditional_branch(end_bb)?;
 
         self.builder.position_at_end(end_bb);
 
         Ok(())
     }
 
-    pub fn emit_write(&mut self, value: &ast::Expression) -> Result<(), BuilderError> {
+    pub fn emit_write(&mut self, value: &ast::Expression) -> Result<(), Error> {
         let value = self.emit_expression(value)?;
 
         let args: &[BasicMetadataValueEnum<'ctx>] =
@@ -370,10 +409,7 @@ impl<'ctx> Compiler<'ctx> {
         Ok(())
     }
 
-    pub fn emit_expression(
-        &mut self,
-        expr: &ast::Expression,
-    ) -> Result<IntValue<'ctx>, BuilderError> {
+    pub fn emit_expression(&mut self, expr: &ast::Expression) -> Result<IntValue<'ctx>, Error> {
         Ok(match expr {
             ast::Expression::Integer(value) => self.emit_integer(*value),
             ast::Expression::Boolean(value) => self.emit_boolean(*value),
@@ -396,7 +432,7 @@ impl<'ctx> Compiler<'ctx> {
         self.context.bool_type().const_int(value.into(), false)
     }
 
-    pub fn emit_variable(&mut self, name: &str) -> Result<IntValue<'ctx>, BuilderError> {
+    pub fn emit_variable(&mut self, name: &str) -> Result<IntValue<'ctx>, Error> {
         let variable = self.variables.get(name).unwrap();
 
         let value =
@@ -409,7 +445,7 @@ impl<'ctx> Compiler<'ctx> {
     pub fn emit_function_call(
         &mut self,
         fn_call: &ast::FunctionCall,
-    ) -> Result<IntValue<'ctx>, BuilderError> {
+    ) -> Result<IntValue<'ctx>, Error> {
         let function = self.functions.get(&fn_call.name).cloned().unwrap();
 
         let exprs: Vec<BasicMetadataValueEnum<'ctx>> = fn_call
@@ -425,7 +461,7 @@ impl<'ctx> Compiler<'ctx> {
         Ok(retval.try_as_basic_value().unwrap_left().into_int_value())
     }
 
-    pub fn emit_read(&mut self) -> Result<IntValue<'ctx>, BuilderError> {
+    pub fn emit_read(&mut self) -> Result<IntValue<'ctx>, Error> {
         let result_value = self
             .builder
             .build_alloca(self.context.i64_type(), "read_result")?;
@@ -442,7 +478,7 @@ impl<'ctx> Compiler<'ctx> {
         Ok(value.into_int_value())
     }
 
-    pub fn emit_rand(&mut self, max: &ast::Expression) -> Result<IntValue<'ctx>, BuilderError> {
+    pub fn emit_rand(&mut self, max: &ast::Expression) -> Result<IntValue<'ctx>, Error> {
         let max = self.emit_expression(max)?;
 
         let ret = self.builder.build_call(self.rand, &[], "rand_call")?;
@@ -460,7 +496,7 @@ impl<'ctx> Compiler<'ctx> {
         left: &ast::Expression,
         op: &ast::BinaryOpType,
         right: &ast::Expression,
-    ) -> Result<IntValue<'ctx>, BuilderError> {
+    ) -> Result<IntValue<'ctx>, Error> {
         let left = self.emit_expression(left)?;
         let right = self.emit_expression(right)?;
 
@@ -505,7 +541,7 @@ impl<'ctx> Compiler<'ctx> {
         &mut self,
         op: &ast::UnaryOpType,
         operand: &ast::Expression,
-    ) -> Result<IntValue<'ctx>, BuilderError> {
+    ) -> Result<IntValue<'ctx>, Error> {
         let operand = self.emit_expression(operand)?;
 
         let result = match op {

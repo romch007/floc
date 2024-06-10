@@ -6,7 +6,7 @@ mod parser;
 
 use std::{
     fs,
-    io::{self, Read, Write},
+    io::{self, Read},
     path::Path,
     process,
 };
@@ -22,8 +22,8 @@ enum Error {
     #[error("Analyze error:\n{0}")]
     Analyze(#[from] analyzer::Error),
 
-    #[error("LLVM builder error:\n{0}")]
-    CodeGen(#[from] inkwell::builder::BuilderError),
+    #[error("Compiler error: {0}")]
+    Compiler(#[from] codegen::Error),
 }
 
 fn main() {
@@ -72,22 +72,25 @@ fn run() -> Result<(), Error> {
         return Ok(());
     }
 
-    let ir = codegen.dump_to_string();
-    let mut compilation_params = vec!["-x", "ir", "-", "-Wno-override-module"];
+    codegen.verify()?;
+
+    let bitcode_file = tempfile::Builder::new().suffix(".bc").tempfile()?;
+    codegen.write_bitcode(bitcode_file.path());
+
+    let mut compilation_params = vec![
+        bitcode_file.path().as_os_str(),
+        "-Wno-override-module".as_ref(),
+    ];
 
     if cfg!(target_os = "windows") {
         // See https://learn.microsoft.com/en-us/cpp/porting/visual-cpp-change-history-2003-2015?view=msvc-170#stdio_and_conio
-        compilation_params.push("-llegacy_stdio_definitions");
+        compilation_params.push("-llegacy_stdio_definitions".as_ref());
     }
 
     let mut child = process::Command::new("clang")
         .args(&compilation_params)
         .args(&args.clang_params)
-        .stdin(process::Stdio::piped())
         .spawn()?;
-
-    let child_stdin = child.stdin.as_mut().expect("no stdin");
-    child_stdin.write_all(ir.to_bytes())?;
 
     let _status = child.wait()?;
 
