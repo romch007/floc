@@ -1,7 +1,6 @@
 use std::{collections::HashMap, path::Path};
 
 use inkwell::{
-    basic_block::BasicBlock,
     builder::Builder,
     context::Context,
     module::Module,
@@ -31,8 +30,6 @@ pub struct Compiler<'ctx> {
     functions: HashMap<String, Function<'ctx>>,
 
     current_function: Option<FunctionValue<'ctx>>,
-    return_value: Option<PointerValue<'ctx>>,
-    return_bb: Option<BasicBlock<'ctx>>,
 
     printf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
     scanf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
@@ -60,8 +57,6 @@ impl<'ctx> Compiler<'ctx> {
             srand,
             time,
             current_function: None,
-            return_value: None,
-            return_bb: None,
             variables: HashMap::default(),
             functions: HashMap::default(),
         }
@@ -211,15 +206,10 @@ impl<'ctx> Compiler<'ctx> {
         let function = self.functions.get(&fn_decl.name).unwrap().ptr;
 
         let entry_bb = self.context.append_basic_block(function, "entry");
-        let return_bb = self.context.append_basic_block(function, "return");
 
         self.current_function = Some(function);
-        self.return_bb = Some(return_bb);
 
         self.builder.position_at_end(entry_bb);
-
-        let return_type = fn_decl.return_type.to_llvm(self.context);
-        self.return_value = Some(self.builder.build_alloca(return_type, "retval")?);
 
         for (idx, arg) in fn_decl.arguments.iter().enumerate() {
             let value = function.get_nth_param(idx as u32).unwrap();
@@ -242,35 +232,38 @@ impl<'ctx> Compiler<'ctx> {
             self.emit_statement(stmt)?;
         }
 
-        self.builder.build_unconditional_branch(return_bb)?;
-        self.builder.position_at_end(return_bb);
-
-        let retval = self
-            .builder
-            .build_load(return_type, self.return_value.unwrap(), "")?;
-
-        self.builder.build_return(Some(&retval))?;
-
         Ok(())
     }
 
-    pub fn emit_statement(&mut self, stmt: &ast::Statement) -> Result<(), Error> {
+    pub fn emit_block(&mut self, block: &[ast::Statement]) -> Result<bool, Error> {
+        let mut has_ended_bb = false;
+
+        for stmt in block {
+            if self.emit_statement(stmt)? {
+                has_ended_bb = true;
+            }
+        }
+
+        Ok(has_ended_bb)
+    }
+
+    pub fn emit_statement(&mut self, stmt: &ast::Statement) -> Result<bool, Error> {
         match stmt {
-            ast::Statement::Declaration(decl) => self.emit_declaration(decl)?,
-            ast::Statement::Return { value } => self.emit_return(value)?,
-            ast::Statement::Assignment(assign) => self.emit_assignment(assign)?,
-            ast::Statement::While(whil) => self.emit_while(whil)?,
-            ast::Statement::If(i) => self.emit_if(i)?,
-            ast::Statement::Write { value } => self.emit_write(value)?,
+            ast::Statement::Declaration(decl) => self.emit_declaration(decl),
+            ast::Statement::Return { value } => self.emit_return(value),
+            ast::Statement::Assignment(assign) => self.emit_assignment(assign),
+            ast::Statement::While(whil) => self.emit_while(whil),
+            ast::Statement::If(i) => self.emit_if(i),
+            ast::Statement::Write { value } => self.emit_write(value),
             ast::Statement::DiscardFunctionCall(fn_call) => {
                 let _ = self.emit_function_call(fn_call)?;
-            }
-        };
 
-        Ok(())
+                Ok(false)
+            }
+        }
     }
 
-    pub fn emit_declaration(&mut self, decl: &ast::Declaration) -> Result<(), Error> {
+    pub fn emit_declaration(&mut self, decl: &ast::Declaration) -> Result<bool, Error> {
         let int_type = decl.r#type.to_llvm(self.context);
 
         let alloca_ptr = self.builder.build_alloca(int_type, &decl.variable)?;
@@ -289,32 +282,27 @@ impl<'ctx> Compiler<'ctx> {
             self.builder.build_store(alloca_ptr, init_val)?;
         }
 
-        Ok(())
+        Ok(false)
     }
 
-    pub fn emit_assignment(&mut self, assign: &ast::Assignment) -> Result<(), Error> {
+    pub fn emit_assignment(&mut self, assign: &ast::Assignment) -> Result<bool, Error> {
         let variable = self.variables.get(&assign.variable).unwrap().clone();
 
         let val = self.emit_expression(&assign.value)?;
 
         self.builder.build_store(variable.ptr, val)?;
 
-        Ok(())
+        Ok(false)
     }
 
-    pub fn emit_return(&mut self, retval: &ast::Expression) -> Result<(), Error> {
+    pub fn emit_return(&mut self, retval: &ast::Expression) -> Result<bool, Error> {
         let retval = self.emit_expression(retval)?;
+        self.builder.build_return(Some(&retval))?;
 
-        self.builder
-            .build_store(self.return_value.unwrap(), retval)?;
-
-        self.builder
-            .build_unconditional_branch(self.return_bb.unwrap())?;
-
-        Ok(())
+        Ok(true)
     }
 
-    pub fn emit_while(&mut self, whil: &ast::While) -> Result<(), Error> {
+    pub fn emit_while(&mut self, whil: &ast::While) -> Result<bool, Error> {
         let body_bb = self
             .context
             .append_basic_block(self.current_function.unwrap(), "while.body");
@@ -333,9 +321,7 @@ impl<'ctx> Compiler<'ctx> {
         self.builder.position_at_end(body_bb);
 
         // Emit while body
-        for stmt in &whil.statements {
-            self.emit_statement(stmt)?;
-        }
+        self.emit_block(&whil.statements)?;
 
         self.builder.build_unconditional_branch(condition_bb)?;
 
@@ -349,17 +335,13 @@ impl<'ctx> Compiler<'ctx> {
 
         self.builder.position_at_end(end_bb);
 
-        Ok(())
+        Ok(false)
     }
 
-    pub fn emit_if(&mut self, i: &ast::If) -> Result<(), Error> {
+    pub fn emit_if(&mut self, i: &ast::If) -> Result<bool, Error> {
         let then_bb = self
             .context
             .append_basic_block(self.current_function.unwrap(), "if.then");
-
-        let end_bb = self
-            .context
-            .append_basic_block(self.current_function.unwrap(), "if.end");
 
         let condition = self.emit_expression(&i.condition)?;
 
@@ -372,33 +354,52 @@ impl<'ctx> Compiler<'ctx> {
                 .build_conditional_branch(condition, then_bb, else_bb)?;
 
             self.builder.position_at_end(then_bb);
-            for stmt in &i.statements {
-                self.emit_statement(stmt)?;
-            }
-            self.builder.build_unconditional_branch(end_bb)?;
+
+            let has_ended_bb_then = self.emit_block(&i.statements)?;
 
             self.builder.position_at_end(else_bb);
-            for stmt in statements_else {
-                self.emit_statement(stmt)?;
+
+            let has_ended_bb_else = self.emit_block(statements_else)?;
+
+            if !has_ended_bb_else && !has_ended_bb_then {
+                let end_bb = self
+                    .context
+                    .append_basic_block(self.current_function.unwrap(), "if.end");
+
+                if !has_ended_bb_then {
+                    self.builder.position_at_end(then_bb);
+                    self.builder.build_unconditional_branch(end_bb)?;
+                }
+
+                if !has_ended_bb_else {
+                    self.builder.position_at_end(else_bb);
+                    self.builder.build_unconditional_branch(end_bb)?;
+                }
+
+                self.builder.position_at_end(end_bb);
             }
-            self.builder.build_unconditional_branch(end_bb)?;
         } else {
+            let end_bb = self
+                .context
+                .append_basic_block(self.current_function.unwrap(), "if.end");
             self.builder
                 .build_conditional_branch(condition, then_bb, end_bb)?;
 
             self.builder.position_at_end(then_bb);
-            for stmt in &i.statements {
-                self.emit_statement(stmt)?;
+
+            let has_ended_bb = self.emit_block(&i.statements)?;
+
+            if !has_ended_bb {
+                self.builder.build_unconditional_branch(end_bb)?;
             }
-            self.builder.build_unconditional_branch(end_bb)?;
+
+            self.builder.position_at_end(end_bb);
         }
 
-        self.builder.position_at_end(end_bb);
-
-        Ok(())
+        Ok(false)
     }
 
-    pub fn emit_write(&mut self, value: &ast::Expression) -> Result<(), Error> {
+    pub fn emit_write(&mut self, value: &ast::Expression) -> Result<bool, Error> {
         let value = self.emit_expression(value)?;
 
         let args: &[BasicMetadataValueEnum<'ctx>] =
@@ -406,7 +407,7 @@ impl<'ctx> Compiler<'ctx> {
 
         self.builder.build_call(self.printf.0, args, "write_call")?;
 
-        Ok(())
+        Ok(false)
     }
 
     pub fn emit_expression(&mut self, expr: &ast::Expression) -> Result<IntValue<'ctx>, Error> {
