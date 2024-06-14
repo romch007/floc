@@ -347,30 +347,35 @@ impl<'ctx> Compiler<'ctx> {
             self.builder
                 .build_conditional_branch(condition, then_bb, else_bb)?;
 
-            self.builder.position_at_end(then_bb);
+            let end_bb = self
+                .context
+                .append_basic_block(self.current_function.unwrap(), "if.end");
 
+            self.builder.position_at_end(then_bb);
             let has_ended_bb_then = self.emit_block(&i.statements)?;
 
-            self.builder.position_at_end(else_bb);
+            // The 'then' body didn't returned, so jump to end
+            if !has_ended_bb_then {
+                self.builder.build_unconditional_branch(end_bb)?;
+            }
 
+            self.builder.position_at_end(else_bb);
             let has_ended_bb_else = self.emit_block(statements_else)?;
 
-            if !has_ended_bb_else && !has_ended_bb_then {
-                let end_bb = self
-                    .context
-                    .append_basic_block(self.current_function.unwrap(), "if.end");
+            // The 'else' body didn't returned, so jump to end
+            if !has_ended_bb_else {
+                self.builder.build_unconditional_branch(end_bb)?;
+            }
 
-                if !has_ended_bb_then {
-                    self.builder.position_at_end(then_bb);
-                    self.builder.build_unconditional_branch(end_bb)?;
-                }
-
-                if !has_ended_bb_else {
-                    self.builder.position_at_end(else_bb);
-                    self.builder.build_unconditional_branch(end_bb)?;
-                }
-
+            if !has_ended_bb_else || !has_ended_bb_then {
                 self.builder.position_at_end(end_bb);
+
+                Ok(false)
+            } else {
+                // Every code path returned, so we don't need the end basic block
+                end_bb.remove_from_function().unwrap();
+
+                Ok(true)
             }
         } else {
             let end_bb = self
@@ -383,14 +388,15 @@ impl<'ctx> Compiler<'ctx> {
 
             let has_ended_bb = self.emit_block(&i.statements)?;
 
+            // The 'then' body didn't returned, so jump to end
             if !has_ended_bb {
                 self.builder.build_unconditional_branch(end_bb)?;
             }
 
             self.builder.position_at_end(end_bb);
-        }
 
-        Ok(false)
+            Ok(has_ended_bb)
+        }
     }
 
     pub fn emit_write(&mut self, value: &ast::Expression) -> Result<bool, Error> {
