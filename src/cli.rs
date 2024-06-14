@@ -19,6 +19,10 @@ pub struct Args {
     #[arg(long, default_value_t = false)]
     pub emit_ir: bool,
 
+    // LLVM target triple
+    #[arg(short, long)]
+    pub target_triple: Option<String>,
+
     /// Source file to compile
     pub source_file: String,
 

@@ -74,13 +74,11 @@ fn run() -> Result<(), Error> {
 
     codegen.verify()?;
 
-    let bitcode_file = tempfile::Builder::new().suffix(".bc").tempfile()?;
-    codegen.write_bitcode(bitcode_file.path());
+    let object_file = tempfile::Builder::new().suffix(".o").tempfile()?;
 
-    let mut compilation_params = vec![
-        bitcode_file.path().as_os_str(),
-        "-Wno-override-module".as_ref(),
-    ];
+    codegen.compile(args.target_triple.as_deref(), object_file.path())?;
+
+    let mut compilation_params = vec![object_file.path().as_os_str()];
 
     if cfg!(target_os = "windows") {
         // See https://learn.microsoft.com/en-us/cpp/porting/visual-cpp-change-history-2003-2015?view=msvc-170#stdio_and_conio

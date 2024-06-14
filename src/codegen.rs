@@ -4,9 +4,13 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
+    passes::PassBuilderOptions,
+    targets::{
+        CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple,
+    },
     types::{BasicMetadataTypeEnum, IntType},
     values::{BasicMetadataValueEnum, FunctionValue, GlobalValue, IntValue, PointerValue},
-    AddressSpace, IntPredicate,
+    AddressSpace, IntPredicate, OptimizationLevel,
 };
 
 use crate::{analyzer, ast};
@@ -18,6 +22,9 @@ pub enum Error {
 
     #[error("Verification error:\n{0}")]
     Verification(String),
+
+    #[error("LLVM Error:\n{0}")]
+    Other(String),
 }
 
 #[derive(Debug)]
@@ -66,14 +73,55 @@ impl<'ctx> Compiler<'ctx> {
         self.module.print_to_stderr();
     }
 
-    pub fn write_bitcode(&self, path: &Path) {
-        self.module.write_bitcode_to_path(path);
-    }
-
     pub fn verify(&self) -> Result<(), Error> {
         self.module
             .verify()
             .map_err(|llvm_str| Error::Verification(llvm_str.to_string()))
+    }
+
+    pub fn compile(&self, target_triple: Option<&str>, dest_path: &Path) -> Result<(), Error> {
+        Target::initialize_all(&InitializationConfig::default());
+
+        let target_triple = target_triple
+            .map(TargetTriple::create)
+            .unwrap_or_else(|| TargetMachine::get_default_triple());
+
+        let target =
+            Target::from_triple(&target_triple).map_err(|err| Error::Other(err.to_string()))?;
+
+        let target_machine = target
+            .create_target_machine(
+                &target_triple,
+                "generic",
+                "",
+                OptimizationLevel::Aggressive,
+                RelocMode::Default,
+                CodeModel::Default,
+            )
+            .unwrap();
+
+        let passes: &[&str] = &[
+            "instcombine",
+            "reassociate",
+            "gvn",
+            "simplifycfg",
+            // "basic-aa",
+            "mem2reg",
+        ];
+
+        self.module
+            .run_passes(
+                passes.join(",").as_str(),
+                &target_machine,
+                PassBuilderOptions::create(),
+            )
+            .map_err(|err| Error::Other(err.to_string()))?;
+
+        target_machine
+            .write_to_file(&self.module, FileType::Object, dest_path)
+            .map_err(|err| Error::Other(err.to_string()))?;
+
+        Ok(())
     }
 
     pub fn emit_program(&mut self, prog: &ast::Program) -> Result<(), Error> {
