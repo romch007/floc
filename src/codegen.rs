@@ -228,15 +228,8 @@ impl<'ctx> Compiler<'ctx> {
             );
         }
 
-        let has_ended_bb = self.emit_block(&fn_decl.statements)?;
-
-        if !has_ended_bb {
-            self.builder.build_return(Some(
-                &fn_decl
-                    .return_type
-                    .to_llvm(self.context)
-                    .const_int(0, false),
-            ))?;
+        for stmt in &fn_decl.statements {
+            self.emit_statement(stmt)?;
         }
 
         Ok(())
