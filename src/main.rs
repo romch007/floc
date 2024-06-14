@@ -76,7 +76,11 @@ fn run() -> Result<(), Error> {
 
     let object_file = tempfile::Builder::new().suffix(".o").tempfile()?;
 
-    codegen.compile(args.target_triple.as_deref(), object_file.path())?;
+    codegen.compile(
+        args.target_triple.as_deref(),
+        args.target_cpu.as_deref(),
+        object_file.path(),
+    )?;
 
     let mut compilation_params = vec![object_file.path().as_os_str()];
 

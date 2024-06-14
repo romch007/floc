@@ -79,7 +79,12 @@ impl<'ctx> Compiler<'ctx> {
             .map_err(|llvm_str| Error::Verification(llvm_str.to_string()))
     }
 
-    pub fn compile(&self, target_triple: Option<&str>, dest_path: &Path) -> Result<(), Error> {
+    pub fn compile(
+        &self,
+        target_triple: Option<&str>,
+        target_cpu: Option<&str>,
+        dest_path: &Path,
+    ) -> Result<(), Error> {
         Target::initialize_all(&InitializationConfig::default());
 
         let target_triple = target_triple
@@ -92,7 +97,7 @@ impl<'ctx> Compiler<'ctx> {
         let target_machine = target
             .create_target_machine(
                 &target_triple,
-                "generic",
+                target_cpu.unwrap_or("generic"),
                 "",
                 OptimizationLevel::Aggressive,
                 RelocMode::Default,

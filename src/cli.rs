@@ -23,6 +23,10 @@ pub struct Args {
     #[arg(short, long)]
     pub target_triple: Option<String>,
 
+    /// LLVM target CPU
+    #[arg(long)]
+    pub target_cpu: Option<String>,
+
     /// Source file to compile
     pub source_file: String,
 
