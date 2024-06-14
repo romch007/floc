@@ -19,16 +19,16 @@ pub struct Args {
     #[arg(long, default_value_t = false)]
     pub emit_ir: bool,
 
-    // LLVM target triple
+    /// LLVM target triple
     #[arg(short, long)]
     pub target_triple: Option<String>,
 
     /// Source file to compile
     pub source_file: String,
 
-    /// Additional params to pass to clang
+    /// Additional params to pass to clang at link time
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    pub clang_params: Vec<String>,
+    pub link_params: Vec<String>,
 }
 
 pub fn get_version() -> String {

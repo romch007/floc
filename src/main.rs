@@ -87,7 +87,7 @@ fn run() -> Result<(), Error> {
 
     let mut child = process::Command::new("clang")
         .args(&compilation_params)
-        .args(&args.clang_params)
+        .args(&args.link_params)
         .spawn()?;
 
     let _status = child.wait()?;
