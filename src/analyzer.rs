@@ -47,6 +47,9 @@ pub enum Error {
     #[error("Return statement outside of function body")]
     ReturnOutsideFunction,
 
+    #[error("Missing return")]
+    MissingReturn,
+
     #[error("Function '{func}' expected {expected} arguments but got {got}")]
     ArgumentCountMismatch {
         func: String,
@@ -136,8 +139,16 @@ impl Analyzer {
             self.declare_variable(&arg.name, arg.r#type);
         }
 
+        let mut does_return = false;
+
         for stmt in &fn_decl.statements {
-            self.analyze_statement(stmt)?;
+            if self.analyze_statement(stmt)? {
+                does_return = true;
+            }
+        }
+
+        if !does_return {
+            return Err(Error::MissingReturn);
         }
 
         self.leave_block();
@@ -147,38 +158,42 @@ impl Analyzer {
         Ok(())
     }
 
-    fn analyze_statement(&mut self, stmt: &ast::Statement) -> Result<(), Error> {
+    fn analyze_statement(&mut self, stmt: &ast::Statement) -> Result<bool, Error> {
         match stmt {
             ast::Statement::Assignment(assign) => self.analyze_assignment(assign),
             ast::Statement::Declaration(decl) => self.analyze_declaration(decl),
             ast::Statement::Write { value } => {
                 // We can print whatever type we want, can we?
                 self.analyze_expr(value)?;
-                Ok(())
+                Ok(false)
             }
             ast::Statement::Return { value } => self.analyze_return(value),
             ast::Statement::While(whil) => self.analyze_while(whil),
             ast::Statement::If(i) => self.analyze_if(i),
             ast::Statement::DiscardFunctionCall(fn_call) => {
                 self.analyze_function_call(fn_call)?;
-                Ok(())
+                Ok(false)
             }
         }
     }
 
-    fn analyze_block(&mut self, stmts: &[ast::Statement]) -> Result<(), Error> {
+    fn analyze_block(&mut self, stmts: &[ast::Statement]) -> Result<bool, Error> {
         self.enter_block();
 
+        let mut does_return = false;
+
         for stmt in stmts {
-            self.analyze_statement(stmt)?;
+            if self.analyze_statement(stmt)? {
+                does_return = true;
+            }
         }
 
         self.leave_block();
 
-        Ok(())
+        Ok(does_return)
     }
 
-    fn analyze_return(&mut self, value: &ast::Expression) -> Result<(), Error> {
+    fn analyze_return(&mut self, value: &ast::Expression) -> Result<bool, Error> {
         let current_function_name = self
             .parent_function
             .as_deref()
@@ -193,32 +208,35 @@ impl Analyzer {
         let value_type = self.analyze_expr(value)?;
         match_type!(function_ret_type, value_type)?;
 
-        Ok(())
+        Ok(true)
     }
 
-    fn analyze_if(&mut self, i: &ast::If) -> Result<(), Error> {
+    fn analyze_if(&mut self, i: &ast::If) -> Result<bool, Error> {
         let condition_type = self.analyze_expr(&i.condition)?;
         match_type!(ast::Type::Boolean, condition_type)?;
 
-        self.analyze_block(&i.statements)?;
+        let then_block_returns = self.analyze_block(&i.statements)?;
 
         if let Some(stmts_else) = &i.statements_else {
-            self.analyze_block(stmts_else)?;
-        }
+            let else_block_returns = self.analyze_block(stmts_else)?;
 
-        Ok(())
+            Ok(then_block_returns && else_block_returns)
+        } else {
+            // The else body contains no statement, so it doesn't return
+            Ok(false)
+        }
     }
 
-    fn analyze_while(&mut self, whil: &ast::While) -> Result<(), Error> {
+    fn analyze_while(&mut self, whil: &ast::While) -> Result<bool, Error> {
         let condition_type = self.analyze_expr(&whil.condition)?;
         match_type!(ast::Type::Boolean, condition_type)?;
 
-        self.analyze_block(&whil.statements)?;
+        let does_return = self.analyze_block(&whil.statements)?;
 
-        Ok(())
+        Ok(does_return)
     }
 
-    fn analyze_declaration(&mut self, declaration: &ast::Declaration) -> Result<(), Error> {
+    fn analyze_declaration(&mut self, declaration: &ast::Declaration) -> Result<bool, Error> {
         if self.variable_exists(&declaration.variable) {
             return Err(Error::VariableAlreadyDefined(declaration.variable.clone()));
         }
@@ -230,10 +248,10 @@ impl Analyzer {
 
         self.declare_variable(&declaration.variable, declaration.r#type);
 
-        Ok(())
+        Ok(false)
     }
 
-    fn analyze_assignment(&mut self, assignment: &ast::Assignment) -> Result<(), Error> {
+    fn analyze_assignment(&mut self, assignment: &ast::Assignment) -> Result<bool, Error> {
         let variable_type = self
             .get_variable(&assignment.variable)
             .map(|var| var.r#type)
@@ -242,7 +260,7 @@ impl Analyzer {
         let expr_type = self.analyze_expr(&assignment.value)?;
         match_type!(variable_type, expr_type)?;
 
-        Ok(())
+        Ok(false)
     }
 
     fn analyze_expr(&mut self, expr: &ast::Expression) -> Result<ast::Type, Error> {
