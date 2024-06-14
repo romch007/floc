@@ -243,15 +243,9 @@ impl<'ctx> Compiler<'ctx> {
     }
 
     pub fn emit_block(&mut self, block: &[ast::Statement]) -> Result<bool, Error> {
-        let mut has_ended_bb = false;
-
-        for stmt in block {
-            if self.emit_statement(stmt)? {
-                has_ended_bb = true;
-            }
-        }
-
-        Ok(has_ended_bb)
+        block.iter().try_fold(false, |acc, stmt| {
+            self.emit_statement(stmt).map(|result| acc || result)
+        })
     }
 
     pub fn emit_statement(&mut self, stmt: &ast::Statement) -> Result<bool, Error> {
