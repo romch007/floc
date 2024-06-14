@@ -315,9 +315,11 @@ impl<'ctx> Compiler<'ctx> {
         self.builder.position_at_end(body_bb);
 
         // Emit while body
-        self.emit_block(&whil.statements)?;
+        let has_ended_bb = self.emit_block(&whil.statements)?;
 
-        self.builder.build_unconditional_branch(condition_bb)?;
+        if !has_ended_bb {
+            self.builder.build_unconditional_branch(condition_bb)?;
+        }
 
         self.builder.position_at_end(condition_bb);
 

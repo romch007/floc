@@ -47,7 +47,7 @@ pub enum Error {
     #[error("Return statement outside of function body")]
     ReturnOutsideFunction,
 
-    #[error("Missing return")]
+    #[error("Not all code paths return")]
     MissingReturn,
 
     #[error("Extra statements after return")]
@@ -240,9 +240,9 @@ impl Analyzer {
         let condition_type = self.analyze_expr(&whil.condition)?;
         match_type!(ast::Type::Boolean, condition_type)?;
 
-        let does_return = self.analyze_block(&whil.statements)?;
+        self.analyze_block(&whil.statements)?;
 
-        Ok(does_return)
+        Ok(false)
     }
 
     fn analyze_declaration(&mut self, declaration: &ast::Declaration) -> Result<bool, Error> {
