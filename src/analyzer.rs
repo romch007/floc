@@ -50,6 +50,9 @@ pub enum Error {
     #[error("Missing return")]
     MissingReturn,
 
+    #[error("Extra statements after return")]
+    ExtraStmtsAfterReturn,
+
     #[error("Function '{func}' expected {expected} arguments but got {got}")]
     ArgumentCountMismatch {
         func: String,
@@ -142,9 +145,11 @@ impl Analyzer {
         let mut does_return = false;
 
         for stmt in &fn_decl.statements {
-            if self.analyze_statement(stmt)? {
-                does_return = true;
+            if does_return {
+                return Err(Error::ExtraStmtsAfterReturn);
             }
+
+            does_return = self.analyze_statement(stmt)?;
         }
 
         if !does_return {
@@ -183,6 +188,10 @@ impl Analyzer {
         let mut does_return = false;
 
         for stmt in stmts {
+            if does_return {
+                return Err(Error::ExtraStmtsAfterReturn);
+            }
+
             if self.analyze_statement(stmt)? {
                 does_return = true;
             }
