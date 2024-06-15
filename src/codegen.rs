@@ -90,7 +90,7 @@ impl<'ctx> Compiler<'ctx> {
 
         let target_triple = target_triple
             .map(TargetTriple::create)
-            .unwrap_or_else(|| TargetMachine::get_default_triple());
+            .unwrap_or_else(TargetMachine::get_default_triple);
 
         let target =
             Target::from_triple(&target_triple).map_err(|err| Error::Other(err.to_string()))?;
