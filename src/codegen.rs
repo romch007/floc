@@ -83,7 +83,7 @@ impl<'ctx> Compiler<'ctx> {
         &self,
         target_triple: Option<&str>,
         target_cpu: Option<&str>,
-        optimization_level: Option<inkwell::OptimizationLevel>,
+        optimization_level: inkwell::OptimizationLevel,
         dest_path: &Path,
     ) -> Result<TargetTriple, Error> {
         Target::initialize_all(&InitializationConfig::default());
@@ -100,7 +100,7 @@ impl<'ctx> Compiler<'ctx> {
                 &target_triple,
                 target_cpu.unwrap_or("generic"),
                 "",
-                optimization_level.unwrap_or_default(),
+                optimization_level,
                 RelocMode::PIC,
                 CodeModel::Default,
             )

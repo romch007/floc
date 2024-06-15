@@ -82,7 +82,7 @@ fn run() -> Result<(), Error> {
     let target_triple = codegen.compile(
         args.target_triple.as_deref(),
         args.target_cpu.as_deref(),
-        args.optimization_level.map(|opti| opti.to_inkwell()),
+        args.optimization_level.to_inkwell(),
         object_file.path(),
     )?;
 

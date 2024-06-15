@@ -21,8 +21,8 @@ pub struct Args {
     pub target_cpu: Option<String>,
 
     /// Optimization level
-    #[arg(short = 'O', long)]
-    pub optimization_level: Option<OptimizationLevel>,
+    #[arg(short = 'O', long, value_enum, default_value_t = OptimizationLevel::Default)]
+    pub optimization_level: OptimizationLevel,
 
     /// Source file to compile
     pub source_file: String,
@@ -34,10 +34,17 @@ pub struct Args {
 
 #[derive(Debug, Clone, Default, ValueEnum)]
 pub enum OptimizationLevel {
+    #[value(name = "0")]
     None,
+
+    #[value(name = "1")]
     Less,
+
+    #[value(name = "2")]
     #[default]
     Default,
+
+    #[value(name = "3")]
     Aggressive,
 }
 
