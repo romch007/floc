@@ -85,7 +85,7 @@ impl<'ctx> Compiler<'ctx> {
         target_cpu: Option<&str>,
         optimization_level: Option<inkwell::OptimizationLevel>,
         dest_path: &Path,
-    ) -> Result<(), Error> {
+    ) -> Result<TargetTriple, Error> {
         Target::initialize_all(&InitializationConfig::default());
 
         let target_triple = target_triple
@@ -101,7 +101,7 @@ impl<'ctx> Compiler<'ctx> {
                 target_cpu.unwrap_or("generic"),
                 "",
                 optimization_level.unwrap_or_default(),
-                RelocMode::Default,
+                RelocMode::PIC,
                 CodeModel::Default,
             )
             .unwrap();
@@ -127,7 +127,7 @@ impl<'ctx> Compiler<'ctx> {
             .write_to_file(&self.module, FileType::Object, dest_path)
             .map_err(|err| Error::Other(err.to_string()))?;
 
-        Ok(())
+        Ok(target_triple)
     }
 
     pub fn emit_program(&mut self, prog: &ast::Program) -> Result<(), Error> {

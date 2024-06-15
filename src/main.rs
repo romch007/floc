@@ -7,6 +7,7 @@ mod parser;
 use codegen::OptimizationLevelConvert;
 
 use std::{
+    ffi::OsStr,
     fs,
     io::{self, Read},
     path::Path,
@@ -78,16 +79,25 @@ fn run() -> Result<(), Error> {
 
     let object_file = tempfile::Builder::new().suffix(".o").tempfile()?;
 
-    codegen.compile(
+    let target_triple = codegen.compile(
         args.target_triple.as_deref(),
         args.target_cpu.as_deref(),
         args.optimization_level.map(|opti| opti.to_inkwell()),
         object_file.path(),
     )?;
 
-    let mut compilation_params = vec![object_file.path().as_os_str()];
+    let target_triple = target_triple
+        .as_str()
+        .to_str()
+        .expect("invalid utf8 in target triple");
 
-    if cfg!(target_os = "windows") {
+    let mut compilation_params = vec![
+        object_file.path().as_os_str(),
+        OsStr::new("-target"),
+        target_triple.as_ref(),
+    ];
+
+    if target_triple.contains("msvc") {
         // See https://learn.microsoft.com/en-us/cpp/porting/visual-cpp-change-history-2003-2015?view=msvc-170#stdio_and_conio
         compilation_params.push("-llegacy_stdio_definitions".as_ref());
     }
@@ -97,7 +107,12 @@ fn run() -> Result<(), Error> {
         .args(&args.link_params)
         .spawn()?;
 
-    let _status = child.wait()?;
+    let status = child.wait()?;
+
+    if !status.success() {
+        eprintln!("Link failed");
+        process::exit(1);
+    }
 
     Ok(())
 }
