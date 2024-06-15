@@ -10,8 +10,8 @@ lazy_static! {
         use pest::pratt_parser::Op;
 
         PrattParser::new()
-            .op(Op::prefix(Rule::logic_not))
             .op(Op::infix(Rule::logic_or, Left) | Op::infix(Rule::logic_and, Left))
+            .op(Op::prefix(Rule::logic_not))
             .op(Op::infix(Rule::r#eq, Left) | Op::infix(Rule::neq, Left))
             .op(Op::infix(Rule::lt, Left)
                 | Op::infix(Rule::lte, Left)
