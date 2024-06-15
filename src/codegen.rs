@@ -10,7 +10,7 @@ use inkwell::{
     },
     types::{BasicMetadataTypeEnum, IntType},
     values::{BasicMetadataValueEnum, FunctionValue, GlobalValue, IntValue, PointerValue},
-    AddressSpace, IntPredicate, OptimizationLevel,
+    AddressSpace, IntPredicate,
 };
 
 use crate::{analyzer, ast};
@@ -83,6 +83,7 @@ impl<'ctx> Compiler<'ctx> {
         &self,
         target_triple: Option<&str>,
         target_cpu: Option<&str>,
+        optimization_level: Option<inkwell::OptimizationLevel>,
         dest_path: &Path,
     ) -> Result<(), Error> {
         Target::initialize_all(&InitializationConfig::default());
@@ -99,7 +100,7 @@ impl<'ctx> Compiler<'ctx> {
                 &target_triple,
                 target_cpu.unwrap_or("generic"),
                 "",
-                OptimizationLevel::Aggressive,
+                optimization_level.unwrap_or_default(),
                 RelocMode::Default,
                 CodeModel::Default,
             )

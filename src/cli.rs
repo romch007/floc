@@ -2,6 +2,7 @@ use clap::crate_version;
 use clap::CommandFactory;
 use clap::FromArgMatches;
 use clap::Parser;
+use clap::ValueEnum;
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -27,6 +28,10 @@ pub struct Args {
     #[arg(long)]
     pub target_cpu: Option<String>,
 
+    /// Optimization level
+    #[arg(short = 'O', long)]
+    pub optimization_level: Option<OptimizationLevel>,
+
     /// Source file to compile
     pub source_file: String,
 
@@ -45,6 +50,26 @@ pub fn get_version() -> String {
         llvm_version.1,
         llvm_version.2
     )
+}
+
+#[derive(Debug, Clone, Default, ValueEnum)]
+pub enum OptimizationLevel {
+    None,
+    Less,
+    #[default]
+    Default,
+    Aggressive,
+}
+
+impl OptimizationLevel {
+    pub fn to_inkwell(&self) -> inkwell::OptimizationLevel {
+        match self {
+            OptimizationLevel::None => inkwell::OptimizationLevel::None,
+            OptimizationLevel::Less => inkwell::OptimizationLevel::Less,
+            OptimizationLevel::Default => inkwell::OptimizationLevel::Default,
+            OptimizationLevel::Aggressive => inkwell::OptimizationLevel::Aggressive,
+        }
+    }
 }
 
 pub fn parse() -> Args {

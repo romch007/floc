@@ -79,6 +79,7 @@ fn run() -> Result<(), Error> {
     codegen.compile(
         args.target_triple.as_deref(),
         args.target_cpu.as_deref(),
+        args.optimization_level.map(|opti| opti.to_inkwell()),
         object_file.path(),
     )?;
 
