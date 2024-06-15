@@ -18,3 +18,7 @@ inkwell = { version = "0.4.0", features = ["llvm17-0-prefer-dynamic"] }
 
 [target.'cfg(windows)'.dependencies]
 inkwell = { version = "0.4.0", features = ["llvm17-0-force-static", "target-x86"], default-features = false }
+
+[build-dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+clap_complete = "4.5.5"

@@ -13,7 +13,7 @@ use inkwell::{
     AddressSpace, IntPredicate,
 };
 
-use crate::{analyzer, ast};
+use crate::{analyzer, ast, cli};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -630,6 +630,21 @@ impl ToLlvmType for ast::Type {
         match self {
             ast::Type::Integer => context.i64_type(),
             ast::Type::Boolean => context.bool_type(),
+        }
+    }
+}
+
+pub trait OptimizationLevelConvert {
+    fn to_inkwell(&self) -> inkwell::OptimizationLevel;
+}
+
+impl OptimizationLevelConvert for cli::OptimizationLevel {
+    fn to_inkwell(&self) -> inkwell::OptimizationLevel {
+        match self {
+            Self::None => inkwell::OptimizationLevel::None,
+            Self::Less => inkwell::OptimizationLevel::Less,
+            Self::Default => inkwell::OptimizationLevel::Default,
+            Self::Aggressive => inkwell::OptimizationLevel::Aggressive,
         }
     }
 }

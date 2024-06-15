@@ -4,6 +4,8 @@ mod cli;
 mod codegen;
 mod parser;
 
+use codegen::OptimizationLevelConvert;
+
 use std::{
     fs,
     io::{self, Read},
