@@ -26,12 +26,16 @@ pub struct Args {
     #[arg(short = 'O', long, value_enum, default_value_t = OptimizationLevel::Default)]
     pub optimization_level: OptimizationLevel,
 
-    /// Source file to compile
-    pub source_file: PathBuf,
+    /// Output executable
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
 
     /// Additional params to pass to clang at link time
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    pub link_params: Vec<String>,
+    #[arg(long)]
+    pub link_params: Option<String>,
+
+    /// Source file to compile
+    pub source_file: PathBuf,
 }
 
 #[derive(Debug, Clone, Default, ValueEnum)]

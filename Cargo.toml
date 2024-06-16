@@ -10,7 +10,6 @@ clap = { version = "4.5.4", features = ["derive", "cargo"] }
 lazy_static = "1.4.0"
 pest = "2.7.10"
 pest_derive = "2.7.10"
-tempfile = "3.10.1"
 thiserror = "1.0.61"
 
 [target.'cfg(not(windows))'.dependencies]

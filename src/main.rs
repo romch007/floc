@@ -6,7 +6,12 @@ mod parser;
 
 use codegen::OptimizationLevelConvert;
 
-use std::{ffi::OsStr, fs, io, path::Path, process};
+use std::{
+    ffi::OsStr,
+    fs, io,
+    path::{Path, PathBuf},
+    process,
+};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -30,6 +35,12 @@ fn main() {
     }
 }
 
+macro_rules! os {
+    ($val:expr) => {{
+        OsStr::new($val)
+    }};
+}
+
 fn run() -> Result<(), Error> {
     let args = cli::parse();
     let source = fs::read_to_string(&args.source_file)?;
@@ -48,7 +59,9 @@ fn run() -> Result<(), Error> {
         .file_name()
         .expect("no filename")
         .to_str()
-        .expect("invalid filename");
+        .expect("invalid filename")
+        .strip_suffix(".flo")
+        .unwrap_or("<unknown>");
 
     let llvm_context = inkwell::context::Context::create();
     let mut codegen = codegen::Compiler::new(&llvm_context, module_name);
@@ -65,13 +78,13 @@ fn run() -> Result<(), Error> {
 
     codegen.verify()?;
 
-    let object_file = tempfile::Builder::new().suffix(".o").tempfile()?;
+    let object_file = std::env::temp_dir().join(format!("{module_name}.o"));
 
     let target_triple = codegen.compile(
         args.target_triple.as_deref(),
         args.target_cpu.as_deref(),
         args.optimization_level.to_inkwell(),
-        object_file.path(),
+        &object_file,
     )?;
 
     let target_triple = target_triple
@@ -79,21 +92,36 @@ fn run() -> Result<(), Error> {
         .to_str()
         .expect("invalid utf8 in target triple");
 
-    let mut compilation_params = vec![
-        object_file.path().as_os_str(),
-        OsStr::new("-target"),
+    let on_windows = target_triple.contains("windows");
+
+    let output_file = args.output.unwrap_or_else(|| {
+        let default_path = if on_windows {
+            format!("{module_name}.exe")
+        } else {
+            module_name.to_owned()
+        };
+
+        PathBuf::from(default_path)
+    });
+
+    let mut link_params = vec![
+        object_file.as_os_str(),
+        os!("-target"),
         target_triple.as_ref(),
+        os!("-o"),
+        output_file.as_ref(),
     ];
 
-    if target_triple.contains("msvc") {
+    if on_windows {
         // See https://learn.microsoft.com/en-us/cpp/porting/visual-cpp-change-history-2003-2015?view=msvc-170#stdio_and_conio
-        compilation_params.push("-llegacy_stdio_definitions".as_ref());
+        link_params.push(os!("-llegacy_stdio_definitions"));
     }
 
-    let mut child = process::Command::new("clang")
-        .args(&compilation_params)
-        .args(&args.link_params)
-        .spawn()?;
+    if let Some(additional_link_params) = &args.link_params {
+        link_params.extend(additional_link_params.split(" ").map(|s| os!(s)));
+    }
+
+    let mut child = process::Command::new("clang").args(&link_params).spawn()?;
 
     let status = child.wait()?;
 
