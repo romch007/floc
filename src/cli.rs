@@ -36,16 +36,20 @@ pub struct Args {
 
 #[derive(Debug, Clone, Default, ValueEnum)]
 pub enum OptimizationLevel {
+    /// None
     #[value(name = "0")]
     None,
 
+    /// Less
     #[value(name = "1")]
     Less,
 
+    /// Default
     #[value(name = "2")]
     #[default]
     Default,
 
+    /// Aggressive
     #[value(name = "3")]
     Aggressive,
 }
