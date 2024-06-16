@@ -6,13 +6,7 @@ mod parser;
 
 use codegen::OptimizationLevelConvert;
 
-use std::{
-    ffi::OsStr,
-    fs,
-    io::{self, Read},
-    path::Path,
-    process,
-};
+use std::{ffi::OsStr, fs, io, path::Path, process};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -38,13 +32,7 @@ fn main() {
 
 fn run() -> Result<(), Error> {
     let args = cli::parse();
-    let source = match args.source_file.as_str() {
-        "-" => {
-            let mut input = String::new();
-            io::stdin().read_to_string(&mut input).map(|_| input)?
-        }
-        file => fs::read_to_string(file)?,
-    };
+    let source = fs::read_to_string(&args.source_file)?;
 
     let ast_prog = parser::parse(&source)?;
 

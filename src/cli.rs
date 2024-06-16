@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use clap::ValueEnum;
 
@@ -25,7 +27,7 @@ pub struct Args {
     pub optimization_level: OptimizationLevel,
 
     /// Source file to compile
-    pub source_file: String,
+    pub source_file: PathBuf,
 
     /// Additional params to pass to clang at link time
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
