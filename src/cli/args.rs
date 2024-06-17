@@ -30,7 +30,7 @@ pub struct Args {
     #[arg(short = 'O', long, value_enum, default_value_t = OptimizationLevel::Default)]
     pub optimization_level: OptimizationLevel,
 
-    // Only compile, do not link
+    /// Only compile, do not link
     #[arg(short)]
     pub compile: bool,
 

@@ -91,17 +91,29 @@ fn run() -> Result<(), Error> {
         return Ok(());
     }
 
-    let object_file = std::env::temp_dir().join(format!("{module_name}.o"));
-
     let target_triple = target_machine.get_triple();
     let target_triple = target_triple
         .as_str()
         .to_str()
         .expect("invalid utf8 in target triple");
 
+    let on_windows = target_triple.contains("windows");
+
+    let object_file_ext = if on_windows { "obj" } else { "o" };
+    let object_file_name = format!("{module_name}.{object_file_ext}");
+    let object_file = if args.compile {
+        args.output
+            .clone()
+            .unwrap_or(PathBuf::from(object_file_name))
+    } else {
+        std::env::temp_dir().join(object_file_ext)
+    };
+
     codegen.compile(&target_machine, &object_file)?;
 
-    let on_windows = target_triple.contains("windows");
+    if args.compile {
+        return Ok(());
+    }
 
     let output_file = args.output.unwrap_or_else(|| {
         let default_path = if on_windows {
