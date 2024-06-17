@@ -78,19 +78,28 @@ fn run() -> Result<(), Error> {
 
     codegen.verify()?;
 
-    let object_file = std::env::temp_dir().join(format!("{module_name}.o"));
-
-    let target_triple = codegen.compile(
+    let target_machine = codegen::Compiler::create_target_machine(
         args.target_triple.as_deref(),
         args.target_cpu.as_deref(),
         args.optimization_level.to_inkwell(),
-        &object_file,
     )?;
 
+    codegen.optimize(&target_machine)?;
+
+    if args.emit_optimized_ir {
+        codegen.dump_to_stderr();
+        return Ok(());
+    }
+
+    let object_file = std::env::temp_dir().join(format!("{module_name}.o"));
+
+    let target_triple = target_machine.get_triple();
     let target_triple = target_triple
         .as_str()
         .to_str()
         .expect("invalid utf8 in target triple");
+
+    codegen.compile(&target_machine, &object_file)?;
 
     let on_windows = target_triple.contains("windows");
 

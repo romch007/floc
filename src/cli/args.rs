@@ -14,6 +14,10 @@ pub struct Args {
     #[arg(long, default_value_t = false)]
     pub emit_ir: bool,
 
+    /// Print the optimized LLVM IR and exit
+    #[arg(long, default_value_t = false)]
+    pub emit_optimized_ir: bool,
+
     /// LLVM target triple
     #[arg(short, long)]
     pub target_triple: Option<String>,
@@ -25,6 +29,10 @@ pub struct Args {
     /// Optimization level
     #[arg(short = 'O', long, value_enum, default_value_t = OptimizationLevel::Default)]
     pub optimization_level: OptimizationLevel,
+
+    // Only compile, do not link
+    #[arg(short)]
+    pub compile: bool,
 
     /// Output executable
     #[arg(short, long)]

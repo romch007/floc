@@ -79,13 +79,11 @@ impl<'ctx> Compiler<'ctx> {
             .map_err(|llvm_str| Error::Verification(llvm_str.to_string()))
     }
 
-    pub fn compile(
-        &self,
+    pub fn create_target_machine(
         target_triple: Option<&str>,
         target_cpu: Option<&str>,
         optimization_level: inkwell::OptimizationLevel,
-        dest_path: &Path,
-    ) -> Result<TargetTriple, Error> {
+    ) -> Result<TargetMachine, Error> {
         Target::initialize_all(&InitializationConfig::default());
 
         let target_triple = target_triple
@@ -106,13 +104,25 @@ impl<'ctx> Compiler<'ctx> {
             )
             .unwrap();
 
+        Ok(target_machine)
+    }
+
+    pub fn optimize(&self, target_machine: &TargetMachine) -> Result<(), Error> {
         let passes: &[&str] = &[
             "instcombine",
             "reassociate",
             "gvn",
             "simplifycfg",
-            // "basic-aa",
             "mem2reg",
+            "dse",
+            "loop-simplify",
+            "indvars",
+            "loop-unroll",
+            "jump-threading",
+            "sccp",
+            "dce",
+            "sink",
+            "tailcallelim",
         ];
 
         self.module
@@ -123,11 +133,15 @@ impl<'ctx> Compiler<'ctx> {
             )
             .map_err(|err| Error::Other(err.to_string()))?;
 
+        Ok(())
+    }
+
+    pub fn compile(&self, target_machine: &TargetMachine, dest_path: &Path) -> Result<(), Error> {
         target_machine
             .write_to_file(&self.module, FileType::Object, dest_path)
             .map_err(|err| Error::Other(err.to_string()))?;
 
-        Ok(target_triple)
+        Ok(())
     }
 
     pub fn emit_program(&mut self, prog: &ast::Program) -> Result<(), Error> {
