@@ -1,63 +1,30 @@
-use std::path::PathBuf;
+pub mod args;
 
-use clap::Parser;
-use clap::ValueEnum;
+use args::Args;
+use clap::crate_version;
+use clap::CommandFactory;
+use clap::FromArgMatches;
+use lazy_static::lazy_static;
 
-#[derive(Debug, Parser)]
-#[clap(author, about, version)]
-pub struct Args {
-    /// Print the parsed AST and exit
-    #[arg(long, default_value_t = false)]
-    pub emit_ast: bool,
-
-    /// Print the generated LLVM IR and exit
-    #[arg(long, default_value_t = false)]
-    pub emit_ir: bool,
-
-    /// LLVM target triple
-    #[arg(short, long)]
-    pub target_triple: Option<String>,
-
-    /// LLVM target CPU
-    #[arg(long)]
-    pub target_cpu: Option<String>,
-
-    /// Optimization level
-    #[arg(short = 'O', long, value_enum, default_value_t = OptimizationLevel::Default)]
-    pub optimization_level: OptimizationLevel,
-
-    /// Output executable
-    #[arg(short, long)]
-    pub output: Option<PathBuf>,
-
-    /// Additional params to pass to clang at link time
-    #[arg(long)]
-    pub link_params: Option<String>,
-
-    /// Source file to compile
-    pub source_file: PathBuf,
+lazy_static! {
+    static ref VERSION: String = get_version();
 }
 
-#[derive(Debug, Clone, Default, ValueEnum)]
-pub enum OptimizationLevel {
-    /// None
-    #[value(name = "0")]
-    None,
+fn get_version() -> String {
+    let llvm_version = inkwell::support::get_llvm_version();
 
-    /// Less
-    #[value(name = "1")]
-    Less,
-
-    /// Default
-    #[value(name = "2")]
-    #[default]
-    Default,
-
-    /// Aggressive
-    #[value(name = "3")]
-    Aggressive,
+    format!(
+        "{} (using LLVM {}.{}.{})",
+        crate_version!(),
+        llvm_version.0,
+        llvm_version.1,
+        llvm_version.2
+    )
 }
 
 pub fn parse() -> Args {
-    Args::parse()
+    let command = Args::command();
+
+    Args::from_arg_matches(&command.version(VERSION.as_str()).get_matches())
+        .unwrap_or_else(|e| e.exit())
 }

@@ -1,4 +1,4 @@
-include!("src/cli.rs");
+include!("src/cli/args.rs");
 
 fn main() {
     use std::{env, fs};

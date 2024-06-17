@@ -638,7 +638,7 @@ pub trait OptimizationLevelConvert {
     fn to_inkwell(&self) -> inkwell::OptimizationLevel;
 }
 
-impl OptimizationLevelConvert for cli::OptimizationLevel {
+impl OptimizationLevelConvert for cli::args::OptimizationLevel {
     fn to_inkwell(&self) -> inkwell::OptimizationLevel {
         match self {
             Self::None => inkwell::OptimizationLevel::None,
