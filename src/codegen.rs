@@ -451,7 +451,7 @@ impl<'ctx> Compiler<'ctx> {
 
             self.builder.position_at_end(end_bb);
 
-            Ok(has_ended_bb)
+            Ok(false)
         }
     }
 
