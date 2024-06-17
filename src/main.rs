@@ -3,6 +3,7 @@ mod ast;
 mod cli;
 mod codegen;
 mod parser;
+mod utils;
 
 use codegen::OptimizationLevelConvert;
 
@@ -106,7 +107,7 @@ fn run() -> Result<(), Error> {
             .clone()
             .unwrap_or(PathBuf::from(object_file_name))
     } else {
-        std::env::temp_dir().join(object_file_ext)
+        std::env::temp_dir().join(utils::tmpname(os!(""), os!(".o"), 10))
     };
 
     codegen.compile(&target_machine, &object_file)?;
@@ -150,6 +151,8 @@ fn run() -> Result<(), Error> {
         eprintln!("Link failed");
         process::exit(1);
     }
+
+    let _ = fs::remove_file(&object_file);
 
     Ok(())
 }
