@@ -2,19 +2,6 @@ use std::collections::HashMap;
 
 use crate::ast;
 
-macro_rules! match_type {
-    ($expected:expr, $got:expr) => {{
-        if $expected != $got {
-            Err(Error::TypeMismatch {
-                expected: $expected,
-                got: $got,
-            })
-        } else {
-            Ok(())
-        }
-    }};
-}
-
 #[derive(Debug)]
 pub struct Variable {
     r#type: ast::Type,
@@ -105,6 +92,17 @@ impl Analyzer {
             .insert(var_name.to_string(), Variable { r#type });
     }
 
+    fn match_type(&mut self, expected: &ast::Type, got: &ast::Type) -> Result<(), Error> {
+        if expected != got {
+            Err(Error::TypeMismatch {
+                expected: expected.clone(),
+                got: got.clone(),
+            })
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn analyze_program(&mut self, prog: &ast::Program) -> Result<(), Error> {
         // Register all functions
         for fn_decl in &prog.function_decls {
@@ -112,13 +110,17 @@ impl Analyzer {
                 return Err(Error::FunctionAlreadyDefined(fn_decl.name.clone()));
             }
 
-            let args = fn_decl.arguments.iter().map(|arg| arg.r#type).collect();
+            let args = fn_decl
+                .arguments
+                .iter()
+                .map(|arg| arg.r#type.clone())
+                .collect();
 
             self.functions.insert(
                 fn_decl.name.clone(),
                 Function {
                     name: fn_decl.name.clone(),
-                    return_type: fn_decl.return_type,
+                    return_type: fn_decl.return_type.clone(),
                     arguments: args,
                 },
             );
@@ -139,7 +141,7 @@ impl Analyzer {
         self.enter_block();
 
         for arg in &fn_decl.arguments {
-            self.declare_variable(&arg.name, arg.r#type);
+            self.declare_variable(&arg.name, arg.r#type.clone());
         }
 
         let mut does_return = false;
@@ -212,17 +214,18 @@ impl Analyzer {
             .functions
             .get(current_function_name)
             .unwrap()
-            .return_type;
+            .return_type
+            .clone();
 
         let value_type = self.analyze_expr(value)?;
-        match_type!(function_ret_type, value_type)?;
+        self.match_type(&function_ret_type, &value_type)?;
 
         Ok(true)
     }
 
     fn analyze_if(&mut self, i: &ast::If) -> Result<bool, Error> {
         let condition_type = self.analyze_expr(&i.condition)?;
-        match_type!(ast::Type::Boolean, condition_type)?;
+        self.match_type(&ast::Type::Boolean, &condition_type)?;
 
         let then_block_returns = self.analyze_block(&i.statements)?;
 
@@ -238,7 +241,7 @@ impl Analyzer {
 
     fn analyze_while(&mut self, whil: &ast::While) -> Result<bool, Error> {
         let condition_type = self.analyze_expr(&whil.condition)?;
-        match_type!(ast::Type::Boolean, condition_type)?;
+        self.match_type(&ast::Type::Boolean, &condition_type)?;
 
         self.analyze_block(&whil.statements)?;
 
@@ -252,10 +255,10 @@ impl Analyzer {
 
         if let Some(default_value) = &declaration.value {
             let default_value_type = self.analyze_expr(default_value)?;
-            match_type!(declaration.r#type, default_value_type)?;
+            self.match_type(&declaration.r#type, &default_value_type)?;
         }
 
-        self.declare_variable(&declaration.variable, declaration.r#type);
+        self.declare_variable(&declaration.variable, declaration.r#type.clone());
 
         Ok(false)
     }
@@ -263,11 +266,11 @@ impl Analyzer {
     fn analyze_assignment(&mut self, assignment: &ast::Assignment) -> Result<bool, Error> {
         let variable_type = self
             .get_variable(&assignment.variable)
-            .map(|var| var.r#type)
+            .map(|var| var.r#type.clone())
             .ok_or(Error::VariableNotFound(assignment.variable.clone()))?;
 
         let expr_type = self.analyze_expr(&assignment.value)?;
-        match_type!(variable_type, expr_type)?;
+        self.match_type(&variable_type, &expr_type)?;
 
         Ok(false)
     }
@@ -278,7 +281,8 @@ impl Analyzer {
             ast::Expression::Boolean(_) => Ok(ast::Type::Boolean),
             ast::Expression::Variable(var) => self.analyze_variable(var),
             ast::Expression::Random { max } => {
-                match_type!(ast::Type::Integer, self.analyze_expr(max)?)?;
+                let max = self.analyze_expr(max)?;
+                self.match_type(&ast::Type::Integer, &max)?;
                 Ok(ast::Type::Integer)
             }
             ast::Expression::FunctionCall(fn_call) => self.analyze_function_call(fn_call),
@@ -307,7 +311,7 @@ impl Analyzer {
         for (fn_call_arg, expected_type) in fn_call.arguments.iter().zip(function.arguments.iter())
         {
             let arg_type = self.analyze_expr(fn_call_arg)?;
-            match_type!(*expected_type, arg_type)?;
+            self.match_type(&expected_type, &arg_type)?;
         }
 
         Ok(function.return_type)
@@ -315,7 +319,7 @@ impl Analyzer {
 
     fn analyze_variable(&mut self, var_name: &str) -> Result<ast::Type, Error> {
         self.get_variable(var_name)
-            .map(|var| var.r#type)
+            .map(|var| var.r#type.clone())
             .ok_or(Error::VariableNotFound(var_name.to_string()))
     }
 
@@ -330,7 +334,7 @@ impl Analyzer {
         };
 
         let operand_type = self.analyze_expr(operand)?;
-        match_type!(expected_type, operand_type)?;
+        self.match_type(&expected_type, &operand_type)?;
 
         Ok(expected_type)
     }
@@ -352,10 +356,10 @@ impl Analyzer {
         };
 
         let left_type = self.analyze_expr(left)?;
-        match_type!(expected_operand_type, left_type)?;
+        self.match_type(&expected_operand_type, &left_type)?;
 
         let right_type = self.analyze_expr(right)?;
-        match_type!(expected_operand_type, right_type)?;
+        self.match_type(&expected_operand_type, &right_type)?;
 
         let result_type = match op {
             Add | Sub | Mul | Div | Mod => ast::Type::Integer,

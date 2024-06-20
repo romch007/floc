@@ -291,7 +291,7 @@ impl<'ctx> Compiler<'ctx> {
                 arg.name.clone(),
                 Variable {
                     ptr: alloca_ptr,
-                    r#type: arg.r#type,
+                    r#type: arg.r#type.clone(),
                 },
             );
         }
@@ -334,7 +334,7 @@ impl<'ctx> Compiler<'ctx> {
             decl.variable.clone(),
             Variable {
                 ptr: alloca_ptr,
-                r#type: decl.r#type,
+                r#type: decl.r#type.clone(),
             },
         );
 

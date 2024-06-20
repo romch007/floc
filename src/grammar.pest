@@ -17,7 +17,9 @@ if          = { "si" ~ "(" ~ expr ~ ")" ~ braced_stmts ~ ("sinon" ~ (braced_stmt
 return      = { "retourner" ~ expr ~ ";" }
 discard_fn_call = { function_call ~ ";" }
 
-type = { "entier" | "booleen" }
+type = { array_type | builtin_type }
+array_type = { builtin_type ~ "[" ~ integer? ~ "]" }
+builtin_type = _{ "entier" | "booleen" }
 
 expr      = { prefix? ~ primary ~ (infix ~ prefix? ~ primary)* }
 expr_list = { (expr ~ ("," ~ expr)*)? }
