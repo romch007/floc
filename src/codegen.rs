@@ -78,9 +78,8 @@ impl<'ctx> Compiler<'ctx> {
     ) -> Result<TargetMachine, Error> {
         Target::initialize_all(&InitializationConfig::default());
 
-        let target_triple = target_triple
-            .map(TargetTriple::create)
-            .unwrap_or_else(TargetMachine::get_default_triple);
+        let target_triple =
+            target_triple.map_or_else(TargetMachine::get_default_triple, TargetTriple::create);
 
         let target =
             Target::from_triple(&target_triple).map_err(|err| Error::Other(err.to_string()))?;
@@ -120,7 +119,7 @@ impl<'ctx> Compiler<'ctx> {
         self.module
             .run_passes(
                 passes.join(",").as_str(),
-                &target_machine,
+                target_machine,
                 PassBuilderOptions::create(),
             )
             .map_err(|err| Error::Other(err.to_string()))?;
@@ -441,8 +440,8 @@ impl<'ctx> Compiler<'ctx> {
             ast::Expression::Variable(var) => self.emit_variable(var)?,
             ast::Expression::FunctionCall(fn_call) => self.emit_function_call(fn_call)?,
             ast::Expression::Read => self.emit_read()?,
-            ast::Expression::BinaryOp(binary_op) => self.emit_binary_op(&binary_op)?,
-            ast::Expression::UnaryOp(unary_op) => self.emit_unary_op(&unary_op)?,
+            ast::Expression::BinaryOp(binary_op) => self.emit_binary_op(binary_op)?,
+            ast::Expression::UnaryOp(unary_op) => self.emit_unary_op(unary_op)?,
         })
     }
 

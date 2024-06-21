@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::ast;
 
 #[derive(Debug)]
-pub struct Variable {
+struct Variable {
     r#type: ast::Type,
 }
 
@@ -48,19 +48,35 @@ pub enum Error {
     },
 }
 
+#[inline]
+fn match_type(expected: &ast::Type, got: &ast::Type) -> Result<(), Error> {
+    if expected == got {
+        Ok(())
+    } else {
+        Err(Error::TypeMismatch {
+            expected: expected.clone(),
+            got: got.clone(),
+        })
+    }
+}
+
 pub struct Analyzer {
     variables: Vec<HashMap<String, Variable>>,
-    pub functions: HashMap<String, Function>,
+    functions: HashMap<String, Function>,
     parent_function: Option<String>,
 }
 
 impl Analyzer {
     pub fn new() -> Self {
         Self {
-            variables: vec![],
+            variables: Vec::with_capacity(1),
             functions: HashMap::new(),
             parent_function: None,
         }
+    }
+
+    pub fn functions(&self) -> &HashMap<String, Function> {
+        &self.functions
     }
 
     fn enter_block(&mut self) {
@@ -90,17 +106,6 @@ impl Analyzer {
             .last_mut()
             .unwrap()
             .insert(var_name.to_string(), Variable { r#type });
-    }
-
-    fn match_type(&mut self, expected: &ast::Type, got: &ast::Type) -> Result<(), Error> {
-        if expected != got {
-            Err(Error::TypeMismatch {
-                expected: expected.clone(),
-                got: got.clone(),
-            })
-        } else {
-            Ok(())
-        }
     }
 
     pub fn analyze_program(&mut self, prog: &ast::Program) -> Result<(), Error> {
@@ -218,14 +223,14 @@ impl Analyzer {
             .clone();
 
         let value_type = self.analyze_expr(value)?;
-        self.match_type(&function_ret_type, &value_type)?;
+        match_type(&function_ret_type, &value_type)?;
 
         Ok(true)
     }
 
     fn analyze_if(&mut self, i: &ast::If) -> Result<bool, Error> {
         let condition_type = self.analyze_expr(&i.condition)?;
-        self.match_type(&ast::Type::Boolean, &condition_type)?;
+        match_type(&ast::Type::Boolean, &condition_type)?;
 
         let then_block_returns = self.analyze_block(&i.statements)?;
 
@@ -241,7 +246,7 @@ impl Analyzer {
 
     fn analyze_while(&mut self, whil: &ast::While) -> Result<bool, Error> {
         let condition_type = self.analyze_expr(&whil.condition)?;
-        self.match_type(&ast::Type::Boolean, &condition_type)?;
+        match_type(&ast::Type::Boolean, &condition_type)?;
 
         self.analyze_block(&whil.statements)?;
 
@@ -255,7 +260,7 @@ impl Analyzer {
 
         if let Some(default_value) = &declaration.value {
             let default_value_type = self.analyze_expr(default_value)?;
-            self.match_type(&declaration.r#type, &default_value_type)?;
+            match_type(&declaration.r#type, &default_value_type)?;
         }
 
         self.declare_variable(&declaration.variable, declaration.r#type.clone());
@@ -270,7 +275,7 @@ impl Analyzer {
             .ok_or(Error::VariableNotFound(assignment.variable.clone()))?;
 
         let expr_type = self.analyze_expr(&assignment.value)?;
-        self.match_type(&variable_type, &expr_type)?;
+        match_type(&variable_type, &expr_type)?;
 
         Ok(false)
     }
@@ -281,8 +286,8 @@ impl Analyzer {
             ast::Expression::Boolean(_) => Ok(ast::Type::Boolean),
             ast::Expression::Variable(var) => self.analyze_variable(var),
             ast::Expression::FunctionCall(fn_call) => self.analyze_function_call(fn_call),
-            ast::Expression::BinaryOp(binary_op) => self.analyze_binary_op(&binary_op),
-            ast::Expression::UnaryOp(unary_op) => self.analyze_unary_op(&unary_op),
+            ast::Expression::BinaryOp(binary_op) => self.analyze_binary_op(binary_op),
+            ast::Expression::UnaryOp(unary_op) => self.analyze_unary_op(unary_op),
         }
     }
 
@@ -304,7 +309,7 @@ impl Analyzer {
         for (fn_call_arg, expected_type) in fn_call.arguments.iter().zip(function.arguments.iter())
         {
             let arg_type = self.analyze_expr(fn_call_arg)?;
-            self.match_type(&expected_type, &arg_type)?;
+            match_type(expected_type, &arg_type)?;
         }
 
         Ok(function.return_type)
@@ -323,7 +328,7 @@ impl Analyzer {
         };
 
         let operand_type = self.analyze_expr(&unary_op.operand)?;
-        self.match_type(&expected_type, &operand_type)?;
+        match_type(&expected_type, &operand_type)?;
 
         Ok(expected_type)
     }
@@ -340,10 +345,10 @@ impl Analyzer {
         };
 
         let left_type = self.analyze_expr(&binary_op.left)?;
-        self.match_type(&expected_operand_type, &left_type)?;
+        match_type(&expected_operand_type, &left_type)?;
 
         let right_type = self.analyze_expr(&binary_op.right)?;
-        self.match_type(&expected_operand_type, &right_type)?;
+        match_type(&expected_operand_type, &right_type)?;
 
         let result_type = match &binary_op.kind {
             Add | Sub | Mul | Div | Mod => ast::Type::Integer,

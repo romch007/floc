@@ -67,7 +67,7 @@ fn run() -> Result<(), Error> {
     let llvm_context = inkwell::context::Context::create();
     let mut codegen = codegen::Compiler::new(&llvm_context, module_name);
 
-    let declared_functions = analyzer.functions.values().collect::<Vec<_>>();
+    let declared_functions = analyzer.functions().values().collect::<Vec<_>>();
 
     codegen.declare_functions(&declared_functions[..]);
     codegen.emit_program(&ast_prog)?;
@@ -140,7 +140,7 @@ fn run() -> Result<(), Error> {
     }
 
     if let Some(additional_link_params) = &args.link_params {
-        link_params.extend(additional_link_params.split(" ").map(|s| os!(s)));
+        link_params.extend(additional_link_params.split(' ').map(|s| os!(s)));
     }
 
     let mut child = process::Command::new("clang").args(&link_params).spawn()?;
