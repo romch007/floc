@@ -280,11 +280,6 @@ impl Analyzer {
             ast::Expression::Integer(_) | ast::Expression::Read => Ok(ast::Type::Integer),
             ast::Expression::Boolean(_) => Ok(ast::Type::Boolean),
             ast::Expression::Variable(var) => self.analyze_variable(var),
-            ast::Expression::Random { max } => {
-                let max = self.analyze_expr(max)?;
-                self.match_type(&ast::Type::Integer, &max)?;
-                Ok(ast::Type::Integer)
-            }
             ast::Expression::FunctionCall(fn_call) => self.analyze_function_call(fn_call),
             ast::Expression::BinaryOp(binary_op) => self.analyze_binary_op(&binary_op),
             ast::Expression::UnaryOp(unary_op) => self.analyze_unary_op(&unary_op),

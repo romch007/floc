@@ -40,10 +40,6 @@ pub struct Compiler<'ctx> {
 
     printf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
     scanf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
-    rand: FunctionValue<'ctx>,
-
-    srand: FunctionValue<'ctx>,
-    time: FunctionValue<'ctx>,
 }
 
 impl<'ctx> Compiler<'ctx> {
@@ -52,7 +48,6 @@ impl<'ctx> Compiler<'ctx> {
         let builder = context.create_builder();
         let printf = Compiler::create_printf(context, &module);
         let scanf = Compiler::create_scanf(context, &module);
-        let (rand, srand, time) = Compiler::create_rand(context, &module);
 
         Self {
             context,
@@ -60,9 +55,6 @@ impl<'ctx> Compiler<'ctx> {
             builder,
             printf,
             scanf,
-            rand,
-            srand,
-            time,
             current_function: None,
             variables: HashMap::default(),
             functions: HashMap::default(),
@@ -157,8 +149,6 @@ impl<'ctx> Compiler<'ctx> {
 
         self.current_function = Some(main_function);
 
-        self.emit_srand_init()?;
-
         for stmt in &prog.statements {
             self.emit_statement(stmt)?;
         }
@@ -207,42 +197,6 @@ impl<'ctx> Compiler<'ctx> {
         let scanf_fn = module.add_function("scanf", scanf_type, None);
 
         (scanf_fn, scanf_format_global)
-    }
-
-    fn create_rand(
-        context: &'ctx Context,
-        module: &Module<'ctx>,
-    ) -> (
-        FunctionValue<'ctx>,
-        FunctionValue<'ctx>,
-        FunctionValue<'ctx>,
-    ) {
-        let rand_fn = module.add_function("rand", context.i64_type().fn_type(&[], false), None);
-
-        let srand_type = context
-            .void_type()
-            .fn_type(&[context.i64_type().into()], false);
-        let srand_fn = module.add_function("srand", srand_type, None);
-
-        let time_type = context
-            .i64_type()
-            .fn_type(&[context.i64_type().into()], false);
-        let time_fn = module.add_function("time", time_type, None);
-
-        (rand_fn, srand_fn, time_fn)
-    }
-
-    fn emit_srand_init(&mut self) -> Result<(), Error> {
-        let time_null_ptr = self.context.i64_type().const_int(0_u64, false);
-        let retval = self
-            .builder
-            .build_call(self.time, &[time_null_ptr.into()], "time_call")?;
-
-        let current_time = retval.try_as_basic_value().unwrap_left().into_int_value();
-        self.builder
-            .build_call(self.srand, &[current_time.into()], "srand_call")?;
-
-        Ok(())
     }
 
     pub fn declare_functions(&mut self, functions: &[&analyzer::Function]) {
@@ -487,9 +441,8 @@ impl<'ctx> Compiler<'ctx> {
             ast::Expression::Variable(var) => self.emit_variable(var)?,
             ast::Expression::FunctionCall(fn_call) => self.emit_function_call(fn_call)?,
             ast::Expression::Read => self.emit_read()?,
-            ast::Expression::Random { max } => self.emit_rand(max)?,
             ast::Expression::BinaryOp(binary_op) => self.emit_binary_op(&binary_op)?,
-            ast::Expression::UnaryOp { op, operand } => self.emit_unary_op(op, operand)?,
+            ast::Expression::UnaryOp(unary_op) => self.emit_unary_op(&unary_op)?,
         })
     }
 
@@ -547,19 +500,6 @@ impl<'ctx> Compiler<'ctx> {
         Ok(value.into_int_value())
     }
 
-    pub fn emit_rand(&mut self, max: &ast::Expression) -> Result<IntValue<'ctx>, Error> {
-        let max = self.emit_expression(max)?;
-
-        let ret = self.builder.build_call(self.rand, &[], "rand_call")?;
-
-        let big_retval = ret.try_as_basic_value().unwrap_left().into_int_value();
-        let retval = self
-            .builder
-            .build_int_signed_rem(big_retval, max, "rand_mod")?;
-
-        Ok(retval)
-    }
-
     pub fn emit_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<IntValue<'ctx>, Error> {
         let left = self.emit_expression(&binary_op.left)?;
         let right = self.emit_expression(&binary_op.right)?;
@@ -601,14 +541,10 @@ impl<'ctx> Compiler<'ctx> {
         Ok(result)
     }
 
-    pub fn emit_unary_op(
-        &mut self,
-        op: &ast::UnaryOpKind,
-        operand: &ast::Expression,
-    ) -> Result<IntValue<'ctx>, Error> {
-        let operand = self.emit_expression(operand)?;
+    pub fn emit_unary_op(&mut self, unary_op: &ast::UnaryOp) -> Result<IntValue<'ctx>, Error> {
+        let operand = self.emit_expression(&unary_op.operand)?;
 
-        let result = match op {
+        let result = match &unary_op.kind {
             ast::UnaryOpKind::Neg => self.builder.build_int_neg(operand, "neg")?,
             ast::UnaryOpKind::LogicNot => self.builder.build_not(operand, "not")?,
         };

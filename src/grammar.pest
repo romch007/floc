@@ -44,11 +44,10 @@ prefix       = _{ neg | logic_not }
 neg          =  { "-" }
 logic_not    =  { "non" }
 
-primary       = _{ integer | boolean | read | random | function_call | ident | "(" ~ expr ~ ")" }
+primary       = _{ integer | boolean | read | function_call | ident | "(" ~ expr ~ ")" }
 integer       = @{ ASCII_DIGIT+ }
 boolean       =  { "Vrai" | "Faux" }
 read          =  { "lire" ~ "(" ~ ")" }
-random        =  { "aleatoire" ~ "(" ~ expr ~ ")" }
 function_call =  { ident ~ "(" ~ expr_list ~ ")" }
 
 ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }

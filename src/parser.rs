@@ -108,12 +108,6 @@ impl Node for Expression {
                 Rule::integer => Self::Integer(primary.as_str().parse().unwrap()),
                 Rule::ident => Self::Variable(primary.as_str().to_string()),
                 Rule::boolean => Self::Boolean(parse_bool(primary.as_str()).unwrap()),
-                Rule::random => {
-                    let mut pairs = primary.into_inner();
-                    let max = Expression::parse(pairs.next().unwrap());
-
-                    Self::Random { max: Box::new(max) }
-                }
                 Rule::read => Self::Read,
                 Rule::function_call => Self::FunctionCall(FunctionCall::parse(primary)),
                 rule => unreachable!("invalid primary expr '{rule:?}'"),

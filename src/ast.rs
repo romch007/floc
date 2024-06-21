@@ -65,7 +65,6 @@ pub enum Expression {
     Variable(String),
     Boolean(bool),
     Read,
-    Random { max: Box<Expression> },
     FunctionCall(FunctionCall),
     BinaryOp(BinaryOp),
     UnaryOp(UnaryOp),
