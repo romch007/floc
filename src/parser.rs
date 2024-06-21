@@ -118,14 +118,18 @@ impl Node for Expression {
                 Rule::function_call => Self::FunctionCall(FunctionCall::parse(primary)),
                 rule => unreachable!("invalid primary expr '{rule:?}'"),
             })
-            .map_prefix(|op, rhs| Self::UnaryOp {
-                op: UnaryOpKind::parse(op),
-                operand: Box::new(rhs),
+            .map_prefix(|op, rhs| {
+                Self::UnaryOp(UnaryOp {
+                    kind: UnaryOpKind::parse(op),
+                    operand: Box::new(rhs),
+                })
             })
-            .map_infix(|lhs, op, rhs| Self::BinaryOp {
-                left: Box::new(lhs),
-                op: BinaryOpKind::parse(op),
-                right: Box::new(rhs),
+            .map_infix(|lhs, op, rhs| {
+                Self::BinaryOp(BinaryOp {
+                    left: Box::new(lhs),
+                    kind: BinaryOpKind::parse(op),
+                    right: Box::new(rhs),
+                })
             })
             .parse(pairs)
     }

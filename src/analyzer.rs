@@ -286,10 +286,8 @@ impl Analyzer {
                 Ok(ast::Type::Integer)
             }
             ast::Expression::FunctionCall(fn_call) => self.analyze_function_call(fn_call),
-            ast::Expression::BinaryOp { left, op, right } => {
-                self.analyze_binary_op(left, op, right)
-            }
-            ast::Expression::UnaryOp { op, operand } => self.analyze_unary_op(op, operand),
+            ast::Expression::BinaryOp(binary_op) => self.analyze_binary_op(&binary_op),
+            ast::Expression::UnaryOp(unary_op) => self.analyze_unary_op(&unary_op),
         }
     }
 
@@ -323,45 +321,36 @@ impl Analyzer {
             .ok_or(Error::VariableNotFound(var_name.to_string()))
     }
 
-    fn analyze_unary_op(
-        &mut self,
-        op: &ast::UnaryOpKind,
-        operand: &ast::Expression,
-    ) -> Result<ast::Type, Error> {
-        let expected_type = match op {
+    fn analyze_unary_op(&mut self, unary_op: &ast::UnaryOp) -> Result<ast::Type, Error> {
+        let expected_type = match &unary_op.kind {
             ast::UnaryOpKind::Neg => ast::Type::Integer,
             ast::UnaryOpKind::LogicNot => ast::Type::Boolean,
         };
 
-        let operand_type = self.analyze_expr(operand)?;
+        let operand_type = self.analyze_expr(&unary_op.operand)?;
         self.match_type(&expected_type, &operand_type)?;
 
         Ok(expected_type)
     }
 
-    fn analyze_binary_op(
-        &mut self,
-        left: &ast::Expression,
-        op: &ast::BinaryOpKind,
-        right: &ast::Expression,
-    ) -> Result<ast::Type, Error> {
+    fn analyze_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<ast::Type, Error> {
         use ast::BinaryOpKind::*;
 
         // NOTE: this forbids 'example == Vrai', because:
         // 1. I'm lazy
         // 2. Nobody should ever write that
-        let expected_operand_type = match op {
+        let expected_operand_type = match &binary_op.kind {
             Add | Sub | Mul | Div | Mod | Eq | Neq | Lt | Lte | Gt | Gte => ast::Type::Integer,
             LogicAnd | LogicOr => ast::Type::Boolean,
         };
 
-        let left_type = self.analyze_expr(left)?;
+        let left_type = self.analyze_expr(&binary_op.left)?;
         self.match_type(&expected_operand_type, &left_type)?;
 
-        let right_type = self.analyze_expr(right)?;
+        let right_type = self.analyze_expr(&binary_op.right)?;
         self.match_type(&expected_operand_type, &right_type)?;
 
-        let result_type = match op {
+        let result_type = match &binary_op.kind {
             Add | Sub | Mul | Div | Mod => ast::Type::Integer,
             Eq | Neq | Lt | Lte | Gt | Gte | LogicOr | LogicAnd => ast::Type::Boolean,
         };

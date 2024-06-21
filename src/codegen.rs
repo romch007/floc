@@ -488,9 +488,7 @@ impl<'ctx> Compiler<'ctx> {
             ast::Expression::FunctionCall(fn_call) => self.emit_function_call(fn_call)?,
             ast::Expression::Read => self.emit_read()?,
             ast::Expression::Random { max } => self.emit_rand(max)?,
-            ast::Expression::BinaryOp { left, op, right } => {
-                self.emit_binary_op(left, op, right)?
-            }
+            ast::Expression::BinaryOp(binary_op) => self.emit_binary_op(&binary_op)?,
             ast::Expression::UnaryOp { op, operand } => self.emit_unary_op(op, operand)?,
         })
     }
@@ -562,16 +560,11 @@ impl<'ctx> Compiler<'ctx> {
         Ok(retval)
     }
 
-    pub fn emit_binary_op(
-        &mut self,
-        left: &ast::Expression,
-        op: &ast::BinaryOpKind,
-        right: &ast::Expression,
-    ) -> Result<IntValue<'ctx>, Error> {
-        let left = self.emit_expression(left)?;
-        let right = self.emit_expression(right)?;
+    pub fn emit_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<IntValue<'ctx>, Error> {
+        let left = self.emit_expression(&binary_op.left)?;
+        let right = self.emit_expression(&binary_op.right)?;
 
-        let result = match op {
+        let result = match &binary_op.kind {
             ast::BinaryOpKind::Add => self.builder.build_int_add(left, right, "add")?,
             ast::BinaryOpKind::Sub => self.builder.build_int_sub(left, right, "sub")?,
             ast::BinaryOpKind::Mul => self.builder.build_int_mul(left, right, "mul")?,

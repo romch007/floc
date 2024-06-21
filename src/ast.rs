@@ -41,9 +41,22 @@ pub enum BinaryOpKind {
 }
 
 #[derive(Debug)]
+pub struct BinaryOp {
+    pub left: Box<Expression>,
+    pub kind: BinaryOpKind,
+    pub right: Box<Expression>,
+}
+
+#[derive(Debug)]
 pub enum UnaryOpKind {
     Neg,
     LogicNot,
+}
+
+#[derive(Debug)]
+pub struct UnaryOp {
+    pub kind: UnaryOpKind,
+    pub operand: Box<Expression>,
 }
 
 #[derive(Debug)]
@@ -52,19 +65,10 @@ pub enum Expression {
     Variable(String),
     Boolean(bool),
     Read,
-    Random {
-        max: Box<Expression>,
-    },
+    Random { max: Box<Expression> },
     FunctionCall(FunctionCall),
-    BinaryOp {
-        left: Box<Expression>,
-        op: BinaryOpKind,
-        right: Box<Expression>,
-    },
-    UnaryOp {
-        op: UnaryOpKind,
-        operand: Box<Expression>,
-    },
+    BinaryOp(BinaryOp),
+    UnaryOp(UnaryOp),
 }
 
 #[derive(Debug)]
