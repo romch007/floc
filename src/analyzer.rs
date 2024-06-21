@@ -325,12 +325,12 @@ impl Analyzer {
 
     fn analyze_unary_op(
         &mut self,
-        op: &ast::UnaryOpType,
+        op: &ast::UnaryOpKind,
         operand: &ast::Expression,
     ) -> Result<ast::Type, Error> {
         let expected_type = match op {
-            ast::UnaryOpType::Neg => ast::Type::Integer,
-            ast::UnaryOpType::LogicNot => ast::Type::Boolean,
+            ast::UnaryOpKind::Neg => ast::Type::Integer,
+            ast::UnaryOpKind::LogicNot => ast::Type::Boolean,
         };
 
         let operand_type = self.analyze_expr(operand)?;
@@ -342,10 +342,10 @@ impl Analyzer {
     fn analyze_binary_op(
         &mut self,
         left: &ast::Expression,
-        op: &ast::BinaryOpType,
+        op: &ast::BinaryOpKind,
         right: &ast::Expression,
     ) -> Result<ast::Type, Error> {
-        use ast::BinaryOpType::*;
+        use ast::BinaryOpKind::*;
 
         // NOTE: this forbids 'example == Vrai', because:
         // 1. I'm lazy

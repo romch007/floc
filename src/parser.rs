@@ -67,7 +67,7 @@ impl Node for FunctionCall {
     }
 }
 
-impl Node for BinaryOpType {
+impl Node for BinaryOpKind {
     fn parse(pair: Pair<Rule>) -> Self {
         match pair.as_rule() {
             Rule::add => Self::Add,
@@ -88,7 +88,7 @@ impl Node for BinaryOpType {
     }
 }
 
-impl Node for UnaryOpType {
+impl Node for UnaryOpKind {
     fn parse(pair: Pair<Rule>) -> Self {
         match pair.as_rule() {
             Rule::neg => Self::Neg,
@@ -119,12 +119,12 @@ impl Node for Expression {
                 rule => unreachable!("invalid primary expr '{rule:?}'"),
             })
             .map_prefix(|op, rhs| Self::UnaryOp {
-                op: UnaryOpType::parse(op),
+                op: UnaryOpKind::parse(op),
                 operand: Box::new(rhs),
             })
             .map_infix(|lhs, op, rhs| Self::BinaryOp {
                 left: Box::new(lhs),
-                op: BinaryOpType::parse(op),
+                op: BinaryOpKind::parse(op),
                 right: Box::new(rhs),
             })
             .parse(pairs)

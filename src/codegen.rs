@@ -565,44 +565,44 @@ impl<'ctx> Compiler<'ctx> {
     pub fn emit_binary_op(
         &mut self,
         left: &ast::Expression,
-        op: &ast::BinaryOpType,
+        op: &ast::BinaryOpKind,
         right: &ast::Expression,
     ) -> Result<IntValue<'ctx>, Error> {
         let left = self.emit_expression(left)?;
         let right = self.emit_expression(right)?;
 
         let result = match op {
-            ast::BinaryOpType::Add => self.builder.build_int_add(left, right, "add")?,
-            ast::BinaryOpType::Sub => self.builder.build_int_sub(left, right, "sub")?,
-            ast::BinaryOpType::Mul => self.builder.build_int_mul(left, right, "mul")?,
-            ast::BinaryOpType::Div => self.builder.build_int_signed_div(left, right, "div")?,
-            ast::BinaryOpType::Mod => self.builder.build_int_signed_rem(left, right, "mod")?,
-            ast::BinaryOpType::Eq => {
+            ast::BinaryOpKind::Add => self.builder.build_int_add(left, right, "add")?,
+            ast::BinaryOpKind::Sub => self.builder.build_int_sub(left, right, "sub")?,
+            ast::BinaryOpKind::Mul => self.builder.build_int_mul(left, right, "mul")?,
+            ast::BinaryOpKind::Div => self.builder.build_int_signed_div(left, right, "div")?,
+            ast::BinaryOpKind::Mod => self.builder.build_int_signed_rem(left, right, "mod")?,
+            ast::BinaryOpKind::Eq => {
                 self.builder
                     .build_int_compare(IntPredicate::EQ, left, right, "eq")?
             }
-            ast::BinaryOpType::Neq => {
+            ast::BinaryOpKind::Neq => {
                 self.builder
                     .build_int_compare(IntPredicate::NE, left, right, "neq")?
             }
-            ast::BinaryOpType::Lt => {
+            ast::BinaryOpKind::Lt => {
                 self.builder
                     .build_int_compare(IntPredicate::SLT, left, right, "lt")?
             }
-            ast::BinaryOpType::Lte => {
+            ast::BinaryOpKind::Lte => {
                 self.builder
                     .build_int_compare(IntPredicate::SLE, left, right, "lte")?
             }
-            ast::BinaryOpType::Gt => {
+            ast::BinaryOpKind::Gt => {
                 self.builder
                     .build_int_compare(IntPredicate::SGT, left, right, "gt")?
             }
-            ast::BinaryOpType::Gte => {
+            ast::BinaryOpKind::Gte => {
                 self.builder
                     .build_int_compare(IntPredicate::SGE, left, right, "gte")?
             }
-            ast::BinaryOpType::LogicAnd => self.builder.build_and(left, right, "and")?,
-            ast::BinaryOpType::LogicOr => self.builder.build_or(left, right, "or")?,
+            ast::BinaryOpKind::LogicAnd => self.builder.build_and(left, right, "and")?,
+            ast::BinaryOpKind::LogicOr => self.builder.build_or(left, right, "or")?,
         };
 
         Ok(result)
@@ -610,14 +610,14 @@ impl<'ctx> Compiler<'ctx> {
 
     pub fn emit_unary_op(
         &mut self,
-        op: &ast::UnaryOpType,
+        op: &ast::UnaryOpKind,
         operand: &ast::Expression,
     ) -> Result<IntValue<'ctx>, Error> {
         let operand = self.emit_expression(operand)?;
 
         let result = match op {
-            ast::UnaryOpType::Neg => self.builder.build_int_neg(operand, "neg")?,
-            ast::UnaryOpType::LogicNot => self.builder.build_not(operand, "not")?,
+            ast::UnaryOpKind::Neg => self.builder.build_int_neg(operand, "neg")?,
+            ast::UnaryOpKind::LogicNot => self.builder.build_not(operand, "not")?,
         };
 
         Ok(result)

@@ -24,7 +24,7 @@ pub struct FunctionCall {
 }
 
 #[derive(Debug)]
-pub enum BinaryOpType {
+pub enum BinaryOpKind {
     Add,
     Sub,
     Mul,
@@ -41,7 +41,7 @@ pub enum BinaryOpType {
 }
 
 #[derive(Debug)]
-pub enum UnaryOpType {
+pub enum UnaryOpKind {
     Neg,
     LogicNot,
 }
@@ -58,11 +58,11 @@ pub enum Expression {
     FunctionCall(FunctionCall),
     BinaryOp {
         left: Box<Expression>,
-        op: BinaryOpType,
+        op: BinaryOpKind,
         right: Box<Expression>,
     },
     UnaryOp {
-        op: UnaryOpType,
+        op: UnaryOpKind,
         operand: Box<Expression>,
     },
 }
