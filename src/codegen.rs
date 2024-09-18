@@ -377,7 +377,7 @@ impl<'ctx> Compiler<'ctx> {
             self.builder.position_at_end(then_bb);
             let has_ended_bb_then = self.emit_block(&i.statements)?;
 
-            // The 'then' body didn't returned, so jump to end
+            // The 'then' body didn't return, so jump to end
             if !has_ended_bb_then {
                 self.builder.build_unconditional_branch(end_bb)?;
             }
@@ -385,7 +385,7 @@ impl<'ctx> Compiler<'ctx> {
             self.builder.position_at_end(else_bb);
             let has_ended_bb_else = self.emit_block(statements_else)?;
 
-            // The 'else' body didn't returned, so jump to end
+            // The 'else' body didn't return, so jump to end
             if !has_ended_bb_else {
                 self.builder.build_unconditional_branch(end_bb)?;
             }
@@ -411,7 +411,7 @@ impl<'ctx> Compiler<'ctx> {
 
             let has_ended_bb = self.emit_block(&i.statements)?;
 
-            // The 'then' body didn't returned, so jump to end
+            // The 'then' body didn't return, so jump to end
             if !has_ended_bb {
                 self.builder.build_unconditional_branch(end_bb)?;
             }
