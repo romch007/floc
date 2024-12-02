@@ -170,7 +170,7 @@ impl<'ctx> Compiler<'ctx> {
 
         printf_format_global.set_initializer(&context.const_string(printf_format.as_bytes(), true));
 
-        let printf_args = [context.i64_type().ptr_type(AddressSpace::default()).into()];
+        let printf_args = [context.ptr_type(AddressSpace::default()).into()];
 
         let printf_type = context.i64_type().fn_type(&printf_args, true);
         let printf_fn = module.add_function("printf", printf_type, None);
@@ -190,7 +190,7 @@ impl<'ctx> Compiler<'ctx> {
 
         scanf_format_global.set_initializer(&context.const_string(scanf_format.as_bytes(), true));
 
-        let scanf_args = [context.i64_type().ptr_type(AddressSpace::default()).into()];
+        let scanf_args = [context.ptr_type(AddressSpace::default()).into()];
 
         let scanf_type = context.i64_type().fn_type(&scanf_args, true);
         let scanf_fn = module.add_function("scanf", scanf_type, None);
