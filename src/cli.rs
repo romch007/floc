@@ -4,11 +4,9 @@ use args::Args;
 use clap::crate_version;
 use clap::CommandFactory;
 use clap::FromArgMatches;
-use lazy_static::lazy_static;
+use std::sync::OnceLock;
 
-lazy_static! {
-    static ref VERSION: String = get_version();
-}
+static VERSION: OnceLock<String> = OnceLock::new();
 
 fn get_version() -> String {
     let llvm_version = inkwell::support::get_llvm_version();
@@ -23,8 +21,9 @@ fn get_version() -> String {
 }
 
 pub fn parse() -> Args {
+    let version = VERSION.get_or_init(get_version);
     let command = Args::command();
 
-    Args::from_arg_matches(&command.version(VERSION.as_str()).get_matches())
+    Args::from_arg_matches(&command.version(version.as_str()).get_matches())
         .unwrap_or_else(|e| e.exit())
 }

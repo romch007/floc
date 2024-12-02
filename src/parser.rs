@@ -1,28 +1,26 @@
 use crate::ast::*;
-use lazy_static::lazy_static;
 use pest::{iterators::Pair, pratt_parser::PrattParser, Parser};
 use pest_derive::Parser;
+use std::sync::OnceLock;
 
-lazy_static! {
-    static ref PRATT_PARSER: PrattParser<Rule> = {
-        use crate::parser::Rule;
-        use pest::pratt_parser::Assoc::Left;
-        use pest::pratt_parser::Op;
+static PRATT_PARSER: OnceLock<PrattParser<Rule>> = OnceLock::new();
 
-        PrattParser::new()
-            .op(Op::infix(Rule::logic_or, Left) | Op::infix(Rule::logic_and, Left))
-            .op(Op::prefix(Rule::logic_not))
-            .op(Op::infix(Rule::r#eq, Left) | Op::infix(Rule::neq, Left))
-            .op(Op::infix(Rule::lt, Left)
-                | Op::infix(Rule::lte, Left)
-                | Op::infix(Rule::gt, Left)
-                | Op::infix(Rule::gte, Left))
-            .op(Op::infix(Rule::add, Left) | Op::infix(Rule::sub, Left))
-            .op(Op::infix(Rule::mul, Left)
-                | Op::infix(Rule::div, Left)
-                | Op::infix(Rule::r#mod, Left))
-            .op(Op::prefix(Rule::neg))
-    };
+fn initialize_pratt_parser() -> PrattParser<Rule> {
+    use crate::parser::Rule;
+    use pest::pratt_parser::Assoc::Left;
+    use pest::pratt_parser::Op;
+
+    PrattParser::new()
+        .op(Op::infix(Rule::logic_or, Left) | Op::infix(Rule::logic_and, Left))
+        .op(Op::prefix(Rule::logic_not))
+        .op(Op::infix(Rule::r#eq, Left) | Op::infix(Rule::neq, Left))
+        .op(Op::infix(Rule::lt, Left)
+            | Op::infix(Rule::lte, Left)
+            | Op::infix(Rule::gt, Left)
+            | Op::infix(Rule::gte, Left))
+        .op(Op::infix(Rule::add, Left) | Op::infix(Rule::sub, Left))
+        .op(Op::infix(Rule::mul, Left) | Op::infix(Rule::div, Left) | Op::infix(Rule::r#mod, Left))
+        .op(Op::prefix(Rule::neg))
 }
 
 #[derive(Parser)]
@@ -103,6 +101,7 @@ impl Node for Expression {
         let pairs = pair.into_inner();
 
         PRATT_PARSER
+            .get_or_init(initialize_pratt_parser)
             .map_primary(|primary| match primary.as_rule() {
                 Rule::expr => Expression::parse(primary), // from "(" ~ expr ~ ")"
                 Rule::integer => Self::Integer(primary.as_str().parse().unwrap()),

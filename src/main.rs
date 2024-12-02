@@ -16,13 +16,13 @@ use std::{
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
-    #[error("OS error:\n{0}")]
+    #[error("OS error: {0}")]
     Io(#[from] io::Error),
 
     #[error("Parsing error:\n{0}")]
     Parsing(#[from] Box<pest::error::Error<parser::Rule>>),
 
-    #[error("Analyze error:\n{0}")]
+    #[error("Analyze error: {0}")]
     Analyze(#[from] analyzer::Error),
 
     #[error("Compiler error: {0}")]
