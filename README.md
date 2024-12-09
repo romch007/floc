@@ -23,6 +23,26 @@ $ target/release/floc[.exe] flo_examples/factorial.flo
 
 Note: If you are on Windows, make sure you are in a MSVC x64 native tools command prompt, or clang will fail to compile programs.
 
+## Usage
+Some cool stuff to do:
+
+- Render the AST as a dot graph:
+```bash
+$ floc --emit-ast-as-dot flo_examples/prime.flo | dot -Tsvg > ast.svg
+```
+
+- Dump the generated LLVM IR:
+```bash
+$ floc --emit-ir flo_examples/prime.flo
+```
+
+- Dump the generated LLVM IR after optimization passes:
+```bash
+$ floc --emit-optimized-ir flo_examples/prime.flo
+```
+
+(use `--help` to get all available options)
+
 ## How to code in Flo
 [Link to the reference](FLO_REFERENCE.md)
 
