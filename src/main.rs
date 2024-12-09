@@ -53,6 +53,11 @@ fn run() -> Result<(), Error> {
         return Ok(());
     }
 
+    if args.emit_ast_as_dot {
+        ast::dot::dump_graph(&ast_prog).unwrap();
+        return Ok(());
+    }
+
     let mut analyzer = analyzer::Analyzer::new();
     analyzer.analyze_program(&ast_prog)?;
 

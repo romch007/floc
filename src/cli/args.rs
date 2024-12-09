@@ -10,6 +10,10 @@ pub struct Args {
     #[arg(long, default_value_t = false)]
     pub emit_ast: bool,
 
+    /// Generate a dot graph for the AST
+    #[arg(long, default_value_t = false)]
+    pub emit_ast_as_dot: bool,
+
     /// Print the generated LLVM IR and exit
     #[arg(long, default_value_t = false)]
     pub emit_ir: bool,
