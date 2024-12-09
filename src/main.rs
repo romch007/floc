@@ -140,7 +140,7 @@ fn run() -> Result<(), Error> {
     }
 
     if let Some(additional_link_params) = &args.link_params {
-        link_params.extend(additional_link_params.split(' ').map(|s| os!(s)));
+        link_params.extend(additional_link_params.split(' ').map(OsStr::new));
     }
 
     let mut child = match process::Command::new("clang").args(&link_params).spawn() {
