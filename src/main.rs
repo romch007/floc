@@ -143,7 +143,14 @@ fn run() -> Result<(), Error> {
         link_params.extend(additional_link_params.split(' ').map(|s| os!(s)));
     }
 
-    let mut child = process::Command::new("clang").args(&link_params).spawn()?;
+    let mut child = match process::Command::new("clang").args(&link_params).spawn() {
+        Ok(child) => child,
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+            eprintln!("Link failed: cannot find `clang`");
+            process::exit(1);
+        }
+        Err(e) => return Err(e.into()),
+    };
 
     let status = child.wait()?;
 
