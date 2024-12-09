@@ -23,6 +23,10 @@ $ target/release/floc[.exe] flo_examples/factorial.flo
 
 Note: If you are on Windows, make sure you are in a MSVC x64 native tools command prompt, or clang will fail to compile programs.
 
+### AUR
+
+There is an AUR package called [floc-git](https://aur.archlinux.org/packages/floc-git) btw.
+
 ## Usage
 Some cool stuff to do:
 
