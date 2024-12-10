@@ -7,7 +7,7 @@ use crate::ast::*;
 
 pub fn dump_graph(prog: &Program) -> Result<(), io::Error> {
     let mut stdout = io::stdout().lock();
-    let mut name_helper = NameHelper::new();
+    let mut name_helper = NodeNameHelper::new();
 
     writeln!(stdout, "digraph AST {{")?;
 
@@ -19,13 +19,13 @@ pub fn dump_graph(prog: &Program) -> Result<(), io::Error> {
 }
 
 trait ToGraph {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write;
 }
 
 impl ToGraph for Expression {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write,
     {
@@ -57,7 +57,7 @@ impl ToGraph for Expression {
 }
 
 impl ToGraph for UnaryOp {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write,
     {
@@ -78,7 +78,7 @@ impl ToGraph for UnaryOp {
 }
 
 impl ToGraph for BinaryOp {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write,
     {
@@ -111,7 +111,7 @@ impl ToGraph for BinaryOp {
 }
 
 impl ToGraph for FunctionCall {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write,
     {
@@ -128,7 +128,7 @@ impl ToGraph for FunctionCall {
 }
 
 impl ToGraph for Statement {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write,
     {
@@ -174,7 +174,7 @@ impl ToGraph for Statement {
 }
 
 impl ToGraph for While {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write,
     {
@@ -192,7 +192,7 @@ impl ToGraph for While {
 }
 
 impl ToGraph for If {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write,
     {
@@ -215,7 +215,7 @@ impl ToGraph for If {
 }
 
 impl ToGraph for Declaration {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write,
     {
@@ -240,7 +240,7 @@ impl ToGraph for Declaration {
 }
 
 impl ToGraph for Assignment {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write,
     {
@@ -259,7 +259,7 @@ impl ToGraph for Assignment {
 }
 
 impl ToGraph for FunctionDeclaration {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write,
     {
@@ -281,7 +281,7 @@ impl ToGraph for FunctionDeclaration {
 }
 
 impl ToGraph for Program {
-    fn visit<W>(&self, w: &mut W, name_helper: &NameHelper) -> Result<String, io::Error>
+    fn visit<W>(&self, w: &mut W, name_helper: &NodeNameHelper) -> Result<String, io::Error>
     where
         W: io::Write,
     {
@@ -335,7 +335,7 @@ where
 
 fn write_block<W>(
     w: &mut W,
-    name_helper: &NameHelper,
+    name_helper: &NodeNameHelper,
     stmts: &[Statement],
 ) -> Result<String, io::Error>
 where
@@ -354,7 +354,7 @@ where
 
 fn write_arguments<W>(
     w: &mut W,
-    name_helper: &NameHelper,
+    name_helper: &NodeNameHelper,
     args: &[Argument],
 ) -> Result<String, io::Error>
 where
@@ -376,19 +376,19 @@ where
     Ok(arg_node_name)
 }
 
-struct NameHelper {
-    node_count: RefCell<usize>,
+struct NodeNameHelper {
+    count: RefCell<usize>,
 }
 
-impl NameHelper {
+impl NodeNameHelper {
     pub fn new() -> Self {
         Self {
-            node_count: RefCell::new(0),
+            count: RefCell::new(0),
         }
     }
 
     pub fn get_next_node_name(&self) -> String {
-        let id = self.node_count.replace_with(|&mut old| old + 1);
+        let id = self.count.replace_with(|&mut old| old + 1);
         let name = format!("node{}", id);
         name
     }
