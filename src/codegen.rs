@@ -576,17 +576,15 @@ impl ToLlvmType for ast::Type {
     }
 }
 
-pub trait OptimizationLevelConvert {
-    fn to_inkwell(&self) -> inkwell::OptimizationLevel;
-}
+impl From<cli::args::OptimizationLevel> for inkwell::OptimizationLevel {
+    fn from(value: cli::args::OptimizationLevel) -> Self {
+        use cli::args::OptimizationLevel;
 
-impl OptimizationLevelConvert for cli::args::OptimizationLevel {
-    fn to_inkwell(&self) -> inkwell::OptimizationLevel {
-        match self {
-            Self::None => inkwell::OptimizationLevel::None,
-            Self::Less => inkwell::OptimizationLevel::Less,
-            Self::Default => inkwell::OptimizationLevel::Default,
-            Self::Aggressive => inkwell::OptimizationLevel::Aggressive,
+        match value {
+            OptimizationLevel::None => inkwell::OptimizationLevel::None,
+            OptimizationLevel::Less => inkwell::OptimizationLevel::Less,
+            OptimizationLevel::Default => inkwell::OptimizationLevel::Default,
+            OptimizationLevel::Aggressive => inkwell::OptimizationLevel::Aggressive,
         }
     }
 }

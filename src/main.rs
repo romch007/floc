@@ -5,8 +5,6 @@ mod codegen;
 mod parser;
 mod utils;
 
-use codegen::OptimizationLevelConvert;
-
 use std::{
     ffi::OsStr,
     fs, io,
@@ -87,7 +85,7 @@ fn run() -> Result<(), Error> {
     let target_machine = codegen::Compiler::create_target_machine(
         args.target_triple.as_deref(),
         args.target_cpu.as_deref(),
-        args.optimization_level.to_inkwell(),
+        args.optimization_level.into(),
     )?;
 
     codegen.optimize(&target_machine)?;
