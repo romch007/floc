@@ -7,7 +7,7 @@ use crate::ast::*;
 
 pub fn dump_graph(prog: &Program) -> Result<(), io::Error> {
     let mut stdout = io::stdout().lock();
-    let mut name_helper = NodeNameHelper::new();
+    let name_helper = NodeNameHelper::new();
 
     writeln!(stdout, "digraph AST {{")?;
 
