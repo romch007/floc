@@ -40,7 +40,7 @@ pub enum Error {
     #[error("Extra statements after return")]
     ExtraStmtsAfterReturn,
 
-    #[error("Function '{func}' expected {expected} arguments but got {got}")]
+    #[error("Function '{func}' expected {expected} argument(s) but got {got}")]
     ArgumentCountMismatch {
         func: String,
         expected: usize,
