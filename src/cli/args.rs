@@ -35,7 +35,7 @@ pub struct Args {
     pub optimization_level: OptimizationLevel,
 
     /// Only compile, do not link
-    #[arg(short)]
+    #[arg(short, long)]
     pub compile: bool,
 
     /// Output executable
