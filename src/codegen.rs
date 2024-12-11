@@ -74,6 +74,7 @@ impl<'ctx> Compiler<'ctx> {
     pub fn create_target_machine(
         target_triple: Option<&str>,
         target_cpu: Option<&str>,
+        target_features: Option<&str>,
         optimization_level: inkwell::OptimizationLevel,
     ) -> Result<TargetMachine, Error> {
         Target::initialize_all(&InitializationConfig::default());
@@ -88,7 +89,7 @@ impl<'ctx> Compiler<'ctx> {
             .create_target_machine(
                 &target_triple,
                 target_cpu.unwrap_or("generic"),
-                "",
+                target_features.unwrap_or(""),
                 optimization_level,
                 RelocMode::PIC,
                 CodeModel::Default,
@@ -106,6 +107,7 @@ impl<'ctx> Compiler<'ctx> {
             "simplifycfg",
             "mem2reg",
             "dse",
+            "loop-vectorize",
             "loop-simplify",
             "indvars",
             "loop-unroll",

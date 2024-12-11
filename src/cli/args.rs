@@ -30,6 +30,10 @@ pub struct Args {
     #[arg(long)]
     pub target_cpu: Option<String>,
 
+    /// LLVM target features
+    #[arg(long)]
+    pub target_features: Option<String>,
+
     /// Optimization level
     #[arg(short = 'O', long, value_enum, default_value_t = OptimizationLevel::Default)]
     pub optimization_level: OptimizationLevel,

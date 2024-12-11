@@ -80,6 +80,7 @@ fn run() -> Result<(), Error> {
     let target_machine = codegen::Compiler::create_target_machine(
         args.target_triple.as_deref(),
         args.target_cpu.as_deref(),
+        args.target_features.as_deref(),
         args.optimization_level.into(),
     )?;
 
