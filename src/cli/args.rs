@@ -38,6 +38,10 @@ pub struct Args {
     #[arg(short, long)]
     pub compile: bool,
 
+    /// Only assemble, do not compile nor link
+    #[arg(short = 'S', long)]
+    pub assemble: bool,
+
     /// Output executable
     #[arg(short, long)]
     pub output: Option<PathBuf>,
@@ -50,7 +54,7 @@ pub struct Args {
     pub source_file: PathBuf,
 }
 
-#[derive(Debug, Clone, Default, ValueEnum)]
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
 pub enum OptimizationLevel {
     /// None
     #[value(name = "0")]

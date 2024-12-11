@@ -127,9 +127,14 @@ impl<'ctx> Compiler<'ctx> {
         Ok(())
     }
 
-    pub fn compile(&self, target_machine: &TargetMachine, dest_path: &Path) -> Result<(), Error> {
+    pub fn compile(
+        &self,
+        target_machine: &TargetMachine,
+        dest_path: &Path,
+        file_type: FileType,
+    ) -> Result<(), Error> {
         target_machine
-            .write_to_file(&self.module, FileType::Object, dest_path)
+            .write_to_file(&self.module, file_type, dest_path)
             .map_err(|err| Error::Other(err.to_string()))?;
 
         Ok(())

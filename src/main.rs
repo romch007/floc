@@ -5,12 +5,7 @@ mod codegen;
 mod parser;
 mod utils;
 
-use std::{
-    ffi::OsStr,
-    fs, io,
-    path::{Path, PathBuf},
-    process,
-};
+use std::{ffi::OsStr, fs, io, path::Path, process};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -103,66 +98,47 @@ fn run() -> Result<(), Error> {
 
     let on_windows = target_triple.contains("windows");
 
-    let object_file_ext = if on_windows { "obj" } else { "o" };
-    let object_file_name = format!("{module_name}.{object_file_ext}");
-    let object_file = if args.compile {
-        args.output
-            .clone()
-            .unwrap_or(PathBuf::from(object_file_name))
-    } else {
-        std::env::temp_dir().join(utils::tmpname(os!(""), os!(".o"), 10))
-    };
+    let (llvm_file_type, llvm_output_file, exec_output_file) =
+        utils::get_output_files(&args, module_name, on_windows);
 
-    codegen.compile(&target_machine, &object_file)?;
+    codegen.compile(&target_machine, &llvm_output_file, llvm_file_type)?;
 
-    if args.compile {
-        return Ok(());
-    }
+    if let Some(exec_output_file) = exec_output_file {
+        let mut link_params = vec![
+            llvm_output_file.as_os_str(),
+            os!("-target"),
+            target_triple.as_ref(),
+            os!("-o"),
+            exec_output_file.as_ref(),
+        ];
 
-    let output_file = args.output.unwrap_or_else(|| {
-        let default_path = if on_windows {
-            format!("{module_name}.exe")
-        } else {
-            module_name.to_owned()
+        if on_windows {
+            // See https://learn.microsoft.com/en-us/cpp/porting/visual-cpp-change-history-2003-2015?view=msvc-170#stdio_and_conio
+            link_params.push(os!("-llegacy_stdio_definitions"));
+        }
+
+        if let Some(additional_link_params) = &args.link_params {
+            link_params.extend(additional_link_params.split(' ').map(OsStr::new));
+        }
+
+        let mut child = match process::Command::new("clang").args(&link_params).spawn() {
+            Ok(child) => child,
+            Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+                eprintln!("Link failed: cannot find `clang`");
+                process::exit(1);
+            }
+            Err(e) => return Err(e.into()),
         };
 
-        PathBuf::from(default_path)
-    });
+        let status = child.wait()?;
 
-    let mut link_params = vec![
-        object_file.as_os_str(),
-        os!("-target"),
-        target_triple.as_ref(),
-        os!("-o"),
-        output_file.as_ref(),
-    ];
-
-    if on_windows {
-        // See https://learn.microsoft.com/en-us/cpp/porting/visual-cpp-change-history-2003-2015?view=msvc-170#stdio_and_conio
-        link_params.push(os!("-llegacy_stdio_definitions"));
-    }
-
-    if let Some(additional_link_params) = &args.link_params {
-        link_params.extend(additional_link_params.split(' ').map(OsStr::new));
-    }
-
-    let mut child = match process::Command::new("clang").args(&link_params).spawn() {
-        Ok(child) => child,
-        Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
-            eprintln!("Link failed: cannot find `clang`");
+        if !status.success() {
+            eprintln!("Link failed");
             process::exit(1);
         }
-        Err(e) => return Err(e.into()),
-    };
 
-    let status = child.wait()?;
-
-    if !status.success() {
-        eprintln!("Link failed");
-        process::exit(1);
+        let _ = fs::remove_file(&llvm_output_file);
     }
-
-    let _ = fs::remove_file(&object_file);
 
     Ok(())
 }
