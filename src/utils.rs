@@ -103,7 +103,7 @@ mod tests {
     }
 
     #[test]
-    fn get_output_file_assembly_custom_output() {
+    fn get_output_file_assembly_custom() {
         let args = cli::args::Args {
             emit_ast: false,
             emit_ast_as_dot: false,
