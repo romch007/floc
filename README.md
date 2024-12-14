@@ -17,6 +17,8 @@ What you need:
 $ cargo build --release
 ```
 
+(if you are building on Alpine Linux you need to run `RUSTFLAGS="-C target-feature=-crt-static" cargo b -r`)
+
 ```bash
 $ target/release/floc[.exe] flo_examples/factorial.flo
 ```
