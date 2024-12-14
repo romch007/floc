@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use clap::ValueEnum;
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Default)]
 #[clap(author, about, version)]
 pub struct Args {
     /// Print the parsed AST and exit

@@ -82,18 +82,11 @@ mod tests {
     #[test]
     fn get_output_file_assembly() {
         let args = cli::args::Args {
-            emit_ast: false,
-            emit_ast_as_dot: false,
-            emit_ir: false,
-            emit_optimized_ir: false,
-            target_triple: Some("linux".to_string()),
-            target_cpu: None,
-            optimization_level: cli::args::OptimizationLevel::Default,
             compile: false,
             assemble: true,
             output: None,
-            link_params: None,
             source_file: "dontcare".into(),
+            ..Default::default()
         };
 
         let (file_type, llvm_output, link_output) = get_output_files(&args, "testing", false);
@@ -105,18 +98,11 @@ mod tests {
     #[test]
     fn get_output_file_assembly_custom() {
         let args = cli::args::Args {
-            emit_ast: false,
-            emit_ast_as_dot: false,
-            emit_ir: false,
-            emit_optimized_ir: false,
-            target_triple: None,
-            target_cpu: None,
-            optimization_level: cli::args::OptimizationLevel::Default,
             compile: false,
             assemble: true,
             output: Some("afile.txt".into()),
-            link_params: None,
             source_file: "dontcare".into(),
+            ..Default::default()
         };
 
         let (file_type, llvm_output, link_output) = get_output_files(&args, "testing", false);
@@ -128,18 +114,11 @@ mod tests {
     #[test]
     fn get_output_file_compile() {
         let args = cli::args::Args {
-            emit_ast: false,
-            emit_ast_as_dot: false,
-            emit_ir: false,
-            emit_optimized_ir: false,
-            target_triple: None,
-            target_cpu: None,
-            optimization_level: cli::args::OptimizationLevel::Default,
             compile: true,
             assemble: false,
             output: None,
-            link_params: None,
             source_file: "dontcare".into(),
+            ..Default::default()
         };
 
         let (file_type, llvm_output, link_output) = get_output_files(&args, "testing", false);
@@ -151,18 +130,11 @@ mod tests {
     #[test]
     fn get_output_file_compile_windows() {
         let args = cli::args::Args {
-            emit_ast: false,
-            emit_ast_as_dot: false,
-            emit_ir: false,
-            emit_optimized_ir: false,
-            target_triple: None,
-            target_cpu: None,
-            optimization_level: cli::args::OptimizationLevel::Default,
             compile: true,
             assemble: false,
             output: None,
-            link_params: None,
             source_file: "dontcare".into(),
+            ..Default::default()
         };
 
         let (file_type, llvm_output, link_output) = get_output_files(&args, "testing", true);
@@ -174,18 +146,11 @@ mod tests {
     #[test]
     fn get_output_file_compile_custom() {
         let args = cli::args::Args {
-            emit_ast: false,
-            emit_ast_as_dot: false,
-            emit_ir: false,
-            emit_optimized_ir: false,
-            target_triple: None,
-            target_cpu: None,
-            optimization_level: cli::args::OptimizationLevel::Default,
             compile: true,
             assemble: false,
             output: Some("something.mp4".into()),
-            link_params: None,
             source_file: "dontcare".into(),
+            ..Default::default()
         };
 
         let (file_type, llvm_output, link_output) = get_output_files(&args, "testing", false);
@@ -197,18 +162,11 @@ mod tests {
     #[test]
     fn get_output_file_link() {
         let args = cli::args::Args {
-            emit_ast: false,
-            emit_ast_as_dot: false,
-            emit_ir: false,
-            emit_optimized_ir: false,
-            target_triple: None,
-            target_cpu: None,
-            optimization_level: cli::args::OptimizationLevel::Default,
             compile: false,
             assemble: false,
             output: None,
-            link_params: None,
             source_file: "dontcare".into(),
+            ..Default::default()
         };
 
         let (file_type, llvm_output, link_output) = get_output_files(&args, "testing", false);
@@ -220,18 +178,11 @@ mod tests {
     #[test]
     fn get_output_file_link_windows() {
         let args = cli::args::Args {
-            emit_ast: false,
-            emit_ast_as_dot: false,
-            emit_ir: false,
-            emit_optimized_ir: false,
-            target_triple: None,
-            target_cpu: None,
-            optimization_level: cli::args::OptimizationLevel::Default,
             compile: false,
             assemble: false,
             output: None,
-            link_params: None,
             source_file: "dontcare".into(),
+            ..Default::default()
         };
 
         let (file_type, llvm_output, link_output) = get_output_files(&args, "testing", true);
@@ -243,18 +194,11 @@ mod tests {
     #[test]
     fn get_output_file_link_custom() {
         let args = cli::args::Args {
-            emit_ast: false,
-            emit_ast_as_dot: false,
-            emit_ir: false,
-            emit_optimized_ir: false,
-            target_triple: None,
-            target_cpu: None,
-            optimization_level: cli::args::OptimizationLevel::Default,
             compile: false,
             assemble: false,
             output: Some("anything.docx".into()),
-            link_params: None,
             source_file: "dontcare".into(),
+            ..Default::default()
         };
 
         let (file_type, _llvm_output, link_output) = get_output_files(&args, "testing", true);
