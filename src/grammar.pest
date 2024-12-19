@@ -50,7 +50,7 @@ boolean       =  { "Vrai" | "Faux" }
 read          =  { "lire" ~ "(" ~ ")" }
 function_call =  { ident ~ "(" ~ expr_list ~ ")" }
 
-ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 COMMENT = _{ "#" ~ (!"\n" ~ ANY)* }
