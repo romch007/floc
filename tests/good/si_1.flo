@@ -1,0 +1,10 @@
+si (Faux) {
+ecrire(3);
+}
+
+si (Vrai) {
+ecrire(4);
+}
+
+
+

@@ -1,0 +1,6 @@
+entier f(entier x){
+	entier y = 8;
+	retourner x+y;
+}
+
+ecrire(f(5));

@@ -1,0 +1,132 @@
+#doit afficher 1,2,3,4,5,6,7,8,9,10,11,12,13,14
+#si il y a un 0, c'est qu'il y a un problème
+
+si (Faux) {
+ecrire(0);
+}
+
+si (Vrai) {
+ecrire(1);
+}
+
+
+si (Faux) {
+ecrire(0);
+} sinon {
+ecrire(2);
+}
+
+si (Vrai) {
+ecrire(3);
+} sinon {
+ecrire(0);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si (Faux) {
+ecrire(0);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si (Vrai) {
+ecrire(4);
+}
+
+si (Vrai) {
+ecrire(5);
+} sinon si (Faux) {
+ecrire(0);
+}
+
+si (Vrai) {
+ecrire(6);
+} sinon si (Vrai) {
+ecrire(0);
+}
+
+
+si (Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+} sinon  {
+ecrire(7);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si(Vrai) {
+ecrire(8);
+} sinon  {
+ecrire(0);
+}
+
+si (Vrai) {
+ecrire(9);
+} sinon si(Faux) {
+ecrire(0);
+} sinon  {
+ecrire(0);
+}
+
+si (Vrai) {
+ecrire(10);
+} sinon si(Vrai) {
+ecrire(0);
+} sinon  {
+ecrire(0);
+}
+
+si (Vrai) {
+ecrire(11);
+} sinon si(Vrai) {
+ecrire(0);
+} sinon si(Vrai) {
+ecrire(0);
+} sinon  {
+ecrire(0);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si(Vrai) {
+ecrire(12);
+} sinon si(Vrai) {
+ecrire(0);
+} sinon  {
+ecrire(0);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+} sinon si(Vrai) {
+ecrire(13);
+} sinon  {
+ecrire(0);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+} sinon  {
+ecrire(14);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+}
+
+
+
+

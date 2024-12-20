@@ -1,0 +1,5 @@
+entier f(){
+ ecrire(120);
+ retourner 0;
+}
+f();

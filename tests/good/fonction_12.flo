@@ -1,0 +1,13 @@
+entier puissance(entier a, entier b){
+	entier i = 0;
+	entier r = 1;
+	tantque( i < b){
+		i=i+1;
+		r = r * a;
+	}
+	retourner r;
+}
+
+ecrire(puissance(2,3));
+ecrire(puissance(3,4));
+ecrire(puissance(4,5));

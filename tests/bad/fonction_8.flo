@@ -1,0 +1,4 @@
+entier f(booleen n){
+	retourner 8;
+}
+ecrire(f(8));

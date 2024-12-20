@@ -1,0 +1,9 @@
+si (Vrai) {
+ecrire(1);
+}
+sinon { 
+ ecrire(5);
+}
+sinon { 
+ ecrire(7);
+}

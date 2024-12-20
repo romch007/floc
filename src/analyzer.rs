@@ -357,3 +357,256 @@ impl Analyzer {
         Ok(result_type)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    macro_rules! good_input_test {
+        ($testname:ident, $testfile:expr) => {
+            #[test]
+            fn $testname() {
+                let source = include_str!(concat!("../tests/good/", $testfile));
+                let prog = crate::parser::parse(source).unwrap();
+
+                let mut analyzer = crate::analyzer::Analyzer::new();
+                let ret = analyzer.analyze_program(&prog);
+                assert!(ret.is_ok());
+            }
+        };
+    }
+
+    macro_rules! bad_input_test {
+        ($testname:ident, $expected:pat, $testfile:expr) => {
+            #[test]
+            fn $testname() {
+                let source = include_str!(concat!("../tests/bad/", $testfile));
+                let prog = crate::parser::parse(source).unwrap();
+
+                let mut analyzer = crate::analyzer::Analyzer::new();
+                let ret = analyzer.analyze_program(&prog);
+                assert!(matches!(ret, Err($expected)));
+            }
+        };
+    }
+
+    macro_rules! bad_input_test_at_parsing {
+        ($testname:ident, $testfile:expr) => {
+            #[test]
+            fn $testname() {
+                let source = include_str!(concat!("../tests/bad/", $testfile));
+                let ret = crate::parser::parse(source);
+
+                assert!(ret.is_err());
+            }
+        };
+    }
+
+    // TODO: better that than
+
+    mod good {
+        good_input_test!(affectation, "affectation.flo");
+        good_input_test!(arith_1, "arith_1.flo");
+        good_input_test!(arith_2, "arith_2.flo");
+        good_input_test!(arith_3, "arith_3.flo");
+        good_input_test!(arith_4, "arith_4.flo");
+        good_input_test!(arith_5, "arith_5.flo");
+        good_input_test!(arith_6, "arith_6.flo");
+        good_input_test!(arith_7, "arith_7.flo");
+        good_input_test!(arith_8, "arith_8.flo");
+        good_input_test!(boucle_1, "boucle_1.flo");
+        good_input_test!(boucle_2, "boucle_2.flo");
+        good_input_test!(comp_1, "comp_1.flo");
+        good_input_test!(comp_2, "comp_2.flo");
+        good_input_test!(comp_3, "comp_3.flo");
+        good_input_test!(comp_4, "comp_4.flo");
+        good_input_test!(comp, "comp.flo");
+        good_input_test!(eval_lexicale, "eval_lexicale.flo");
+        good_input_test!(eval_syntaxique, "eval_syntaxique.flo");
+        good_input_test!(exemple1, "exemple1.flo");
+        good_input_test!(exemple2, "exemple2.flo");
+        good_input_test!(exemple, "exemple.flo");
+        good_input_test!(fonction_10, "fonction_10.flo");
+        good_input_test!(fonction_11, "fonction_11.flo");
+        good_input_test!(fonction_12, "fonction_12.flo");
+        good_input_test!(fonction_13, "fonction_13.flo");
+        good_input_test!(fonction_1, "fonction_1.flo");
+        good_input_test!(fonction_2, "fonction_2.flo");
+        good_input_test!(fonction_3, "fonction_3.flo");
+        good_input_test!(fonction_4, "fonction_4.flo");
+        good_input_test!(fonction_5, "fonction_5.flo");
+        good_input_test!(fonction_6, "fonction_6.flo");
+        good_input_test!(fonction_7, "fonction_7.flo");
+        good_input_test!(fonction_8, "fonction_8.flo");
+        good_input_test!(fonction_9, "fonction_9.flo");
+        good_input_test!(lire, "lire.flo");
+        good_input_test!(log_1, "log_1.flo");
+        good_input_test!(log_2, "log_2.flo");
+        good_input_test!(log_3, "log_3.flo");
+        good_input_test!(log_4, "log_4.flo");
+        good_input_test!(log, "log.flo");
+        good_input_test!(priorite, "priorite.flo");
+        good_input_test!(si_1, "si_1.flo");
+        good_input_test!(si_2, "si_2.flo");
+        good_input_test!(si_3, "si_3.flo");
+        good_input_test!(si_4, "si_4.flo");
+        good_input_test!(si_5, "si_5.flo");
+        good_input_test!(si_6, "si_6.flo");
+        good_input_test!(si_7, "si_7.flo");
+        good_input_test!(si_8, "si_8.flo");
+        good_input_test!(si, "si.flo");
+        good_input_test!(variable_1, "variable_1.flo");
+        good_input_test!(variable_2, "variable_2.flo");
+        good_input_test!(variable, "variable.flo");
+    }
+
+    mod bad {
+        use crate::analyzer::Error::*;
+        use crate::ast::Type::*;
+
+        bad_input_test!(
+            affectation_1,
+            TypeMismatch {
+                expected: Integer,
+                got: Boolean
+            },
+            "affectation_1.flo"
+        );
+
+        bad_input_test!(
+            affectation_2,
+            TypeMismatch {
+                expected: Boolean,
+                got: Integer
+            },
+            "affectation_2.flo"
+        );
+
+        // TODO: figure out how to put a `String` in the pattern
+
+        bad_input_test!(
+            affectation_3,
+            VariableAlreadyDefined(_),
+            "affectation_3.flo"
+        );
+
+        bad_input_test!(affectation_4, VariableNotFound(_), "affectation_4.flo");
+
+        bad_input_test!(affectation_5, VariableNotFound(_), "affectation_5.flo");
+
+        bad_input_test!(affectation_6, VariableNotFound(_), "affectation_6.flo");
+
+        bad_input_test!(affectation_7, VariableNotFound(_), "affectation_7.flo");
+
+        bad_input_test!(affectation_8, VariableNotFound(_), "affectation_8.flo");
+
+        bad_input_test!(fonction_1, FunctionNotFound(_), "fonction_1.flo");
+
+        bad_input_test!(
+            fonction_2,
+            TypeMismatch {
+                expected: Boolean,
+                got: Integer
+            },
+            "fonction_2.flo"
+        );
+
+        bad_input_test!(
+            fonction_3,
+            TypeMismatch {
+                expected: Integer,
+                got: Boolean
+            },
+            "fonction_3.flo"
+        );
+
+        bad_input_test!(fonction_4, ReturnOutsideFunction, "fonction_4.flo");
+
+        bad_input_test!(
+            fonction_5,
+            ArgumentCountMismatch {
+                func: _,
+                expected: 0,
+                got: 1
+            },
+            "fonction_5.flo"
+        );
+
+        bad_input_test!(
+            fonction_6,
+            ArgumentCountMismatch {
+                func: _,
+                expected: 1,
+                got: 0
+            },
+            "fonction_6.flo"
+        );
+
+        bad_input_test!(
+            fonction_7,
+            TypeMismatch {
+                expected: Integer,
+                got: Boolean
+            },
+            "fonction_7.flo"
+        );
+
+        bad_input_test!(
+            type_1,
+            TypeMismatch {
+                expected: Integer,
+                got: Boolean
+            },
+            "type_1.flo"
+        );
+
+        bad_input_test!(
+            type_2,
+            TypeMismatch {
+                expected: Boolean,
+                got: Integer
+            },
+            "type_2.flo"
+        );
+
+        bad_input_test!(
+            type_3,
+            TypeMismatch {
+                expected: Boolean,
+                got: Integer
+            },
+            "type_3.flo"
+        );
+
+        bad_input_test!(
+            type_4,
+            TypeMismatch {
+                expected: Boolean,
+                got: Integer
+            },
+            "type_4.flo"
+        );
+
+        bad_input_test!(
+            type_5,
+            TypeMismatch {
+                expected: Boolean,
+                got: Integer
+            },
+            "type_5.flo"
+        );
+
+        bad_input_test_at_parsing!(si_1, "si_1.flo");
+        bad_input_test_at_parsing!(si_2, "si_2.flo");
+        bad_input_test_at_parsing!(si_3, "si_3.flo");
+
+        bad_input_test!(
+            si_4,
+            TypeMismatch {
+                expected: Boolean,
+                got: Integer
+            },
+            "si_4.flo"
+        );
+
+        bad_input_test_at_parsing!(boucle_2, "boucle_2.flo");
+    }
+}

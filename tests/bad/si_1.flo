@@ -1,0 +1,3 @@
+sinon {
+	ecrire(5);
+}

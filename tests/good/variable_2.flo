@@ -1,0 +1,14 @@
+entier a = 1;
+entier b = 11;
+tantque( a < b){
+	entier c = 2; 
+	ecrire(a);
+	a = a+c;
+}
+a = 12;
+b = 64;
+tantque( a < b){
+	entier c = 5; 
+	ecrire(a);
+	a = a+c;
+}

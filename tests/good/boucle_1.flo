@@ -1,0 +1,4 @@
+tantque(lire()%2 != 0){
+	ecrire(0);
+}
+ecrire(1);

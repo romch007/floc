@@ -1,0 +1,4 @@
+entier f(){
+	retourner 3;
+}
+ecrire(f(5));

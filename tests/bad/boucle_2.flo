@@ -1,0 +1,5 @@
+tantque(Vrai){
+	ecrire(5);
+} sinon {
+	ecrire(6);
+}

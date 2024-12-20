@@ -1,0 +1,10 @@
+entier f(booleen b){
+ si (b){
+ 	entier a = lire();
+ 	ecrire(a);
+ }
+ ecrire(a+5);
+ retourner 1;
+}
+
+f(Vrai);

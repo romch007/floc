@@ -1,0 +1,11 @@
+entier f(booleen b){
+ tantque (b){
+  entier rep = lire();
+  si ( rep > 10){
+   b = Faux;
+  }
+ }
+ retourner rep;
+}
+
+f(Vrai);

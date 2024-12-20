@@ -1,0 +1,17 @@
+entier maximum2(entier e1, entier e2){
+	si (e1 > e2){
+		retourner e1;
+	}
+	retourner e2;
+}
+
+entier maximum3(entier e1, entier e2, entier e3){
+	retourner maximum2( maximum2(e1,e2),e3);
+}
+
+ecrire(maximum3(1,2,3));
+ecrire(maximum3(1,3,2));
+ecrire(maximum3(2,1,3));
+ecrire(maximum3(2,1,3));
+ecrire(maximum3(3,1,2));
+ecrire(maximum3(3,2,1));

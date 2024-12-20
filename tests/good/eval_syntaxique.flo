@@ -1,0 +1,29 @@
+booleen estPair(entier v1){
+	retourner v1 == 0;
+}
+entier max(entier v1,entier v2){
+	si( v1 >= v2){
+		retourner v1;
+	}
+	retourner v2;
+}
+
+entier puissance(entier a,entier b){
+	entier i = 1;
+	entier v = a;
+	tantque(i < b){
+		v = v * a;
+		i = i +1;
+	}
+	retourner v;
+}
+
+entier a = lire();
+booleen b = estPair(a);
+
+si (b){
+	ecrire(max(2,3));
+}
+sinon {
+	ecrire(puissance(3,4));
+}

@@ -1,0 +1,7 @@
+entier f(booleen b){
+ a = 5;
+ retourner a;
+}
+
+entier a;
+f(Vrai);

@@ -1,0 +1,12 @@
+entier somme(entier n){
+	si (n == 0){
+		retourner 0;
+	}
+	entier res = somme(n-1)+n;
+	retourner res;
+}
+ecrire(somme(1));
+ecrire(somme(2));
+ecrire(somme(3));
+ecrire(somme(4));
+ecrire(somme(5));

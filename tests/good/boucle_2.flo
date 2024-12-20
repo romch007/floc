@@ -1,0 +1,8 @@
+tantque(lire() == 0){
+	ecrire(0);
+	tantque(lire() == 1){
+		ecrire(1);
+	}
+	ecrire(2);
+}
+ecrire(3);

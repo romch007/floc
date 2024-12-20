@@ -1,0 +1,5 @@
+entier f(booleen a){
+	a = 10;
+	retourner 1;
+}
+ecrire(f(Vrai));

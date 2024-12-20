@@ -1,0 +1,32 @@
+si (Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+} sinon  {
+ecrire(7);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si(Vrai) {
+ecrire(8);
+} sinon  {
+ecrire(0);
+}
+
+si (Vrai) {
+ecrire(9);
+} sinon si(Faux) {
+ecrire(0);
+} sinon  {
+ecrire(0);
+}
+
+si (Vrai) {
+ecrire(10);
+} sinon si(Vrai) {
+ecrire(0);
+} sinon  {
+ecrire(0);
+}
+

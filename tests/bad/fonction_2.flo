@@ -1,0 +1,4 @@
+booleen f(){
+	retourner 10;
+}
+ecrire(f());

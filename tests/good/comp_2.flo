@@ -1,0 +1,6 @@
+ecrire(1 > 2); #0
+ecrire(2 > 2); #0
+ecrire(3 > 2); #1
+ecrire(1 >= 2); #0
+ecrire(2 >= 2); #1
+ecrire(3 >= 2); #1

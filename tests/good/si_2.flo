@@ -1,0 +1,7 @@
+si (non Vrai) {
+ecrire(3);
+}
+
+si (non Faux) {
+ecrire(4);
+}

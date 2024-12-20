@@ -1,0 +1,11 @@
+entier double(entier e){
+	e = e+e;
+	retourner e;
+}
+
+entier quadriple(entier e){
+	double(5);#ça ne fait rien normalement
+	retourner double(e)+double(e);
+}
+double(5);#ça ne fait rien normalement
+ecrire(quadriple(10));

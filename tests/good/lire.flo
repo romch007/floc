@@ -1,0 +1,6 @@
+ecrire(lire());
+ecrire(lire()*lire());
+ecrire(lire()+lire());
+ecrire(lire()-lire());
+ecrire(lire()*3/lire());
+ecrire((lire()+5)%lire());

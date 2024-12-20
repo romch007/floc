@@ -1,0 +1,9 @@
+entier f(){
+ entier a;
+ retourner a;
+}
+entier g(){
+ a=5;
+}
+
+f();

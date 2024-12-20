@@ -1,0 +1,19 @@
+booleen f(entier e1, entier e2){
+	retourner e1 > e2;
+}
+
+entier g(booleen b1, entier e2){
+	si ( b1) {
+		retourner e2;
+	}
+	retourner -e2;
+}
+
+entier h(entier e1, entier e2, entier e3){
+	retourner e1 + e2 * e3;
+}
+
+ecrire(f(1,2));
+ecrire(g(Faux,4));
+ecrire(g(Vrai,5));
+ecrire(h(1,2,3));

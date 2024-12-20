@@ -1,0 +1,22 @@
+entier max(entier entier1, entier entier2,entier entier3){
+	entier res = 0;
+	si (entier1 >= entier2 et entier1 > entier3 ){
+		res = entier1;
+	} sinon si ( non entier1 < entier3  ){
+		res = entier2;
+	} sinon si (entier2 <= entier1){
+		res = entier3;
+	} sinon {
+		res = entier2;
+	}
+	retourner res;
+}
+
+booleen continuer = Vrai;
+tantque(continuer){
+	entier a = max(lire(),5-12+23,47/13*6);
+	si(a % 10 != 0){
+		ecrire(a);
+		continuer = Faux;
+	}
+}

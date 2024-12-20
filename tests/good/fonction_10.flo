@@ -1,0 +1,15 @@
+entier fibo(entier n){
+ si(n<=1){
+  retourner 1;
+ }
+ retourner fibo(n-1)+fibo(n-2);
+}
+
+ecrire(fibo(0));
+ecrire(fibo(1));
+ecrire(fibo(2));
+ecrire(fibo(3));
+ecrire(fibo(4));
+ecrire(fibo(5));
+ecrire(fibo(6));
+ecrire(fibo(7));

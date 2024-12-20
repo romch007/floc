@@ -1,0 +1,30 @@
+ecrire(Faux); #0
+ecrire(Vrai); #1
+ecrire(non Faux); #1
+ecrire(non Vrai); #0
+
+ecrire(Faux ou Faux); #0
+ecrire(Faux ou Vrai); #1
+ecrire(Vrai ou Faux); #1
+ecrire(Vrai ou Vrai); #1
+
+ecrire(Faux et Faux); #0
+ecrire(Faux et Vrai); #0
+ecrire(Vrai et Faux); #0
+ecrire(Vrai et Vrai); #1
+
+ecrire(Faux et non Faux); #0
+ecrire(Faux et non Vrai); #0
+ecrire(Vrai et non Faux); #1
+ecrire(Vrai et non Vrai); #0
+
+ecrire(non Faux et Faux); #0
+ecrire(non Faux et Vrai); #1
+ecrire(non Vrai et Faux); #0
+ecrire(non Vrai et Vrai); #0
+
+ecrire(non (Faux et Faux)); #1
+ecrire(non (Faux et Vrai)); #1
+ecrire(non (Vrai et Faux)); #1
+ecrire(non (Vrai et Vrai)); #0
+

@@ -1,0 +1,4 @@
+entier f(entier n){
+	retourner n;
+}
+ecrire(f(Vrai));

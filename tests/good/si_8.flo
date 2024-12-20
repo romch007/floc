@@ -1,0 +1,48 @@
+
+si (Vrai) {
+ecrire(11);
+} sinon si(Vrai) {
+ecrire(0);
+} sinon si(Vrai) {
+ecrire(0);
+} sinon  {
+ecrire(0);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si(Vrai) {
+ecrire(12);
+} sinon si(Vrai) {
+ecrire(0);
+} sinon  {
+ecrire(0);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+} sinon si(Vrai) {
+ecrire(13);
+} sinon  {
+ecrire(0);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+} sinon  {
+ecrire(14);
+}
+
+si (Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+} sinon si(Faux) {
+ecrire(0);
+}

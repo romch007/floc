@@ -1,0 +1,5 @@
+entier f(entier a){
+	a = Vrai;
+	retourner 1;
+}
+ecrire(f(10));

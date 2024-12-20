@@ -1,0 +1,4 @@
+ecrire(1 < 2 et 1 != 2); #1
+ecrire(1 < 2 et non 1 != 2); #0
+ecrire(1 != 2 et 2 <= 2 et non 2 == 3 ); #1
+ecrire(28 * 10/(120 + 20) < 2*3+57-24 et non (75 == 47) et 1 < 2); #1

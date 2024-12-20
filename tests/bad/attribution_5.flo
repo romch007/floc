@@ -1,0 +1,8 @@
+entier f(){
+ entier a;
+}
+entier g(){
+ a=5;
+}
+
+f();
