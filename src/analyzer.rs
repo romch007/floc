@@ -454,6 +454,26 @@ mod tests {
         good_input_test!(variable_1);
         good_input_test!(variable_2);
         good_input_test!(variable);
+
+        #[test]
+        #[ignore]
+        fn nona() {
+            use crate::ast::*;
+
+            let prog = crate::parser::parse("ecrire(nona);").unwrap();
+
+            let write_arg = match &prog.statements[0] {
+                Statement::Write { value } => value,
+                _ => panic!("not a write"),
+            };
+
+            let var_name = match write_arg {
+                Expression::Variable(var_name) => var_name,
+                _ => panic!("not a variable"),
+            };
+
+            assert_eq!(var_name, "nona");
+        }
     }
 
     mod bad {
