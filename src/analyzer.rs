@@ -175,7 +175,6 @@ impl Analyzer {
             ast::Statement::Assignment(assign) => self.analyze_assignment(assign),
             ast::Statement::Declaration(decl) => self.analyze_declaration(decl),
             ast::Statement::Write { value } => {
-                // We can print whatever type we want, can we?
                 self.analyze_expr(value)?;
                 Ok(false)
             }
