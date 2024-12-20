@@ -1,7 +1,7 @@
-use std::env;
 use std::ffi::{OsStr, OsString};
 use std::iter::repeat_with;
 use std::path::PathBuf;
+use std::{env, fs};
 
 use inkwell::targets::FileType;
 
@@ -67,6 +67,23 @@ pub fn get_output_files(
         };
 
         (FileType::Object, object_file, exec_file)
+    }
+}
+
+pub struct DeferedRemove {
+    path: PathBuf,
+}
+
+impl DeferedRemove {
+    /// Removes the file at `path` when dropping itself
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+}
+
+impl Drop for DeferedRemove {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
     }
 }
 

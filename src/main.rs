@@ -122,6 +122,9 @@ fn run() -> Result<(), Error> {
             link_params.extend(additional_link_params.split(' ').map(OsStr::new));
         }
 
+        // Remove the object file whatever happens
+        let _defer = utils::DeferedRemove::new(llvm_output_file.clone());
+
         let mut child = match process::Command::new("clang").args(&link_params).spawn() {
             Ok(child) => child,
             Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
@@ -137,8 +140,6 @@ fn run() -> Result<(), Error> {
             eprintln!("Link failed");
             process::exit(1);
         }
-
-        let _ = fs::remove_file(&llvm_output_file);
     }
 
     Ok(())
