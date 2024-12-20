@@ -375,7 +375,7 @@ mod tests {
     }
 
     macro_rules! bad_input_test {
-        ($testname:ident, $expected:pat) => {
+        ($testname:ident, $expected:pat $(if $guard:expr)?) => {
             #[test]
             fn $testname() {
                 let source = include_str!(concat!("../tests/bad/", stringify!($testname), ".flo"));
@@ -383,7 +383,7 @@ mod tests {
 
                 let mut analyzer = crate::analyzer::Analyzer::new();
                 let ret = analyzer.analyze_program(&prog);
-                assert!(matches!(ret, Err($expected)));
+                assert!(matches!(ret, Err($expected) $(if $guard)?));
             }
         };
     }
@@ -496,21 +496,19 @@ mod tests {
             }
         );
 
-        // TODO: figure out how to put a `String` in the pattern
+        bad_input_test!(affectation_3, VariableAlreadyDefined(name) if name == "a");
 
-        bad_input_test!(affectation_3, VariableAlreadyDefined(_));
+        bad_input_test!(affectation_4, VariableNotFound(name) if name == "a");
 
-        bad_input_test!(affectation_4, VariableNotFound(_));
+        bad_input_test!(affectation_5, VariableNotFound(name) if name == "a");
 
-        bad_input_test!(affectation_5, VariableNotFound(_));
+        bad_input_test!(affectation_6, VariableNotFound(name) if name == "rep");
 
-        bad_input_test!(affectation_6, VariableNotFound(_));
+        bad_input_test!(affectation_7, VariableNotFound(name) if name == "a");
 
-        bad_input_test!(affectation_7, VariableNotFound(_));
+        bad_input_test!(affectation_8, VariableNotFound(name) if name == "a");
 
-        bad_input_test!(affectation_8, VariableNotFound(_));
-
-        bad_input_test!(fonction_1, FunctionNotFound(_));
+        bad_input_test!(fonction_1, FunctionNotFound(name) if name == "f");
 
         bad_input_test!(
             fonction_2,
@@ -533,19 +531,21 @@ mod tests {
         bad_input_test!(
             fonction_5,
             ArgumentCountMismatch {
-                func: _,
+                func: fn_name,
                 expected: 0,
                 got: 1
             }
+            if fn_name == "f"
         );
 
         bad_input_test!(
             fonction_6,
             ArgumentCountMismatch {
-                func: _,
+                func: fn_name,
                 expected: 1,
                 got: 0
             }
+            if fn_name == "f"
         );
 
         bad_input_test!(
