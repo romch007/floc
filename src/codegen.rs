@@ -101,7 +101,7 @@ impl<'ctx> Compiler<'ctx> {
 
     pub fn optimize(&self, target_machine: &TargetMachine) -> Result<(), Error> {
         let passes: &[&str] = &[
-            "instcombine",
+            "instcombine<no-verify-fixpoint>",
             "reassociate",
             "gvn",
             "simplifycfg",
