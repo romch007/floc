@@ -454,13 +454,17 @@ mod tests {
         good_input_test!(variable_1);
         good_input_test!(variable_2);
         good_input_test!(variable);
+    }
+
+    mod edge_cases {
+        use crate::parser;
 
         #[test]
         #[ignore]
         fn nona() {
             use crate::ast::*;
 
-            let prog = crate::parser::parse("ecrire(nona);").unwrap();
+            let prog = parser::parse("ecrire(nona);").unwrap();
 
             let write_arg = match &prog.statements[0] {
                 Statement::Write { value } => value,
