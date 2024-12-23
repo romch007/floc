@@ -1,12 +1,12 @@
 use std::{
     cell::RefCell,
-    io::{self, Write},
+    io::{self, BufWriter, Write},
 };
 
 use crate::ast::*;
 
 pub fn dump_graph(prog: &Program) -> Result<(), io::Error> {
-    let mut stdout = io::stdout().lock();
+    let mut stdout = BufWriter::new(io::stdout().lock());
     let name_helper = NodeNameHelper::new();
 
     writeln!(stdout, "digraph AST {{")?;
