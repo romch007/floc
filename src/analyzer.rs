@@ -48,7 +48,6 @@ pub enum Error {
     },
 }
 
-#[inline]
 fn match_type(expected: &ast::Type, got: &ast::Type) -> Result<(), Error> {
     if expected == got {
         Ok(())
