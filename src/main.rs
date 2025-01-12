@@ -7,27 +7,7 @@ mod utils;
 
 use std::{ffi::OsStr, fs, io, path::Path, process};
 
-#[derive(Debug, thiserror::Error)]
-enum Error {
-    #[error("OS error: {0}")]
-    Io(#[from] io::Error),
-
-    #[error("Parsing error:\n{0}")]
-    Parsing(#[from] Box<pest::error::Error<parser::Rule>>),
-
-    #[error("Analyze error: {0}")]
-    Analyze(#[from] analyzer::Error),
-
-    #[error("Compiler error: {0}")]
-    Compiler(#[from] codegen::Error),
-}
-
-fn main() {
-    if let Err(err) = run() {
-        eprintln!("{err}");
-        process::exit(1);
-    }
-}
+use miette::{IntoDiagnostic, WrapErr};
 
 macro_rules! os {
     ($val:expr) => {{
@@ -35,11 +15,15 @@ macro_rules! os {
     }};
 }
 
-fn run() -> Result<(), Error> {
+fn main() -> miette::Result<()> {
     let args = cli::parse();
-    let source = fs::read_to_string(&args.source_file)?;
+    let source = fs::read_to_string(&args.source_file)
+        .into_diagnostic()
+        .wrap_err("cannot open source file")?;
 
-    let ast_prog = parser::parse(&source)?;
+    let ast_prog = parser::parse(&source)
+        .into_diagnostic()
+        .wrap_err("cannot parse source code")?;
 
     if args.emit_ast {
         println!("{ast_prog:#?}");
@@ -51,16 +35,16 @@ fn run() -> Result<(), Error> {
         return Ok(());
     }
 
-    let mut analyzer = analyzer::Analyzer::new();
-    analyzer.analyze_program(&ast_prog)?;
-
-    let module_name = Path::new(&args.source_file)
+    let filename = Path::new(&args.source_file)
         .file_name()
         .expect("no filename")
         .to_str()
-        .expect("invalid filename")
-        .strip_suffix(".flo")
-        .unwrap_or("<unknown>");
+        .expect("invalid filename");
+
+    let mut analyzer = analyzer::Analyzer::new(miette::NamedSource::new(filename, source));
+    analyzer.analyze_program(&ast_prog)?;
+
+    let module_name = filename.strip_suffix(".flo").unwrap_or("<unknown>");
 
     let llvm_context = inkwell::context::Context::create();
     let mut codegen = codegen::Compiler::new(&llvm_context, module_name);
@@ -68,23 +52,34 @@ fn run() -> Result<(), Error> {
     let declared_functions = analyzer.functions().values().collect::<Vec<_>>();
 
     codegen.declare_functions(&declared_functions[..]);
-    codegen.emit_program(&ast_prog)?;
+    codegen
+        .emit_program(&ast_prog)
+        .into_diagnostic()
+        .wrap_err("cannot compile program")?;
 
     if args.emit_ir {
         codegen.dump_to_stderr();
         return Ok(());
     }
 
-    codegen.verify()?;
+    codegen
+        .verify()
+        .into_diagnostic()
+        .wrap_err("cannot compile program")?;
 
     let target_machine = codegen::Compiler::create_target_machine(
         args.target_triple.as_deref(),
         args.target_cpu.as_deref(),
         args.target_features.as_deref(),
         args.optimization_level.into(),
-    )?;
+    )
+    .into_diagnostic()
+    .wrap_err("cannot create target matchine")?;
 
-    codegen.optimize(&target_machine)?;
+    codegen
+        .optimize(&target_machine)
+        .into_diagnostic()
+        .wrap_err("cannot compile program")?;
 
     if args.emit_optimized_ir {
         codegen.dump_to_stderr();
@@ -102,7 +97,10 @@ fn run() -> Result<(), Error> {
     let (llvm_file_type, llvm_output_file, exec_output_file) =
         utils::get_output_files(&args, module_name, on_windows);
 
-    codegen.compile(&target_machine, &llvm_output_file, llvm_file_type)?;
+    codegen
+        .compile(&target_machine, &llvm_output_file, llvm_file_type)
+        .into_diagnostic()
+        .wrap_err("cannot compile program")?;
 
     if let Some(exec_output_file) = exec_output_file {
         let mut link_params = vec![
@@ -131,10 +129,13 @@ fn run() -> Result<(), Error> {
                 eprintln!("Link failed: cannot find `clang`");
                 process::exit(1);
             }
-            Err(e) => return Err(e.into()),
+            Err(e) => Err(e).into_diagnostic().wrap_err("cannot link program")?,
         };
 
-        let status = child.wait()?;
+        let status = child
+            .wait()
+            .into_diagnostic()
+            .wrap_err("cannot link program")?;
 
         if !status.success() {
             eprintln!("Link failed");

@@ -1,16 +1,57 @@
 pub mod dot;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Type {
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+}
+
+impl<'a> From<pest::Span<'a>> for Span {
+    fn from(value: pest::Span<'a>) -> Self {
+        Self {
+            start: value.start(),
+            end: value.end(),
+        }
+    }
+}
+
+impl From<Span> for miette::SourceSpan {
+    fn from(value: Span) -> Self {
+        (value.start, value.end - value.start).into()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Identifier {
+    pub ident: String,
+    pub span: Span,
+}
+
+impl std::ops::Deref for Identifier {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.ident
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TypeKind {
     Integer,
     Boolean,
 }
 
-impl std::fmt::Display for Type {
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Type {
+    pub kind: TypeKind,
+    pub span: Span,
+}
+
+impl std::fmt::Display for TypeKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self {
-            Self::Integer => "entier",
-            Self::Boolean => "booleen",
+            TypeKind::Integer => "entier",
+            TypeKind::Boolean => "booleen",
         };
 
         write!(f, "{name}")?;
@@ -21,8 +62,9 @@ impl std::fmt::Display for Type {
 
 #[derive(Debug)]
 pub struct FunctionCall {
-    pub name: String,
+    pub name: Identifier,
     pub arguments: Vec<Expression>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -64,7 +106,7 @@ pub struct UnaryOp {
 #[derive(Debug)]
 pub enum Expression {
     Integer(u64),
-    Variable(String),
+    Variable(Identifier),
     Boolean(bool),
     Read,
     FunctionCall(FunctionCall),
@@ -74,21 +116,24 @@ pub enum Expression {
 
 #[derive(Debug)]
 pub struct Assignment {
-    pub variable: String,
+    pub variable: Identifier,
     pub value: Expression,
+    pub span: Span,
 }
 
 #[derive(Debug)]
 pub struct Declaration {
     pub r#type: Type,
-    pub variable: String,
+    pub variable: Identifier,
     pub value: Option<Expression>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
 pub struct While {
     pub condition: Expression,
     pub statements: Vec<Statement>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -96,31 +141,60 @@ pub struct If {
     pub condition: Expression,
     pub statements: Vec<Statement>,
     pub statements_else: Option<Vec<Statement>>,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct Write {
+    pub value: Expression,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct Return {
+    pub value: Expression,
+    pub span: Span,
 }
 
 #[derive(Debug)]
 pub enum Statement {
     Assignment(Assignment),
     Declaration(Declaration),
-    Write { value: Expression },
-    Return { value: Expression },
+    Write(Write),
+    Return(Return),
     While(While),
     If(If),
     DiscardFunctionCall(FunctionCall),
 }
 
+impl Statement {
+    pub(crate) fn span(&self) -> &Span {
+        match self {
+            Statement::Assignment(assign) => &assign.span,
+            Statement::Declaration(decl) => &decl.span,
+            Statement::Write(write) => &write.span,
+            Statement::Return(ret) => &ret.span,
+            Statement::While(whil) => &whil.span,
+            Statement::If(i) => &i.span,
+            Statement::DiscardFunctionCall(fn_call) => &fn_call.span,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Argument {
     pub r#type: Type,
-    pub name: String,
+    pub name: Identifier,
+    pub span: Span,
 }
 
 #[derive(Debug)]
 pub struct FunctionDeclaration {
     pub return_type: Type,
-    pub name: String,
+    pub name: Identifier,
     pub arguments: Vec<Argument>,
     pub statements: Vec<Statement>,
+    pub span: Span,
 }
 
 #[derive(Debug)]

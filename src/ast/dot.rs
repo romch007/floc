@@ -44,7 +44,7 @@ impl ToGraph for Expression {
 
         let node_label = match self {
             Expression::Integer(val) => val.to_string(),
-            Expression::Variable(var_name) => var_name.clone(),
+            Expression::Variable(var_name) => var_name.ident.clone(),
             Expression::Boolean(val) => val.to_string(),
             Expression::Read => "read()".to_string(),
             _ => unreachable!(),
@@ -116,7 +116,7 @@ impl ToGraph for FunctionCall {
         W: io::Write,
     {
         let node_name = name_helper.get_next_node_name();
-        write_node(w, &node_name, &format!("{}(...)", self.name))?;
+        write_node(w, &node_name, &format!("{}(...)", self.name.ident))?;
 
         for (i, arg) in self.arguments.iter().enumerate() {
             let arg_node_name = arg.visit(w, name_helper)?;
@@ -149,16 +149,17 @@ impl ToGraph for Statement {
 
         let node_name = name_helper.get_next_node_name();
 
+        // TODO: wrap these in dedicated functions
         let node_label = match self {
-            Statement::Write { value } => {
-                let value_node_name = value.visit(w, name_helper)?;
+            Statement::Write(write) => {
+                let value_node_name = write.value.visit(w, name_helper)?;
 
                 write_edge(w, &node_name, &value_node_name, None)?;
 
                 "write(...)".to_string()
             }
-            Statement::Return { value } => {
-                let value_node_name = value.visit(w, name_helper)?;
+            Statement::Return(ret) => {
+                let value_node_name = ret.value.visit(w, name_helper)?;
 
                 write_edge(w, &node_name, &value_node_name, None)?;
 
@@ -223,7 +224,7 @@ impl ToGraph for Declaration {
         write_node(w, &node_name, "var declaration")?;
 
         let type_node_name = name_helper.get_next_node_name();
-        write_node(w, &type_node_name, &self.r#type.to_string())?;
+        write_node(w, &type_node_name, &self.r#type.kind.to_string())?;
         write_edge(w, &node_name, &type_node_name, Some("type"))?;
 
         let name_node_name = name_helper.get_next_node_name();
@@ -264,10 +265,18 @@ impl ToGraph for FunctionDeclaration {
         W: io::Write,
     {
         let node_name = name_helper.get_next_node_name();
-        write_node(w, &node_name, &format!("declaring {}(...)", self.name))?;
+        write_node(
+            w,
+            &node_name,
+            &format!("declaring {}(...)", self.name.ident),
+        )?;
 
         let return_type_node_name = name_helper.get_next_node_name();
-        write_node(w, &return_type_node_name, &self.return_type.to_string())?;
+        write_node(
+            w,
+            &return_type_node_name,
+            &self.return_type.kind.to_string(),
+        )?;
         write_edge(w, &node_name, &return_type_node_name, Some("return type"))?;
 
         let args_node_name = write_arguments(w, name_helper, &self.arguments)?;
@@ -365,7 +374,7 @@ where
 
     for arg in args {
         let type_node_name = name_helper.get_next_node_name();
-        write_node(w, &type_node_name, &arg.r#type.to_string())?;
+        write_node(w, &type_node_name, &arg.r#type.kind.to_string())?;
         write_edge(w, &arg_node_name, &type_node_name, Some("type"))?;
 
         let name_node_name = name_helper.get_next_node_name();

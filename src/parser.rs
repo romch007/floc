@@ -39,21 +39,35 @@ trait Node {
     fn parse(pair: Pair<Rule>) -> Self;
 }
 
+impl Node for Identifier {
+    fn parse(pair: Pair<Rule>) -> Self {
+        let span = pair.as_span().into();
+        let name = pair.as_str().to_string();
+
+        Self { ident: name, span }
+    }
+}
+
 impl Node for Type {
     fn parse(pair: Pair<Rule>) -> Self {
-        match pair.as_str() {
-            "entier" => Self::Integer,
-            "booleen" => Self::Boolean,
+        let span = pair.as_span().into();
+
+        let kind = match pair.as_str() {
+            "entier" => TypeKind::Integer,
+            "booleen" => TypeKind::Boolean,
             pair => unreachable!("invalid type '{pair}'"),
-        }
+        };
+
+        Self { kind, span }
     }
 }
 
 impl Node for FunctionCall {
     fn parse(pair: Pair<Rule>) -> Self {
+        let span = pair.as_span().into();
         let mut pairs = pair.into_inner();
 
-        let name = pairs.next().unwrap().as_str().to_string();
+        let name = Identifier::parse(pairs.next().unwrap());
         let arguments = pairs
             .next()
             .unwrap()
@@ -61,7 +75,11 @@ impl Node for FunctionCall {
             .map(Expression::parse)
             .collect();
 
-        Self { name, arguments }
+        Self {
+            name,
+            arguments,
+            span,
+        }
     }
 }
 
@@ -105,7 +123,7 @@ impl Node for Expression {
             .map_primary(|primary| match primary.as_rule() {
                 Rule::expr => Expression::parse(primary), // from "(" ~ expr ~ ")"
                 Rule::integer => Self::Integer(primary.as_str().parse().unwrap()),
-                Rule::ident => Self::Variable(primary.as_str().to_string()),
+                Rule::ident => Self::Variable(Identifier::parse(primary)),
                 Rule::boolean => Self::Boolean(parse_bool(primary.as_str()).unwrap()),
                 Rule::read => Self::Read,
                 Rule::function_call => Self::FunctionCall(FunctionCall::parse(primary)),
@@ -130,21 +148,27 @@ impl Node for Expression {
 
 impl Node for Assignment {
     fn parse(pair: Pair<Rule>) -> Self {
+        let span = pair.as_span().into();
         let mut pairs = pair.into_inner();
 
-        let variable = pairs.next().unwrap().as_str().to_string();
+        let variable = Identifier::parse(pairs.next().unwrap());
         let value = Expression::parse(pairs.next().unwrap());
 
-        Self { variable, value }
+        Self {
+            variable,
+            value,
+            span,
+        }
     }
 }
 
 impl Node for Declaration {
     fn parse(pair: Pair<Rule>) -> Self {
+        let span = pair.as_span().into();
         let mut pairs = pair.into_inner();
 
         let r#type = Type::parse(pairs.next().unwrap());
-        let variable = pairs.next().unwrap().as_str().to_string();
+        let variable = Identifier::parse(pairs.next().unwrap());
         let mut value = None;
 
         if matches!(pairs.peek().map(|pair| pair.as_rule()), Some(Rule::expr)) {
@@ -155,12 +179,14 @@ impl Node for Declaration {
             r#type,
             variable,
             value,
+            span,
         }
     }
 }
 
 impl Node for While {
     fn parse(pair: Pair<Rule>) -> Self {
+        let span = pair.as_span().into();
         let mut pairs = pair.into_inner();
 
         let condition = Expression::parse(pairs.next().unwrap());
@@ -174,12 +200,14 @@ impl Node for While {
         Self {
             condition,
             statements,
+            span,
         }
     }
 }
 
 impl Node for If {
     fn parse(pair: Pair<Rule>) -> Self {
+        let span = pair.as_span().into();
         let mut pairs = pair.into_inner();
 
         let condition = Expression::parse(pairs.next().unwrap());
@@ -214,7 +242,26 @@ impl Node for If {
             condition,
             statements,
             statements_else,
+            span,
         }
+    }
+}
+
+impl Node for Write {
+    fn parse(pair: Pair<Rule>) -> Self {
+        let span = pair.as_span().into();
+        let value = Expression::parse(pair.into_inner().next().unwrap());
+
+        Self { value, span }
+    }
+}
+
+impl Node for Return {
+    fn parse(pair: Pair<Rule>) -> Self {
+        let span = pair.as_span().into();
+        let value = Expression::parse(pair.into_inner().next().unwrap());
+
+        Self { value, span }
     }
 }
 
@@ -223,12 +270,8 @@ impl Node for Statement {
         match pair.as_rule() {
             Rule::assignment => Self::Assignment(Assignment::parse(pair)),
             Rule::declaration => Self::Declaration(Declaration::parse(pair)),
-            Rule::write => Self::Write {
-                value: Expression::parse(pair.into_inner().next().unwrap()),
-            },
-            Rule::r#return => Self::Return {
-                value: Expression::parse(pair.into_inner().next().unwrap()),
-            },
+            Rule::write => Self::Write(Write::parse(pair)),
+            Rule::r#return => Self::Return(Return::parse(pair)),
             Rule::r#while => Self::While(While::parse(pair)),
             Rule::r#if => Self::If(If::parse(pair)),
             Rule::discard_fn_call => {
@@ -241,21 +284,23 @@ impl Node for Statement {
 
 impl Node for Argument {
     fn parse(pair: Pair<Rule>) -> Self {
+        let span = pair.as_span().into();
         let mut pairs = pair.into_inner();
 
         let r#type = Type::parse(pairs.next().unwrap());
-        let name = pairs.next().unwrap().as_str().to_string();
+        let name = Identifier::parse(pairs.next().unwrap());
 
-        Self { r#type, name }
+        Self { r#type, name, span }
     }
 }
 
 impl Node for FunctionDeclaration {
     fn parse(pair: Pair<Rule>) -> Self {
+        let span = pair.as_span().into();
         let mut pairs = pair.into_inner();
 
         let return_type = Type::parse(pairs.next().unwrap());
-        let name = pairs.next().unwrap().as_str().to_string();
+        let name = Identifier::parse(pairs.next().unwrap());
         let arguments = pairs
             .next()
             .unwrap()
@@ -274,6 +319,7 @@ impl Node for FunctionDeclaration {
             name,
             arguments,
             statements,
+            span,
         }
     }
 }

@@ -231,7 +231,7 @@ impl<'ctx> Compiler<'ctx> {
         &mut self,
         fn_decl: &ast::FunctionDeclaration,
     ) -> Result<(), Error> {
-        let function = self.functions.get(&fn_decl.name).unwrap().ptr;
+        let function = self.functions.get(&fn_decl.name.ident).unwrap().ptr;
 
         let entry_bb = self.context.append_basic_block(function, "entry");
 
@@ -248,7 +248,7 @@ impl<'ctx> Compiler<'ctx> {
 
             self.builder.build_store(alloca_ptr, value)?;
             self.variables.insert(
-                arg.name.clone(),
+                arg.name.ident.clone(),
                 Variable {
                     ptr: alloca_ptr,
                     r#type: arg.r#type.clone(),
@@ -272,11 +272,11 @@ impl<'ctx> Compiler<'ctx> {
     pub fn emit_statement(&mut self, stmt: &ast::Statement) -> Result<bool, Error> {
         match stmt {
             ast::Statement::Declaration(decl) => self.emit_declaration(decl),
-            ast::Statement::Return { value } => self.emit_return(value),
+            ast::Statement::Return(ret) => self.emit_return(ret),
             ast::Statement::Assignment(assign) => self.emit_assignment(assign),
             ast::Statement::While(whil) => self.emit_while(whil),
             ast::Statement::If(i) => self.emit_if(i),
-            ast::Statement::Write { value } => self.emit_write(value),
+            ast::Statement::Write(write) => self.emit_write(write),
             ast::Statement::DiscardFunctionCall(fn_call) => {
                 let _ = self.emit_function_call(fn_call)?;
 
@@ -291,7 +291,7 @@ impl<'ctx> Compiler<'ctx> {
         let alloca_ptr = self.builder.build_alloca(int_type, &decl.variable)?;
 
         self.variables.insert(
-            decl.variable.clone(),
+            decl.variable.ident.clone(),
             Variable {
                 ptr: alloca_ptr,
                 r#type: decl.r#type.clone(),
@@ -308,7 +308,7 @@ impl<'ctx> Compiler<'ctx> {
     }
 
     pub fn emit_assignment(&mut self, assign: &ast::Assignment) -> Result<bool, Error> {
-        let variable = self.variables.get(&assign.variable).unwrap().clone();
+        let variable = self.variables.get(&assign.variable.ident).unwrap().clone();
 
         let val = self.emit_expression(&assign.value)?;
 
@@ -317,8 +317,8 @@ impl<'ctx> Compiler<'ctx> {
         Ok(false)
     }
 
-    pub fn emit_return(&mut self, retval: &ast::Expression) -> Result<bool, Error> {
-        let retval = self.emit_expression(retval)?;
+    pub fn emit_return(&mut self, ret: &ast::Return) -> Result<bool, Error> {
+        let retval = self.emit_expression(&ret.value)?;
         self.builder.build_return(Some(&retval))?;
 
         Ok(true)
@@ -429,8 +429,8 @@ impl<'ctx> Compiler<'ctx> {
         }
     }
 
-    pub fn emit_write(&mut self, value: &ast::Expression) -> Result<bool, Error> {
-        let value = self.emit_expression(value)?;
+    pub fn emit_write(&mut self, write: &ast::Write) -> Result<bool, Error> {
+        let value = self.emit_expression(&write.value)?;
 
         let args: &[BasicMetadataValueEnum<'ctx>] =
             &[self.printf.1.as_pointer_value().into(), value.into()];
@@ -474,7 +474,7 @@ impl<'ctx> Compiler<'ctx> {
         &mut self,
         fn_call: &ast::FunctionCall,
     ) -> Result<IntValue<'ctx>, Error> {
-        let function = self.functions.get(&fn_call.name).cloned().unwrap();
+        let function = self.functions.get(&fn_call.name.ident).cloned().unwrap();
 
         let exprs: Vec<BasicMetadataValueEnum<'ctx>> = fn_call
             .arguments
@@ -482,9 +482,11 @@ impl<'ctx> Compiler<'ctx> {
             .map(|arg| self.emit_expression(arg).map(Into::into))
             .collect::<Result<_, _>>()?;
 
-        let retval =
-            self.builder
-                .build_call(function.ptr, &exprs, &format!("{}_call", &fn_call.name))?;
+        let retval = self.builder.build_call(
+            function.ptr,
+            &exprs,
+            &format!("{}_call", &fn_call.name.ident),
+        )?;
 
         Ok(retval.try_as_basic_value().unwrap_left().into_int_value())
     }
@@ -576,9 +578,9 @@ trait ToLlvmType {
 
 impl ToLlvmType for ast::Type {
     fn to_llvm<'ctx>(&self, context: &'ctx Context) -> IntType<'ctx> {
-        match self {
-            ast::Type::Integer => context.i64_type(),
-            ast::Type::Boolean => context.bool_type(),
+        match self.kind {
+            ast::TypeKind::Integer => context.i64_type(),
+            ast::TypeKind::Boolean => context.bool_type(),
         }
     }
 }

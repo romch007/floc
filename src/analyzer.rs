@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-
 use crate::ast;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 struct Variable {
     r#type: ast::Type,
+    decl_span: ast::Span,
 }
 
 #[derive(Debug, Clone)]
@@ -12,43 +12,117 @@ pub struct Function {
     pub name: String,
     pub return_type: ast::Type,
     pub arguments: Vec<ast::Type>,
+    decl_span: ast::Span,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum Error {
     #[error("Expected type '{expected}' but got '{got}'")]
-    TypeMismatch { expected: ast::Type, got: ast::Type },
+    #[diagnostic(code(floc::type_mismatch))]
+    TypeMismatch {
+        expected: ast::TypeKind,
+        got: ast::TypeKind,
+    },
 
-    #[error("Variable '{0}' not found")]
-    VariableNotFound(String),
+    #[error("variable {var_name} not found")]
+    #[diagnostic(code(floc::variable_not_found))]
+    VariableNotFound {
+        var_name: String,
 
-    #[error("Variable '{0}' is already defined")]
-    VariableAlreadyDefined(String),
+        #[source_code]
+        src: miette::NamedSource<String>,
 
-    #[error("Function '{0}' is already defined")]
-    FunctionAlreadyDefined(String),
+        #[label("variable used here")]
+        here: miette::SourceSpan,
+    },
 
-    #[error("Function '{0}' not found")]
-    FunctionNotFound(String),
+    #[error("Variable '{varname}' is already defined")]
+    #[diagnostic(code(floc::variable_already_defined))]
+    VariableAlreadyDefined {
+        varname: String,
+
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        #[label("here")]
+        here: miette::SourceSpan,
+
+        #[label("previous definition here")]
+        previous_def: miette::SourceSpan,
+    },
+
+    #[error("Function '{fn_name}' is already defined")]
+    #[diagnostic(code(floc::function_already_defined))]
+    FunctionAlreadyDefined {
+        fn_name: String,
+
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        #[label("here")]
+        here: miette::SourceSpan,
+
+        #[label("previous definition here")]
+        previous_def: miette::SourceSpan,
+    },
+
+    #[error("Function '{fn_name}' not found")]
+    #[diagnostic(code(floc::function_not_found))]
+    FunctionNotFound {
+        fn_name: String,
+
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        #[label("used here")]
+        here: miette::SourceSpan,
+    },
 
     #[error("Return statement outside of function body")]
-    ReturnOutsideFunction,
+    #[diagnostic(code(floc::return_statement_outside_fn_body))]
+    ReturnOutsideFunction {
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        #[label("here")]
+        here: miette::SourceSpan,
+    },
 
     #[error("Not all code paths return")]
+    #[diagnostic(code(floc::missing_return))]
     MissingReturn,
 
     #[error("Extra statements after return")]
-    ExtraStmtsAfterReturn,
+    #[diagnostic(code(floc::extra_stmts_after_return))]
+    ExtraStmtsAfterReturn {
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        #[label("here")]
+        stmt_span: miette::SourceSpan,
+    },
 
     #[error("Function '{func}' expected {expected} argument(s) but got {got}")]
+    #[diagnostic(code(floc::arg_count_mismatch))]
     ArgumentCountMismatch {
         func: String,
+
         expected: usize,
+
         got: usize,
+
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        #[label("function takes {expected} argument(s)")]
+        fn_decl_span: miette::SourceSpan,
+
+        #[label("function was called with {got} argument(s)")]
+        fn_call_span: miette::SourceSpan,
     },
 }
 
-fn match_type(expected: &ast::Type, got: &ast::Type) -> Result<(), Error> {
+fn match_type(expected: &ast::TypeKind, got: &ast::TypeKind) -> Result<(), Error> {
     if expected == got {
         Ok(())
     } else {
@@ -63,14 +137,16 @@ pub struct Analyzer {
     variables: Vec<HashMap<String, Variable>>,
     functions: HashMap<String, Function>,
     parent_function: Option<String>,
+    source_code: miette::NamedSource<String>,
 }
 
 impl Analyzer {
-    pub fn new() -> Self {
+    pub fn new(source_code: miette::NamedSource<String>) -> Self {
         Self {
             variables: Vec::with_capacity(1),
             functions: HashMap::new(),
             parent_function: None,
+            source_code,
         }
     }
 
@@ -100,18 +176,26 @@ impl Analyzer {
             .any(|block| block.contains_key(var_name))
     }
 
-    fn declare_variable(&mut self, var_name: &str, r#type: ast::Type) {
-        self.variables
-            .last_mut()
-            .unwrap()
-            .insert(var_name.to_string(), Variable { r#type });
+    fn declare_variable(&mut self, var_name: &str, r#type: ast::Type, span: ast::Span) {
+        self.variables.last_mut().unwrap().insert(
+            var_name.to_string(),
+            Variable {
+                r#type,
+                decl_span: span,
+            },
+        );
     }
 
     pub fn analyze_program(&mut self, prog: &ast::Program) -> Result<(), Error> {
         // Register all functions
         for fn_decl in &prog.function_decls {
-            if self.functions.contains_key(&fn_decl.name) {
-                return Err(Error::FunctionAlreadyDefined(fn_decl.name.clone()));
+            if let Some(previous_fn) = self.functions.get(&fn_decl.name.ident) {
+                return Err(Error::FunctionAlreadyDefined {
+                    fn_name: fn_decl.name.ident.to_string(),
+                    src: self.source_code.clone(),
+                    here: fn_decl.span.clone().into(),
+                    previous_def: previous_fn.decl_span.clone().into(),
+                });
             }
 
             let args = fn_decl
@@ -121,11 +205,12 @@ impl Analyzer {
                 .collect();
 
             self.functions.insert(
-                fn_decl.name.clone(),
+                fn_decl.name.ident.clone(),
                 Function {
-                    name: fn_decl.name.clone(),
+                    name: fn_decl.name.ident.clone(),
                     return_type: fn_decl.return_type.clone(),
                     arguments: args,
+                    decl_span: fn_decl.span.clone(),
                 },
             );
         }
@@ -140,19 +225,22 @@ impl Analyzer {
     }
 
     fn analyze_function_decl(&mut self, fn_decl: &ast::FunctionDeclaration) -> Result<(), Error> {
-        self.parent_function = Some(fn_decl.name.clone());
+        self.parent_function = Some(fn_decl.name.ident.clone());
 
         self.enter_block();
 
         for arg in &fn_decl.arguments {
-            self.declare_variable(&arg.name, arg.r#type.clone());
+            self.declare_variable(&arg.name, arg.r#type.clone(), arg.span.clone());
         }
 
         let mut does_return = false;
 
         for stmt in &fn_decl.statements {
             if does_return {
-                return Err(Error::ExtraStmtsAfterReturn);
+                return Err(Error::ExtraStmtsAfterReturn {
+                    src: self.source_code.clone(),
+                    stmt_span: stmt.span().clone().into(),
+                });
             }
 
             does_return = self.analyze_statement(stmt)?;
@@ -173,11 +261,12 @@ impl Analyzer {
         match stmt {
             ast::Statement::Assignment(assign) => self.analyze_assignment(assign),
             ast::Statement::Declaration(decl) => self.analyze_declaration(decl),
-            ast::Statement::Write { value } => {
-                self.analyze_expr(value)?;
+            ast::Statement::Write(write) => {
+                // TODO: wrap this in dedicated function
+                self.analyze_expr(&write.value)?;
                 Ok(false)
             }
-            ast::Statement::Return { value } => self.analyze_return(value),
+            ast::Statement::Return(ret) => self.analyze_return(ret),
             ast::Statement::While(whil) => self.analyze_while(whil),
             ast::Statement::If(i) => self.analyze_if(i),
             ast::Statement::DiscardFunctionCall(fn_call) => {
@@ -194,7 +283,10 @@ impl Analyzer {
 
         for stmt in stmts {
             if does_return {
-                return Err(Error::ExtraStmtsAfterReturn);
+                return Err(Error::ExtraStmtsAfterReturn {
+                    src: self.source_code.clone(),
+                    stmt_span: stmt.span().clone().into(),
+                });
             }
 
             if self.analyze_statement(stmt)? {
@@ -207,11 +299,14 @@ impl Analyzer {
         Ok(does_return)
     }
 
-    fn analyze_return(&mut self, value: &ast::Expression) -> Result<bool, Error> {
-        let current_function_name = self
-            .parent_function
-            .as_deref()
-            .ok_or(Error::ReturnOutsideFunction)?;
+    fn analyze_return(&mut self, ret: &ast::Return) -> Result<bool, Error> {
+        let current_function_name =
+            self.parent_function
+                .as_deref()
+                .ok_or(Error::ReturnOutsideFunction {
+                    src: self.source_code.clone(),
+                    here: ret.span.clone().into(),
+                })?;
 
         let function_ret_type = self
             .functions
@@ -220,15 +315,15 @@ impl Analyzer {
             .return_type
             .clone();
 
-        let value_type = self.analyze_expr(value)?;
-        match_type(&function_ret_type, &value_type)?;
+        let value_type = self.analyze_expr(&ret.value)?;
+        match_type(&function_ret_type.kind, &value_type)?;
 
         Ok(true)
     }
 
     fn analyze_if(&mut self, i: &ast::If) -> Result<bool, Error> {
         let condition_type = self.analyze_expr(&i.condition)?;
-        match_type(&ast::Type::Boolean, &condition_type)?;
+        match_type(&ast::TypeKind::Boolean, &condition_type)?;
 
         let then_block_returns = self.analyze_block(&i.statements)?;
 
@@ -244,7 +339,7 @@ impl Analyzer {
 
     fn analyze_while(&mut self, whil: &ast::While) -> Result<bool, Error> {
         let condition_type = self.analyze_expr(&whil.condition)?;
-        match_type(&ast::Type::Boolean, &condition_type)?;
+        match_type(&ast::TypeKind::Boolean, &condition_type)?;
 
         self.analyze_block(&whil.statements)?;
 
@@ -252,25 +347,40 @@ impl Analyzer {
     }
 
     fn analyze_declaration(&mut self, declaration: &ast::Declaration) -> Result<bool, Error> {
-        if self.variable_exists(&declaration.variable) {
-            return Err(Error::VariableAlreadyDefined(declaration.variable.clone()));
+        if let Some(previous_var) = self.get_variable(&declaration.variable) {
+            return Err(Error::VariableAlreadyDefined {
+                varname: declaration.variable.ident.to_string(),
+                src: self.source_code.clone(),
+                here: declaration.span.clone().into(),
+                previous_def: previous_var.decl_span.clone().into(),
+            });
         }
 
         if let Some(default_value) = &declaration.value {
             let default_value_type = self.analyze_expr(default_value)?;
-            match_type(&declaration.r#type, &default_value_type)?;
+            match_type(&declaration.r#type.kind, &default_value_type)?;
         }
 
-        self.declare_variable(&declaration.variable, declaration.r#type.clone());
+        self.declare_variable(
+            &declaration.variable,
+            declaration.r#type.clone(),
+            declaration.span.clone(),
+        );
 
         Ok(false)
     }
 
     fn analyze_assignment(&mut self, assignment: &ast::Assignment) -> Result<bool, Error> {
+        let variable_span = assignment.variable.span.clone();
+
         let variable_type = self
             .get_variable(&assignment.variable)
-            .map(|var| var.r#type.clone())
-            .ok_or(Error::VariableNotFound(assignment.variable.clone()))?;
+            .map(|var| var.r#type.kind.clone())
+            .ok_or(Error::VariableNotFound {
+                var_name: assignment.variable.ident.to_string(),
+                src: self.source_code.clone(),
+                here: variable_span.into(),
+            })?;
 
         let expr_type = self.analyze_expr(&assignment.value)?;
         match_type(&variable_type, &expr_type)?;
@@ -278,10 +388,10 @@ impl Analyzer {
         Ok(false)
     }
 
-    fn analyze_expr(&mut self, expr: &ast::Expression) -> Result<ast::Type, Error> {
+    fn analyze_expr(&mut self, expr: &ast::Expression) -> Result<ast::TypeKind, Error> {
         match expr {
-            ast::Expression::Integer(_) | ast::Expression::Read => Ok(ast::Type::Integer),
-            ast::Expression::Boolean(_) => Ok(ast::Type::Boolean),
+            ast::Expression::Integer(_) | ast::Expression::Read => Ok(ast::TypeKind::Integer),
+            ast::Expression::Boolean(_) => Ok(ast::TypeKind::Boolean),
             ast::Expression::Variable(var) => self.analyze_variable(var),
             ast::Expression::FunctionCall(fn_call) => self.analyze_function_call(fn_call),
             ast::Expression::BinaryOp(binary_op) => self.analyze_binary_op(binary_op),
@@ -289,40 +399,56 @@ impl Analyzer {
         }
     }
 
-    fn analyze_function_call(&mut self, fn_call: &ast::FunctionCall) -> Result<ast::Type, Error> {
-        let function = self
-            .functions
-            .get(&fn_call.name)
-            .cloned()
-            .ok_or(Error::FunctionNotFound(fn_call.name.clone()))?;
+    fn analyze_function_call(
+        &mut self,
+        fn_call: &ast::FunctionCall,
+    ) -> Result<ast::TypeKind, Error> {
+        let function =
+            self.functions
+                .get(&fn_call.name.ident)
+                .cloned()
+                .ok_or(Error::FunctionNotFound {
+                    fn_name: fn_call.name.ident.to_string(),
+                    src: self.source_code.clone(),
+                    here: fn_call.span.clone().into(),
+                })?;
 
         if function.arguments.len() != fn_call.arguments.len() {
             return Err(Error::ArgumentCountMismatch {
-                func: fn_call.name.clone(),
+                func: fn_call.name.ident.clone(),
                 expected: function.arguments.len(),
                 got: fn_call.arguments.len(),
+                src: self.source_code.clone(),
+                fn_decl_span: function.decl_span.clone().into(),
+                fn_call_span: fn_call.span.clone().into(),
             });
         }
 
         for (fn_call_arg, expected_type) in fn_call.arguments.iter().zip(function.arguments.iter())
         {
             let arg_type = self.analyze_expr(fn_call_arg)?;
-            match_type(expected_type, &arg_type)?;
+            match_type(&expected_type.kind, &arg_type)?;
         }
 
-        Ok(function.return_type)
+        Ok(function.return_type.kind)
     }
 
-    fn analyze_variable(&mut self, var_name: &str) -> Result<ast::Type, Error> {
+    fn analyze_variable(&mut self, var_name: &ast::Identifier) -> Result<ast::TypeKind, Error> {
+        let var_span = var_name.span.clone();
+
         self.get_variable(var_name)
-            .map(|var| var.r#type.clone())
-            .ok_or(Error::VariableNotFound(var_name.to_string()))
+            .map(|var| var.r#type.kind.clone())
+            .ok_or(Error::VariableNotFound {
+                var_name: var_name.ident.clone(),
+                src: self.source_code.clone(),
+                here: var_span.into(),
+            })
     }
 
-    fn analyze_unary_op(&mut self, unary_op: &ast::UnaryOp) -> Result<ast::Type, Error> {
+    fn analyze_unary_op(&mut self, unary_op: &ast::UnaryOp) -> Result<ast::TypeKind, Error> {
         let expected_type = match &unary_op.kind {
-            ast::UnaryOpKind::Neg => ast::Type::Integer,
-            ast::UnaryOpKind::LogicNot => ast::Type::Boolean,
+            ast::UnaryOpKind::Neg => ast::TypeKind::Integer,
+            ast::UnaryOpKind::LogicNot => ast::TypeKind::Boolean,
         };
 
         let operand_type = self.analyze_expr(&unary_op.operand)?;
@@ -331,15 +457,15 @@ impl Analyzer {
         Ok(expected_type)
     }
 
-    fn analyze_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<ast::Type, Error> {
+    fn analyze_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<ast::TypeKind, Error> {
         use ast::BinaryOpKind::*;
 
         // NOTE: this forbids 'example == Vrai', because:
         // 1. I'm lazy
         // 2. Nobody should ever write that
         let expected_operand_type = match &binary_op.kind {
-            Add | Sub | Mul | Div | Mod | Eq | Neq | Lt | Lte | Gt | Gte => ast::Type::Integer,
-            LogicAnd | LogicOr => ast::Type::Boolean,
+            Add | Sub | Mul | Div | Mod | Eq | Neq | Lt | Lte | Gt | Gte => ast::TypeKind::Integer,
+            LogicAnd | LogicOr => ast::TypeKind::Boolean,
         };
 
         let left_type = self.analyze_expr(&binary_op.left)?;
@@ -349,8 +475,8 @@ impl Analyzer {
         match_type(&expected_operand_type, &right_type)?;
 
         let result_type = match &binary_op.kind {
-            Add | Sub | Mul | Div | Mod => ast::Type::Integer,
-            Eq | Neq | Lt | Lte | Gt | Gte | LogicOr | LogicAnd => ast::Type::Boolean,
+            Add | Sub | Mul | Div | Mod => ast::TypeKind::Integer,
+            Eq | Neq | Lt | Lte | Gt | Gte | LogicOr | LogicAnd => ast::TypeKind::Boolean,
         };
 
         Ok(result_type)
@@ -481,7 +607,7 @@ mod tests {
 
     mod bad {
         use crate::analyzer::Error::*;
-        use crate::ast::Type::*;
+        use crate::ast::TypeKind::*;
 
         bad_input_test!(
             affectation_1,
