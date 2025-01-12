@@ -1,10 +1,15 @@
 use crate::ast;
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Variable {
     r#type: ast::Type,
+
+    /// Span to the variable declaration
     decl_span: ast::Span,
+
+    /// Span to the variable type in the variable declaration
+    type_decl_span: ast::Span,
 }
 
 #[derive(Debug, Clone)]
@@ -12,16 +17,88 @@ pub struct Function {
     pub name: String,
     pub return_type: ast::Type,
     pub arguments: Vec<ast::Type>,
+
+    /// Span to the function declaration
     decl_span: ast::Span,
+
+    /// Span to the return type in the function declaration
+    ret_type_decl_span: ast::Span,
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum Error {
-    #[error("Expected type '{expected}' but got '{got}'")]
-    #[diagnostic(code(floc::type_mismatch))]
-    TypeMismatch {
-        expected: ast::TypeKind,
-        got: ast::TypeKind,
+    #[error("Type mismatch in operation")]
+    #[diagnostic(code(floc::invalid_types_in_unary_op))]
+    TypeMismatchInOperation {
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        operand_type: ast::TypeKind,
+
+        #[label("is '{operand_type}'")]
+        operand: miette::SourceSpan,
+
+        operator_type: ast::TypeKind,
+
+        #[label("should be '{operator_type}'")]
+        operator: miette::SourceSpan,
+    },
+
+    #[error("Type mismatch in assignment")]
+    #[diagnostic(code(floc::invalid_types_in_assign))]
+    TypeMismatchInAssign {
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        wrong_value_type: ast::TypeKind,
+
+        #[label("is '{wrong_value_type}'")]
+        wrong_value: miette::SourceSpan,
+
+        #[label("should be")]
+        type_def: miette::SourceSpan,
+    },
+
+    #[error("Type mismatch in return statement")]
+    #[diagnostic(code(floc::invalid_types_ret_stmt))]
+    TypeMismatchInReturn {
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        wrong_value_type: ast::TypeKind,
+
+        #[label("is '{wrong_value_type}'")]
+        wrong_value: miette::SourceSpan,
+
+        #[label("should be")]
+        type_def: miette::SourceSpan,
+    },
+
+    #[error("Type mismatch in condition")]
+    #[diagnostic(code(floc::invalid_types_in_condition))]
+    TypeMismatchInCondition {
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        wrong_value_type: ast::TypeKind,
+
+        #[label("is '{wrong_value_type}', should be 'booleen'")]
+        wrong_value: miette::SourceSpan,
+    },
+
+    #[error("Type mismatch in function argument")]
+    #[diagnostic(code(floc::invalid_types_in_fn_arg))]
+    TypeMismatchInFnArg {
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        wrong_value_type: ast::TypeKind,
+
+        #[label("is '{wrong_value_type}', should be 'booleen'")]
+        wrong_value: miette::SourceSpan,
+
+        #[label("should be")]
+        arg: miette::SourceSpan,
     },
 
     #[error("variable {var_name} not found")]
@@ -122,17 +199,6 @@ pub enum Error {
     },
 }
 
-fn match_type(expected: &ast::TypeKind, got: &ast::TypeKind) -> Result<(), Error> {
-    if expected == got {
-        Ok(())
-    } else {
-        Err(Error::TypeMismatch {
-            expected: expected.clone(),
-            got: got.clone(),
-        })
-    }
-}
-
 pub struct Analyzer {
     variables: Vec<HashMap<String, Variable>>,
     functions: HashMap<String, Function>,
@@ -169,19 +235,15 @@ impl Analyzer {
             .find_map(|block| block.get(var_name))
     }
 
-    fn variable_exists(&self, var_name: &str) -> bool {
-        self.variables
-            .iter()
-            .rev()
-            .any(|block| block.contains_key(var_name))
-    }
-
     fn declare_variable(&mut self, var_name: &str, r#type: ast::Type, span: ast::Span) {
+        let type_decl_span = r#type.span.clone();
+
         self.variables.last_mut().unwrap().insert(
             var_name.to_string(),
             Variable {
                 r#type,
                 decl_span: span,
+                type_decl_span,
             },
         );
     }
@@ -211,6 +273,7 @@ impl Analyzer {
                     return_type: fn_decl.return_type.clone(),
                     arguments: args,
                     decl_span: fn_decl.span.clone(),
+                    ret_type_decl_span: fn_decl.return_type.span.clone(),
                 },
             );
         }
@@ -308,22 +371,32 @@ impl Analyzer {
                     here: ret.span.clone().into(),
                 })?;
 
-        let function_ret_type = self
-            .functions
-            .get(current_function_name)
-            .unwrap()
-            .return_type
-            .clone();
+        let defined_function = self.functions.get(current_function_name).unwrap().clone();
 
         let value_type = self.analyze_expr(&ret.value)?;
-        match_type(&function_ret_type.kind, &value_type)?;
+
+        if defined_function.return_type.kind != value_type.kind {
+            return Err(Error::TypeMismatchInReturn {
+                src: self.source_code.clone(),
+                wrong_value_type: value_type.kind,
+                wrong_value: value_type.span.clone().into(),
+                type_def: defined_function.ret_type_decl_span.clone().into(),
+            });
+        }
 
         Ok(true)
     }
 
     fn analyze_if(&mut self, i: &ast::If) -> Result<bool, Error> {
         let condition_type = self.analyze_expr(&i.condition)?;
-        match_type(&ast::TypeKind::Boolean, &condition_type)?;
+
+        if condition_type.kind != ast::TypeKind::Boolean {
+            return Err(Error::TypeMismatchInCondition {
+                src: self.source_code.clone(),
+                wrong_value_type: condition_type.kind,
+                wrong_value: condition_type.span.clone().into(),
+            });
+        }
 
         let then_block_returns = self.analyze_block(&i.statements)?;
 
@@ -339,7 +412,14 @@ impl Analyzer {
 
     fn analyze_while(&mut self, whil: &ast::While) -> Result<bool, Error> {
         let condition_type = self.analyze_expr(&whil.condition)?;
-        match_type(&ast::TypeKind::Boolean, &condition_type)?;
+
+        if condition_type.kind != ast::TypeKind::Boolean {
+            return Err(Error::TypeMismatchInCondition {
+                src: self.source_code.clone(),
+                wrong_value_type: condition_type.kind,
+                wrong_value: condition_type.span.clone().into(),
+            });
+        }
 
         self.analyze_block(&whil.statements)?;
 
@@ -358,7 +438,15 @@ impl Analyzer {
 
         if let Some(default_value) = &declaration.value {
             let default_value_type = self.analyze_expr(default_value)?;
-            match_type(&declaration.r#type.kind, &default_value_type)?;
+
+            if declaration.r#type.kind != default_value_type.kind {
+                return Err(Error::TypeMismatchInAssign {
+                    src: self.source_code.clone(),
+                    wrong_value_type: default_value_type.kind,
+                    wrong_value: default_value.span().clone().into(),
+                    type_def: declaration.r#type.span.clone().into(),
+                });
+            }
         }
 
         self.declare_variable(
@@ -371,27 +459,43 @@ impl Analyzer {
     }
 
     fn analyze_assignment(&mut self, assignment: &ast::Assignment) -> Result<bool, Error> {
-        let variable_span = assignment.variable.span.clone();
-
-        let variable_type = self
-            .get_variable(&assignment.variable)
-            .map(|var| var.r#type.kind.clone())
-            .ok_or(Error::VariableNotFound {
-                var_name: assignment.variable.ident.to_string(),
-                src: self.source_code.clone(),
-                here: variable_span.into(),
-            })?;
+        let variable =
+            self.get_variable(&assignment.variable)
+                .cloned()
+                .ok_or(Error::VariableNotFound {
+                    var_name: assignment.variable.ident.to_string(),
+                    src: self.source_code.clone(),
+                    here: assignment.variable.span.clone().into(),
+                })?;
 
         let expr_type = self.analyze_expr(&assignment.value)?;
-        match_type(&variable_type, &expr_type)?;
+
+        if expr_type.kind != variable.r#type.kind {
+            return Err(Error::TypeMismatchInAssign {
+                src: self.source_code.clone(),
+                wrong_value_type: expr_type.kind,
+                wrong_value: expr_type.span.clone().into(),
+                type_def: variable.type_decl_span.clone().into(),
+            });
+        }
 
         Ok(false)
     }
 
-    fn analyze_expr(&mut self, expr: &ast::Expression) -> Result<ast::TypeKind, Error> {
+    fn analyze_expr(&mut self, expr: &ast::Expression) -> Result<ast::Type, Error> {
         match expr {
-            ast::Expression::Integer(_, _) | ast::Expression::Read(_) => Ok(ast::TypeKind::Integer),
-            ast::Expression::Boolean(_, _) => Ok(ast::TypeKind::Boolean),
+            ast::Expression::Integer(_, span) => Ok(ast::Type {
+                kind: ast::TypeKind::Integer,
+                span: span.clone(),
+            }),
+            ast::Expression::Read(span) => Ok(ast::Type {
+                kind: ast::TypeKind::Integer,
+                span: span.clone(),
+            }),
+            ast::Expression::Boolean(_, span) => Ok(ast::Type {
+                kind: ast::TypeKind::Boolean,
+                span: span.clone(),
+            }),
             ast::Expression::Variable(var) => self.analyze_variable(var),
             ast::Expression::FunctionCall(fn_call) => self.analyze_function_call(fn_call),
             ast::Expression::BinaryOp(binary_op) => self.analyze_binary_op(binary_op),
@@ -399,10 +503,7 @@ impl Analyzer {
         }
     }
 
-    fn analyze_function_call(
-        &mut self,
-        fn_call: &ast::FunctionCall,
-    ) -> Result<ast::TypeKind, Error> {
+    fn analyze_function_call(&mut self, fn_call: &ast::FunctionCall) -> Result<ast::Type, Error> {
         let function =
             self.functions
                 .get(&fn_call.name.ident)
@@ -426,38 +527,72 @@ impl Analyzer {
 
         for (fn_call_arg, expected_type) in fn_call.arguments.iter().zip(function.arguments.iter())
         {
-            let arg_type = self.analyze_expr(fn_call_arg)?;
-            match_type(&expected_type.kind, &arg_type)?;
+            let provided_arg_type = self.analyze_expr(fn_call_arg)?;
+
+            if expected_type.kind != provided_arg_type.kind {
+                return Err(Error::TypeMismatchInFnArg {
+                    src: self.source_code.clone(),
+                    wrong_value_type: provided_arg_type.kind,
+                    wrong_value: provided_arg_type.span.clone().into(),
+                    arg: expected_type.span.clone().into(),
+                });
+            }
         }
 
-        Ok(function.return_type.kind)
+        Ok(ast::Type {
+            kind: function.return_type.kind,
+            span: fn_call.span.clone(),
+        })
     }
 
-    fn analyze_variable(&mut self, var_name: &ast::Identifier) -> Result<ast::TypeKind, Error> {
-        let var_span = var_name.span.clone();
-
-        self.get_variable(var_name)
+    fn analyze_variable(&mut self, variable: &ast::Identifier) -> Result<ast::Type, Error> {
+        let var_type = self
+            .get_variable(variable)
             .map(|var| var.r#type.kind.clone())
             .ok_or(Error::VariableNotFound {
-                var_name: var_name.ident.clone(),
+                var_name: variable.ident.clone(),
                 src: self.source_code.clone(),
-                here: var_span.into(),
-            })
+                here: variable.span.clone().into(),
+            })?;
+
+        Ok(ast::Type {
+            kind: var_type,
+            span: variable.span.clone(),
+        })
     }
 
-    fn analyze_unary_op(&mut self, unary_op: &ast::UnaryOp) -> Result<ast::TypeKind, Error> {
+    fn analyze_unary_op(&mut self, unary_op: &ast::UnaryOp) -> Result<ast::Type, Error> {
         let expected_type = match &unary_op.kind {
             ast::UnaryOpKind::Neg => ast::TypeKind::Integer,
             ast::UnaryOpKind::LogicNot => ast::TypeKind::Boolean,
         };
 
         let operand_type = self.analyze_expr(&unary_op.operand)?;
-        match_type(&expected_type, &operand_type)?;
 
-        Ok(expected_type)
+        if operand_type.kind != expected_type {
+            return Err(Error::TypeMismatchInOperation {
+                src: self.source_code.clone(),
+                operand_type: operand_type.kind,
+                operand: operand_type.span.clone().into(),
+                operator_type: expected_type,
+                operator: unary_op.span.clone().into(),
+            });
+        }
+
+        // unary_op.span corresponds to the '-' and 'non' token,
+        // so we create a new span with everything
+        let span = ast::Span {
+            start: unary_op.span.start,
+            end: operand_type.span.end,
+        };
+
+        Ok(ast::Type {
+            kind: expected_type,
+            span,
+        })
     }
 
-    fn analyze_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<ast::TypeKind, Error> {
+    fn analyze_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<ast::Type, Error> {
         use ast::BinaryOpKind::*;
 
         // NOTE: this forbids 'example == Vrai', because:
@@ -469,17 +604,43 @@ impl Analyzer {
         };
 
         let left_type = self.analyze_expr(&binary_op.left)?;
-        match_type(&expected_operand_type, &left_type)?;
+        if expected_operand_type != left_type.kind {
+            return Err(Error::TypeMismatchInOperation {
+                src: self.source_code.clone(),
+                operand_type: left_type.kind,
+                operand: left_type.span.clone().into(),
+                operator_type: expected_operand_type,
+                operator: binary_op.span.clone().into(),
+            });
+        }
 
         let right_type = self.analyze_expr(&binary_op.right)?;
-        match_type(&expected_operand_type, &right_type)?;
+        if expected_operand_type != right_type.kind {
+            return Err(Error::TypeMismatchInOperation {
+                src: self.source_code.clone(),
+                operand_type: right_type.kind,
+                operand: right_type.span.clone().into(),
+                operator_type: expected_operand_type,
+                operator: binary_op.span.clone().into(),
+            });
+        }
 
         let result_type = match &binary_op.kind {
             Add | Sub | Mul | Div | Mod => ast::TypeKind::Integer,
             Eq | Neq | Lt | Lte | Gt | Gte | LogicOr | LogicAnd => ast::TypeKind::Boolean,
         };
 
-        Ok(result_type)
+        // binary_op.span corresponds to the operator character,
+        // so we create a new span with everything
+        let span = ast::Span {
+            start: left_type.span.start,
+            end: right_type.span.end,
+        };
+
+        Ok(ast::Type {
+            kind: result_type,
+            span,
+        })
     }
 }
 
