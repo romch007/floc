@@ -1,5 +1,7 @@
-use crate::ast;
+use crate::{ast, utils};
 use std::collections::HashMap;
+
+const MAX_LEVENSHTEIN_DIST_FOR_SUGGEST: usize = 3;
 
 #[derive(Debug, Clone)]
 struct Variable {
@@ -123,6 +125,9 @@ pub enum Error {
 
         #[label("variable used here")]
         here: ast::Span,
+
+        #[help]
+        advice: Option<String>,
     },
 
     #[error("variable '{varname}' is already defined")]
@@ -165,6 +170,9 @@ pub enum Error {
 
         #[label("used here")]
         here: ast::Span,
+
+        #[help]
+        advice: Option<String>,
     },
 
     #[error("feturn statement outside of function body")]
@@ -248,6 +256,38 @@ impl Analyzer {
             .iter()
             .rev()
             .find_map(|block| block.get(var_name))
+    }
+
+    fn suggest_name<'a, I>(&'a self, iter: I, name: &str) -> Option<&'a str>
+    where
+        I: Iterator<Item = &'a str>,
+    {
+        let mut distances = iter
+            .map(|existing_name| (existing_name, utils::levenshtein(existing_name, name)))
+            .filter(|pair| pair.1 < MAX_LEVENSHTEIN_DIST_FOR_SUGGEST)
+            .collect::<Vec<_>>();
+
+        distances.sort_unstable_by_key(|pair| pair.1);
+
+        distances.first().map(|pair| pair.0)
+    }
+
+    fn get_help_var_not_found(&self, var_name: &str) -> Option<String> {
+        let variable_names = self
+            .variables
+            .iter()
+            .flat_map(|frame| frame.keys())
+            .map(|string| string.as_str());
+
+        self.suggest_name(variable_names, var_name)
+            .map(|name| format!("did you mean '{name}'?"))
+    }
+
+    fn get_help_fn_not_found(&self, fn_name: &str) -> Option<String> {
+        let fn_names = self.functions.keys().map(|string| string.as_str());
+
+        self.suggest_name(fn_names, fn_name)
+            .map(|name| format!("did you mean '{name}'?"))
     }
 
     fn declare_variable(&mut self, var_name: &str, r#type: ast::Type, span: ast::Span) {
@@ -483,6 +523,7 @@ impl Analyzer {
                     var_name: assignment.variable.ident.to_string(),
                     src: self.source_code.clone(),
                     here: assignment.variable.span,
+                    advice: self.get_help_var_not_found(&assignment.variable.ident),
                 })?;
 
         let expr_type = self.analyze_expr(&assignment.value)?;
@@ -538,6 +579,7 @@ impl Analyzer {
                     fn_name: fn_call.name.ident.to_string(),
                     src: self.source_code.clone(),
                     here: fn_call.span,
+                    advice: self.get_help_fn_not_found(&fn_call.name.ident),
                 })?;
 
         if function.arguments.len() != fn_call.arguments.len() {
@@ -600,6 +642,7 @@ impl Analyzer {
                 var_name: variable.ident.clone(),
                 src: self.source_code.clone(),
                 here: variable.span,
+                advice: self.get_help_var_not_found(&variable.ident),
             })?;
 
         Ok(ast::Type {
