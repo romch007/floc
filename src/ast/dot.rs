@@ -398,7 +398,7 @@ impl NodeNameHelper {
 
     pub fn get_next_node_name(&self) -> String {
         let id = self.count.replace_with(|&mut old| old + 1);
-        let name = format!("node{}", id);
+        let name = format!("node{id}");
         name
     }
 }
