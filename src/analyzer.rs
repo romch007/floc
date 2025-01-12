@@ -33,7 +33,7 @@ pub struct Function {
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum Error {
     #[error("type mismatch in operation")]
-    #[diagnostic(code(floc::invalid_types_in_unary_op))]
+    #[diagnostic(code(floc::invalid_types_in_op))]
     TypeMismatchInOperation {
         #[source_code]
         src: miette::NamedSource<String>,

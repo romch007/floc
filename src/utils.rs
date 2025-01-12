@@ -1,7 +1,7 @@
+use std::env;
 use std::ffi::{OsStr, OsString};
 use std::iter::repeat_with;
 use std::path::PathBuf;
-use std::{env, fs};
 
 use inkwell::targets::FileType;
 
