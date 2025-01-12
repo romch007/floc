@@ -18,11 +18,14 @@ pub struct Function {
     pub return_type: ast::Type,
     pub arguments: Vec<ast::Type>,
 
-    /// Span to the function declaration
-    decl_span: ast::Span,
-
     /// Span to the return type in the function declaration
     ret_type_decl_span: ast::Span,
+
+    /// Spans to the function arguments
+    args_span: Vec<ast::Span>,
+
+    /// Span to the function declaration
+    decl_span: ast::Span,
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
@@ -105,6 +108,9 @@ pub enum Error {
 
         #[label("expected due to this type")]
         arg: ast::Span,
+
+        #[label("arguments to this function are incorrect")]
+        fn_call_name: ast::Span,
     },
 
     #[error("variable {var_name} not found")]
@@ -197,11 +203,14 @@ pub enum Error {
         #[source_code]
         src: miette::NamedSource<String>,
 
-        #[label("function takes {expected} argument(s)")]
-        fn_decl_span: ast::Span,
+        #[label("arguments to this function are incorrect")]
+        fn_call_name: ast::Span,
 
-        #[label("function was called with {got} argument(s)")]
-        fn_call_span: ast::Span,
+        #[label("{got} arguments(s) supplied")]
+        fn_call_args: Option<ast::Span>,
+
+        #[label("expected {expected} arguments(s)")]
+        fn_def_args: Option<ast::Span>,
     },
 }
 
@@ -278,8 +287,9 @@ impl Analyzer {
                     name: fn_decl.name.ident.clone(),
                     return_type: fn_decl.return_type.clone(),
                     arguments: args,
-                    decl_span: fn_decl.span.clone(),
                     ret_type_decl_span: fn_decl.return_type.span.clone(),
+                    args_span: fn_decl.arguments.iter().map(|arg| arg.span).collect(),
+                    decl_span: fn_decl.span.clone(),
                 },
             );
         }
@@ -531,13 +541,32 @@ impl Analyzer {
                 })?;
 
         if function.arguments.len() != fn_call.arguments.len() {
+            let fn_call_args = if !fn_call.arguments.is_empty() {
+                let start = fn_call.arguments.first().unwrap().span().start;
+                let end = fn_call.arguments.last().unwrap().span().end;
+
+                Some(ast::Span { start, end })
+            } else {
+                None
+            };
+
+            let fn_def_args = if !function.arguments.is_empty() {
+                let start = function.args_span.first().unwrap().start;
+                let end = function.args_span.last().unwrap().end;
+
+                Some(ast::Span { start, end })
+            } else {
+                None
+            };
+
             return Err(Box::new(Error::ArgumentCountMismatch {
                 func: fn_call.name.ident.clone(),
                 expected: function.arguments.len(),
                 got: fn_call.arguments.len(),
                 src: self.source_code.clone(),
-                fn_decl_span: function.decl_span.clone(),
-                fn_call_span: fn_call.span.clone(),
+                fn_call_name: fn_call.name.span.clone(),
+                fn_call_args,
+                fn_def_args,
             }));
         }
 
@@ -552,6 +581,7 @@ impl Analyzer {
                     wrong_value_type: provided_arg_type.kind,
                     wrong_value: provided_arg_type.span.clone(),
                     arg: expected_type.span.clone(),
+                    fn_call_name: fn_call.name.span.clone(),
                 }));
             }
         }
