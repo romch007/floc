@@ -30,7 +30,7 @@ pub struct Function {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum Error {
-    #[error("Type mismatch in operation")]
+    #[error("type mismatch in operation")]
     #[diagnostic(code(floc::invalid_types_in_unary_op))]
     TypeMismatchInOperation {
         #[source_code]
@@ -47,7 +47,7 @@ pub enum Error {
         operator: ast::Span,
     },
 
-    #[error("Type mismatch in assignment")]
+    #[error("type mismatch in assignment")]
     #[diagnostic(code(floc::invalid_types_in_assign))]
     TypeMismatchInAssign {
         #[source_code]
@@ -64,7 +64,7 @@ pub enum Error {
         type_def: ast::Span,
     },
 
-    #[error("Type mismatch in return statement")]
+    #[error("type mismatch in return statement")]
     #[diagnostic(code(floc::invalid_types_ret_stmt))]
     TypeMismatchInReturn {
         #[source_code]
@@ -81,7 +81,7 @@ pub enum Error {
         type_def: ast::Span,
     },
 
-    #[error("Type mismatch in condition")]
+    #[error("type mismatch in condition")]
     #[diagnostic(code(floc::invalid_types_in_condition))]
     TypeMismatchInCondition {
         #[source_code]
@@ -93,7 +93,7 @@ pub enum Error {
         wrong_value: ast::Span,
     },
 
-    #[error("Type mismatch in function argument")]
+    #[error("type mismatch in function argument")]
     #[diagnostic(code(floc::invalid_types_in_fn_arg))]
     TypeMismatchInFnArg {
         #[source_code]
@@ -113,7 +113,7 @@ pub enum Error {
         fn_call_name: ast::Span,
     },
 
-    #[error("variable {var_name} not found")]
+    #[error("variable '{var_name}' not found")]
     #[diagnostic(code(floc::variable_not_found))]
     VariableNotFound {
         var_name: String,
@@ -125,7 +125,7 @@ pub enum Error {
         here: ast::Span,
     },
 
-    #[error("Variable '{varname}' is already defined")]
+    #[error("variable '{varname}' is already defined")]
     #[diagnostic(code(floc::variable_already_defined))]
     VariableAlreadyDefined {
         varname: String,
@@ -140,7 +140,7 @@ pub enum Error {
         previous_def: ast::Span,
     },
 
-    #[error("Function '{fn_name}' is already defined")]
+    #[error("function '{fn_name}' is already defined")]
     #[diagnostic(code(floc::function_already_defined))]
     FunctionAlreadyDefined {
         fn_name: String,
@@ -155,7 +155,7 @@ pub enum Error {
         previous_def: ast::Span,
     },
 
-    #[error("Function '{fn_name}' not found")]
+    #[error("function '{fn_name}' not found")]
     #[diagnostic(code(floc::function_not_found))]
     FunctionNotFound {
         fn_name: String,
@@ -167,7 +167,7 @@ pub enum Error {
         here: ast::Span,
     },
 
-    #[error("Return statement outside of function body")]
+    #[error("feturn statement outside of function body")]
     #[diagnostic(code(floc::return_statement_outside_fn_body))]
     ReturnOutsideFunction {
         #[source_code]
@@ -177,11 +177,11 @@ pub enum Error {
         here: ast::Span,
     },
 
-    #[error("Not all code paths return")]
+    #[error("not all code paths return")]
     #[diagnostic(code(floc::missing_return))]
     MissingReturn,
 
-    #[error("Extra statements after return")]
+    #[error("extra statements after return")]
     #[diagnostic(code(floc::extra_stmts_after_return))]
     ExtraStmtsAfterReturn {
         #[source_code]
@@ -191,7 +191,7 @@ pub enum Error {
         stmt_span: ast::Span,
     },
 
-    #[error("Function '{func}' expected {expected} argument(s) but got {got}")]
+    #[error("function '{func}' expected {expected} argument(s) but got {got}")]
     #[diagnostic(code(floc::arg_count_mismatch))]
     ArgumentCountMismatch {
         func: String,
