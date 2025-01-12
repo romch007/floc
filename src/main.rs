@@ -42,7 +42,9 @@ fn main() -> miette::Result<()> {
         .expect("invalid filename");
 
     let mut analyzer = analyzer::Analyzer::new(miette::NamedSource::new(filename, source));
-    analyzer.analyze_program(&ast_prog)?;
+    analyzer
+        .analyze_program(&ast_prog)
+        .map_err(|boxed_err| *boxed_err)?;
 
     let module_name = filename.strip_suffix(".flo").unwrap_or("<unknown>");
 

@@ -254,16 +254,16 @@ impl Analyzer {
         );
     }
 
-    pub fn analyze_program(&mut self, prog: &ast::Program) -> Result<(), Error> {
+    pub fn analyze_program(&mut self, prog: &ast::Program) -> Result<(), Box<Error>> {
         // Register all functions
         for fn_decl in &prog.function_decls {
             if let Some(previous_fn) = self.functions.get(&fn_decl.name.ident) {
-                return Err(Error::FunctionAlreadyDefined {
+                return Err(Box::new(Error::FunctionAlreadyDefined {
                     fn_name: fn_decl.name.ident.to_string(),
                     src: self.source_code.clone(),
                     here: fn_decl.span.clone(),
                     previous_def: previous_fn.decl_span.clone(),
-                });
+                }));
             }
 
             let args = fn_decl
@@ -293,7 +293,10 @@ impl Analyzer {
         Ok(())
     }
 
-    fn analyze_function_decl(&mut self, fn_decl: &ast::FunctionDeclaration) -> Result<(), Error> {
+    fn analyze_function_decl(
+        &mut self,
+        fn_decl: &ast::FunctionDeclaration,
+    ) -> Result<(), Box<Error>> {
         self.parent_function = Some(fn_decl.name.ident.clone());
 
         self.enter_block();
@@ -306,17 +309,17 @@ impl Analyzer {
 
         for stmt in &fn_decl.statements {
             if does_return {
-                return Err(Error::ExtraStmtsAfterReturn {
+                return Err(Box::new(Error::ExtraStmtsAfterReturn {
                     src: self.source_code.clone(),
                     stmt_span: stmt.span().clone(),
-                });
+                }));
             }
 
             does_return = self.analyze_statement(stmt)?;
         }
 
         if !does_return {
-            return Err(Error::MissingReturn);
+            return Err(Box::new(Error::MissingReturn));
         }
 
         self.leave_block();
@@ -326,7 +329,7 @@ impl Analyzer {
         Ok(())
     }
 
-    fn analyze_statement(&mut self, stmt: &ast::Statement) -> Result<bool, Error> {
+    fn analyze_statement(&mut self, stmt: &ast::Statement) -> Result<bool, Box<Error>> {
         match stmt {
             ast::Statement::Assignment(assign) => self.analyze_assignment(assign),
             ast::Statement::Declaration(decl) => self.analyze_declaration(decl),
@@ -341,17 +344,17 @@ impl Analyzer {
         }
     }
 
-    fn analyze_block(&mut self, stmts: &[ast::Statement]) -> Result<bool, Error> {
+    fn analyze_block(&mut self, stmts: &[ast::Statement]) -> Result<bool, Box<Error>> {
         self.enter_block();
 
         let mut does_return = false;
 
         for stmt in stmts {
             if does_return {
-                return Err(Error::ExtraStmtsAfterReturn {
+                return Err(Box::new(Error::ExtraStmtsAfterReturn {
                     src: self.source_code.clone(),
                     stmt_span: stmt.span().clone(),
-                });
+                }));
             }
 
             if self.analyze_statement(stmt)? {
@@ -364,7 +367,7 @@ impl Analyzer {
         Ok(does_return)
     }
 
-    fn analyze_return(&mut self, ret: &ast::Return) -> Result<bool, Error> {
+    fn analyze_return(&mut self, ret: &ast::Return) -> Result<bool, Box<Error>> {
         let current_function_name =
             self.parent_function
                 .as_deref()
@@ -378,27 +381,27 @@ impl Analyzer {
         let value_type = self.analyze_expr(&ret.value)?;
 
         if defined_function.return_type.kind != value_type.kind {
-            return Err(Error::TypeMismatchInReturn {
+            return Err(Box::new(Error::TypeMismatchInReturn {
                 src: self.source_code.clone(),
                 expected_type: defined_function.return_type.kind,
                 wrong_value_type: value_type.kind,
                 wrong_value: value_type.span.clone(),
                 type_def: defined_function.ret_type_decl_span.clone(),
-            });
+            }));
         }
 
         Ok(true)
     }
 
-    fn analyze_if(&mut self, i: &ast::If) -> Result<bool, Error> {
+    fn analyze_if(&mut self, i: &ast::If) -> Result<bool, Box<Error>> {
         let condition_type = self.analyze_expr(&i.condition)?;
 
         if condition_type.kind != ast::TypeKind::Boolean {
-            return Err(Error::TypeMismatchInCondition {
+            return Err(Box::new(Error::TypeMismatchInCondition {
                 src: self.source_code.clone(),
                 wrong_value_type: condition_type.kind,
                 wrong_value: condition_type.span.clone(),
-            });
+            }));
         }
 
         let then_block_returns = self.analyze_block(&i.statements)?;
@@ -413,15 +416,15 @@ impl Analyzer {
         }
     }
 
-    fn analyze_while(&mut self, whil: &ast::While) -> Result<bool, Error> {
+    fn analyze_while(&mut self, whil: &ast::While) -> Result<bool, Box<Error>> {
         let condition_type = self.analyze_expr(&whil.condition)?;
 
         if condition_type.kind != ast::TypeKind::Boolean {
-            return Err(Error::TypeMismatchInCondition {
+            return Err(Box::new(Error::TypeMismatchInCondition {
                 src: self.source_code.clone(),
                 wrong_value_type: condition_type.kind,
                 wrong_value: condition_type.span.clone(),
-            });
+            }));
         }
 
         self.analyze_block(&whil.statements)?;
@@ -429,27 +432,27 @@ impl Analyzer {
         Ok(false)
     }
 
-    fn analyze_declaration(&mut self, declaration: &ast::Declaration) -> Result<bool, Error> {
+    fn analyze_declaration(&mut self, declaration: &ast::Declaration) -> Result<bool, Box<Error>> {
         if let Some(previous_var) = self.get_variable(&declaration.variable) {
-            return Err(Error::VariableAlreadyDefined {
+            return Err(Box::new(Error::VariableAlreadyDefined {
                 varname: declaration.variable.ident.to_string(),
                 src: self.source_code.clone(),
                 here: declaration.span.clone(),
                 previous_def: previous_var.decl_span.clone(),
-            });
+            }));
         }
 
         if let Some(default_value) = &declaration.value {
             let default_value_type = self.analyze_expr(default_value)?;
 
             if declaration.r#type.kind != default_value_type.kind {
-                return Err(Error::TypeMismatchInAssign {
+                return Err(Box::new(Error::TypeMismatchInAssign {
                     src: self.source_code.clone(),
                     expected_type: declaration.r#type.kind.clone(),
                     wrong_value_type: default_value_type.kind,
                     wrong_value: default_value.span().clone(),
                     type_def: declaration.r#type.span.clone(),
-                });
+                }));
             }
         }
 
@@ -462,7 +465,7 @@ impl Analyzer {
         Ok(false)
     }
 
-    fn analyze_assignment(&mut self, assignment: &ast::Assignment) -> Result<bool, Error> {
+    fn analyze_assignment(&mut self, assignment: &ast::Assignment) -> Result<bool, Box<Error>> {
         let variable =
             self.get_variable(&assignment.variable)
                 .cloned()
@@ -475,24 +478,24 @@ impl Analyzer {
         let expr_type = self.analyze_expr(&assignment.value)?;
 
         if expr_type.kind != variable.r#type.kind {
-            return Err(Error::TypeMismatchInAssign {
+            return Err(Box::new(Error::TypeMismatchInAssign {
                 src: self.source_code.clone(),
                 expected_type: variable.r#type.kind,
                 wrong_value_type: expr_type.kind,
                 wrong_value: expr_type.span.clone(),
                 type_def: variable.type_decl_span.clone(),
-            });
+            }));
         }
 
         Ok(false)
     }
 
-    fn analyze_write(&mut self, write: &ast::Write) -> Result<bool, Error> {
+    fn analyze_write(&mut self, write: &ast::Write) -> Result<bool, Box<Error>> {
         self.analyze_expr(&write.value)?;
         Ok(false)
     }
 
-    fn analyze_expr(&mut self, expr: &ast::Expression) -> Result<ast::Type, Error> {
+    fn analyze_expr(&mut self, expr: &ast::Expression) -> Result<ast::Type, Box<Error>> {
         match expr {
             ast::Expression::Integer(_, span) => Ok(ast::Type {
                 kind: ast::TypeKind::Integer,
@@ -513,7 +516,10 @@ impl Analyzer {
         }
     }
 
-    fn analyze_function_call(&mut self, fn_call: &ast::FunctionCall) -> Result<ast::Type, Error> {
+    fn analyze_function_call(
+        &mut self,
+        fn_call: &ast::FunctionCall,
+    ) -> Result<ast::Type, Box<Error>> {
         let function =
             self.functions
                 .get(&fn_call.name.ident)
@@ -525,14 +531,14 @@ impl Analyzer {
                 })?;
 
         if function.arguments.len() != fn_call.arguments.len() {
-            return Err(Error::ArgumentCountMismatch {
+            return Err(Box::new(Error::ArgumentCountMismatch {
                 func: fn_call.name.ident.clone(),
                 expected: function.arguments.len(),
                 got: fn_call.arguments.len(),
                 src: self.source_code.clone(),
                 fn_decl_span: function.decl_span.clone(),
                 fn_call_span: fn_call.span.clone(),
-            });
+            }));
         }
 
         for (fn_call_arg, expected_type) in fn_call.arguments.iter().zip(function.arguments.iter())
@@ -540,13 +546,13 @@ impl Analyzer {
             let provided_arg_type = self.analyze_expr(fn_call_arg)?;
 
             if expected_type.kind != provided_arg_type.kind {
-                return Err(Error::TypeMismatchInFnArg {
+                return Err(Box::new(Error::TypeMismatchInFnArg {
                     src: self.source_code.clone(),
                     expected_type: expected_type.kind.clone(),
                     wrong_value_type: provided_arg_type.kind,
                     wrong_value: provided_arg_type.span.clone(),
                     arg: expected_type.span.clone(),
-                });
+                }));
             }
         }
 
@@ -556,7 +562,7 @@ impl Analyzer {
         })
     }
 
-    fn analyze_variable(&mut self, variable: &ast::Identifier) -> Result<ast::Type, Error> {
+    fn analyze_variable(&mut self, variable: &ast::Identifier) -> Result<ast::Type, Box<Error>> {
         let var_type = self
             .get_variable(variable)
             .map(|var| var.r#type.kind.clone())
@@ -572,7 +578,7 @@ impl Analyzer {
         })
     }
 
-    fn analyze_unary_op(&mut self, unary_op: &ast::UnaryOp) -> Result<ast::Type, Error> {
+    fn analyze_unary_op(&mut self, unary_op: &ast::UnaryOp) -> Result<ast::Type, Box<Error>> {
         let expected_type = match &unary_op.kind {
             ast::UnaryOpKind::Neg => ast::TypeKind::Integer,
             ast::UnaryOpKind::LogicNot => ast::TypeKind::Boolean,
@@ -581,13 +587,13 @@ impl Analyzer {
         let operand_type = self.analyze_expr(&unary_op.operand)?;
 
         if operand_type.kind != expected_type {
-            return Err(Error::TypeMismatchInOperation {
+            return Err(Box::new(Error::TypeMismatchInOperation {
                 src: self.source_code.clone(),
                 operand_type: operand_type.kind,
                 operand: operand_type.span.clone(),
                 operator_type: expected_type,
                 operator: unary_op.span.clone(),
-            });
+            }));
         }
 
         // unary_op.span corresponds to the '-' and 'non' token,
@@ -603,7 +609,7 @@ impl Analyzer {
         })
     }
 
-    fn analyze_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<ast::Type, Error> {
+    fn analyze_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<ast::Type, Box<Error>> {
         use ast::BinaryOpKind::*;
 
         // This forbids 'example == Vrai', because:
@@ -616,24 +622,24 @@ impl Analyzer {
 
         let left_type = self.analyze_expr(&binary_op.left)?;
         if expected_operand_type != left_type.kind {
-            return Err(Error::TypeMismatchInOperation {
+            return Err(Box::new(Error::TypeMismatchInOperation {
                 src: self.source_code.clone(),
                 operand_type: left_type.kind,
                 operand: left_type.span.clone(),
                 operator_type: expected_operand_type,
                 operator: binary_op.span.clone(),
-            });
+            }));
         }
 
         let right_type = self.analyze_expr(&binary_op.right)?;
         if expected_operand_type != right_type.kind {
-            return Err(Error::TypeMismatchInOperation {
+            return Err(Box::new(Error::TypeMismatchInOperation {
                 src: self.source_code.clone(),
                 operand_type: right_type.kind,
                 operand: right_type.span.clone(),
                 operator_type: expected_operand_type,
                 operator: binary_op.span.clone(),
-            });
+            }));
         }
 
         let result_type = match &binary_op.kind {
