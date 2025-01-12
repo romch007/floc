@@ -258,20 +258,6 @@ impl Analyzer {
             .find_map(|block| block.get(var_name))
     }
 
-    fn suggest_name<'a, I>(&'a self, iter: I, name: &str) -> Option<&'a str>
-    where
-        I: Iterator<Item = &'a str>,
-    {
-        let mut distances = iter
-            .map(|existing_name| (existing_name, utils::levenshtein(existing_name, name)))
-            .filter(|pair| pair.1 < MAX_LEVENSHTEIN_DIST_FOR_SUGGEST)
-            .collect::<Vec<_>>();
-
-        distances.sort_unstable_by_key(|pair| pair.1);
-
-        distances.first().map(|pair| pair.0)
-    }
-
     fn get_help_var_not_found(&self, var_name: &str) -> Option<String> {
         let variable_names = self
             .variables
@@ -279,14 +265,14 @@ impl Analyzer {
             .flat_map(|frame| frame.keys())
             .map(|string| string.as_str());
 
-        self.suggest_name(variable_names, var_name)
+        utils::closest_str(variable_names, var_name, MAX_LEVENSHTEIN_DIST_FOR_SUGGEST)
             .map(|name| format!("did you mean '{name}'?"))
     }
 
     fn get_help_fn_not_found(&self, fn_name: &str) -> Option<String> {
         let fn_names = self.functions.keys().map(|string| string.as_str());
 
-        self.suggest_name(fn_names, fn_name)
+        utils::closest_str(fn_names, fn_name, MAX_LEVENSHTEIN_DIST_FOR_SUGGEST)
             .map(|name| format!("did you mean '{name}'?"))
     }
 

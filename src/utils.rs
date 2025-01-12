@@ -22,6 +22,20 @@ pub fn tmpname(prefix: &OsStr, suffix: &OsStr, rand_len: usize) -> OsString {
     buf
 }
 
+pub fn closest_str<'a, I>(iter: I, name: &str, max_distance: usize) -> Option<&'a str>
+where
+    I: Iterator<Item = &'a str>,
+{
+    let mut distances = iter
+        .map(|existing_name| (existing_name, levenshtein(existing_name, name)))
+        .filter(|pair| pair.1 < max_distance)
+        .collect::<Vec<_>>();
+
+    distances.sort_unstable_by_key(|pair| pair.1);
+
+    distances.first().map(|pair| pair.0)
+}
+
 pub fn levenshtein(a: &str, b: &str) -> usize {
     let mut result = 0;
 
