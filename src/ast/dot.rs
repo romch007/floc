@@ -43,10 +43,10 @@ impl ToGraph for Expression {
         let node_name = name_helper.get_next_node_name();
 
         let node_label = match self {
-            Expression::Integer(val) => val.to_string(),
+            Expression::Integer(val, _) => val.to_string(),
             Expression::Variable(var_name) => var_name.ident.clone(),
-            Expression::Boolean(val) => val.to_string(),
-            Expression::Read => "read()".to_string(),
+            Expression::Boolean(val, _) => val.to_string(),
+            Expression::Read(_) => "read()".to_string(),
             _ => unreachable!(),
         };
 

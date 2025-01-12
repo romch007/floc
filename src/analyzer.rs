@@ -390,8 +390,8 @@ impl Analyzer {
 
     fn analyze_expr(&mut self, expr: &ast::Expression) -> Result<ast::TypeKind, Error> {
         match expr {
-            ast::Expression::Integer(_) | ast::Expression::Read => Ok(ast::TypeKind::Integer),
-            ast::Expression::Boolean(_) => Ok(ast::TypeKind::Boolean),
+            ast::Expression::Integer(_, _) | ast::Expression::Read(_) => Ok(ast::TypeKind::Integer),
+            ast::Expression::Boolean(_, _) => Ok(ast::TypeKind::Boolean),
             ast::Expression::Variable(var) => self.analyze_variable(var),
             ast::Expression::FunctionCall(fn_call) => self.analyze_function_call(fn_call),
             ast::Expression::BinaryOp(binary_op) => self.analyze_binary_op(binary_op),

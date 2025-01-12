@@ -442,11 +442,11 @@ impl<'ctx> Compiler<'ctx> {
 
     pub fn emit_expression(&mut self, expr: &ast::Expression) -> Result<IntValue<'ctx>, Error> {
         Ok(match expr {
-            ast::Expression::Integer(value) => self.emit_integer(*value),
-            ast::Expression::Boolean(value) => self.emit_boolean(*value),
+            ast::Expression::Integer(value, _) => self.emit_integer(*value),
+            ast::Expression::Boolean(value, _) => self.emit_boolean(*value),
             ast::Expression::Variable(var) => self.emit_variable(var)?,
             ast::Expression::FunctionCall(fn_call) => self.emit_function_call(fn_call)?,
-            ast::Expression::Read => self.emit_read()?,
+            ast::Expression::Read(_) => self.emit_read()?,
             ast::Expression::BinaryOp(binary_op) => self.emit_binary_op(binary_op)?,
             ast::Expression::UnaryOp(unary_op) => self.emit_unary_op(unary_op)?,
         })

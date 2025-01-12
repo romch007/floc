@@ -89,6 +89,7 @@ pub struct BinaryOp {
     pub left: Box<Expression>,
     pub kind: BinaryOpKind,
     pub right: Box<Expression>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -101,14 +102,15 @@ pub enum UnaryOpKind {
 pub struct UnaryOp {
     pub kind: UnaryOpKind,
     pub operand: Box<Expression>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
 pub enum Expression {
-    Integer(u64),
+    Integer(u64, Span),
     Variable(Identifier),
-    Boolean(bool),
-    Read,
+    Boolean(bool, Span),
+    Read(Span),
     FunctionCall(FunctionCall),
     BinaryOp(BinaryOp),
     UnaryOp(UnaryOp),

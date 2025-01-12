@@ -122,24 +122,35 @@ impl Node for Expression {
             .get_or_init(initialize_pratt_parser)
             .map_primary(|primary| match primary.as_rule() {
                 Rule::expr => Expression::parse(primary), // from "(" ~ expr ~ ")"
-                Rule::integer => Self::Integer(primary.as_str().parse().unwrap()),
+                Rule::integer => {
+                    Self::Integer(primary.as_str().parse().unwrap(), primary.as_span().into())
+                }
                 Rule::ident => Self::Variable(Identifier::parse(primary)),
-                Rule::boolean => Self::Boolean(parse_bool(primary.as_str()).unwrap()),
-                Rule::read => Self::Read,
+                Rule::boolean => Self::Boolean(
+                    parse_bool(primary.as_str()).unwrap(),
+                    primary.as_span().into(),
+                ),
+                Rule::read => Self::Read(primary.as_span().into()),
                 Rule::function_call => Self::FunctionCall(FunctionCall::parse(primary)),
                 rule => unreachable!("invalid primary expr '{rule:?}'"),
             })
             .map_prefix(|op, rhs| {
+                let span = op.as_span().into();
+
                 Self::UnaryOp(UnaryOp {
                     kind: UnaryOpKind::parse(op),
                     operand: Box::new(rhs),
+                    span,
                 })
             })
             .map_infix(|lhs, op, rhs| {
+                let span = op.as_span().into();
+
                 Self::BinaryOp(BinaryOp {
                     left: Box::new(lhs),
                     kind: BinaryOpKind::parse(op),
                     right: Box::new(rhs),
+                    span,
                 })
             })
             .parse(pairs)
