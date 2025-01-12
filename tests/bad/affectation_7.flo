@@ -1,6 +1,0 @@
-entier f(booleen b){
- a = 5;
- retourner a;
-}
-
-f(Vrai);

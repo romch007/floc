@@ -1,4 +1,0 @@
-entier f(){
-	retourner Vrai;
-}
-ecrire(f());

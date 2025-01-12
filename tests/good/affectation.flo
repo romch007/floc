@@ -1,3 +1,0 @@
-entier a = 4;
-entier b = 3;
-ecrire(a*b);

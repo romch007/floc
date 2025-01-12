@@ -1,6 +1,0 @@
-entier f(entier e){
-	ecrire(e);
-	retourner 1;
-}
-
-f(5);

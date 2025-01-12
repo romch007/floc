@@ -118,10 +118,10 @@ pub enum Expression {
 impl Expression {
     pub(crate) fn span(&self) -> &Span {
         match self {
-            Expression::Integer(_, span) => &span,
+            Expression::Integer(_, span) => span,
             Expression::Variable(ident) => &ident.span,
-            Expression::Boolean(_, span) => &span,
-            Expression::Read(span) => &span,
+            Expression::Boolean(_, span) => span,
+            Expression::Read(span) => span,
             Expression::FunctionCall(fn_call) => &fn_call.span,
             Expression::BinaryOp(binary_op) => &binary_op.span,
             Expression::UnaryOp(unary_op) => &unary_op.span,
