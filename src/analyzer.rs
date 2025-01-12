@@ -35,13 +35,13 @@ pub enum Error {
 
         operand_type: ast::TypeKind,
 
-        #[label("is '{operand_type}'")]
-        operand: miette::SourceSpan,
+        #[label("expected {operator_type}, found '{operand_type}'")]
+        operand: ast::Span,
 
         operator_type: ast::TypeKind,
 
-        #[label("should be '{operator_type}'")]
-        operator: miette::SourceSpan,
+        #[label("expected due to this operator")]
+        operator: ast::Span,
     },
 
     #[error("Type mismatch in assignment")]
@@ -50,13 +50,15 @@ pub enum Error {
         #[source_code]
         src: miette::NamedSource<String>,
 
+        expected_type: ast::TypeKind,
+
         wrong_value_type: ast::TypeKind,
 
-        #[label("is '{wrong_value_type}'")]
-        wrong_value: miette::SourceSpan,
+        #[label("expected {expected_type}, found '{wrong_value_type}'")]
+        wrong_value: ast::Span,
 
-        #[label("should be")]
-        type_def: miette::SourceSpan,
+        #[label("expected due to this type")]
+        type_def: ast::Span,
     },
 
     #[error("Type mismatch in return statement")]
@@ -65,13 +67,15 @@ pub enum Error {
         #[source_code]
         src: miette::NamedSource<String>,
 
+        expected_type: ast::TypeKind,
+
         wrong_value_type: ast::TypeKind,
 
-        #[label("is '{wrong_value_type}'")]
-        wrong_value: miette::SourceSpan,
+        #[label("expected {expected_type}, found '{wrong_value_type}'")]
+        wrong_value: ast::Span,
 
-        #[label("should be")]
-        type_def: miette::SourceSpan,
+        #[label("expected due to this type")]
+        type_def: ast::Span,
     },
 
     #[error("Type mismatch in condition")]
@@ -82,8 +86,8 @@ pub enum Error {
 
         wrong_value_type: ast::TypeKind,
 
-        #[label("is '{wrong_value_type}', should be 'booleen'")]
-        wrong_value: miette::SourceSpan,
+        #[label("expected booleen, found '{wrong_value_type}'")]
+        wrong_value: ast::Span,
     },
 
     #[error("Type mismatch in function argument")]
@@ -92,13 +96,15 @@ pub enum Error {
         #[source_code]
         src: miette::NamedSource<String>,
 
+        expected_type: ast::TypeKind,
+
         wrong_value_type: ast::TypeKind,
 
-        #[label("is '{wrong_value_type}', should be 'booleen'")]
-        wrong_value: miette::SourceSpan,
+        #[label("expected {expected_type}, found '{wrong_value_type}'")]
+        wrong_value: ast::Span,
 
-        #[label("should be")]
-        arg: miette::SourceSpan,
+        #[label("expected due to this type")]
+        arg: ast::Span,
     },
 
     #[error("variable {var_name} not found")]
@@ -110,7 +116,7 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("variable used here")]
-        here: miette::SourceSpan,
+        here: ast::Span,
     },
 
     #[error("Variable '{varname}' is already defined")]
@@ -122,10 +128,10 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("here")]
-        here: miette::SourceSpan,
+        here: ast::Span,
 
         #[label("previous definition here")]
-        previous_def: miette::SourceSpan,
+        previous_def: ast::Span,
     },
 
     #[error("Function '{fn_name}' is already defined")]
@@ -137,10 +143,10 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("here")]
-        here: miette::SourceSpan,
+        here: ast::Span,
 
         #[label("previous definition here")]
-        previous_def: miette::SourceSpan,
+        previous_def: ast::Span,
     },
 
     #[error("Function '{fn_name}' not found")]
@@ -152,7 +158,7 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("used here")]
-        here: miette::SourceSpan,
+        here: ast::Span,
     },
 
     #[error("Return statement outside of function body")]
@@ -162,7 +168,7 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("here")]
-        here: miette::SourceSpan,
+        here: ast::Span,
     },
 
     #[error("Not all code paths return")]
@@ -176,7 +182,7 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("here")]
-        stmt_span: miette::SourceSpan,
+        stmt_span: ast::Span,
     },
 
     #[error("Function '{func}' expected {expected} argument(s) but got {got}")]
@@ -192,10 +198,10 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("function takes {expected} argument(s)")]
-        fn_decl_span: miette::SourceSpan,
+        fn_decl_span: ast::Span,
 
         #[label("function was called with {got} argument(s)")]
-        fn_call_span: miette::SourceSpan,
+        fn_call_span: ast::Span,
     },
 }
 
@@ -255,8 +261,8 @@ impl Analyzer {
                 return Err(Error::FunctionAlreadyDefined {
                     fn_name: fn_decl.name.ident.to_string(),
                     src: self.source_code.clone(),
-                    here: fn_decl.span.clone().into(),
-                    previous_def: previous_fn.decl_span.clone().into(),
+                    here: fn_decl.span.clone(),
+                    previous_def: previous_fn.decl_span.clone(),
                 });
             }
 
@@ -302,7 +308,7 @@ impl Analyzer {
             if does_return {
                 return Err(Error::ExtraStmtsAfterReturn {
                     src: self.source_code.clone(),
-                    stmt_span: stmt.span().clone().into(),
+                    stmt_span: stmt.span().clone(),
                 });
             }
 
@@ -324,11 +330,7 @@ impl Analyzer {
         match stmt {
             ast::Statement::Assignment(assign) => self.analyze_assignment(assign),
             ast::Statement::Declaration(decl) => self.analyze_declaration(decl),
-            ast::Statement::Write(write) => {
-                // TODO: wrap this in dedicated function
-                self.analyze_expr(&write.value)?;
-                Ok(false)
-            }
+            ast::Statement::Write(write) => self.analyze_write(write),
             ast::Statement::Return(ret) => self.analyze_return(ret),
             ast::Statement::While(whil) => self.analyze_while(whil),
             ast::Statement::If(i) => self.analyze_if(i),
@@ -348,7 +350,7 @@ impl Analyzer {
             if does_return {
                 return Err(Error::ExtraStmtsAfterReturn {
                     src: self.source_code.clone(),
-                    stmt_span: stmt.span().clone().into(),
+                    stmt_span: stmt.span().clone(),
                 });
             }
 
@@ -368,7 +370,7 @@ impl Analyzer {
                 .as_deref()
                 .ok_or(Error::ReturnOutsideFunction {
                     src: self.source_code.clone(),
-                    here: ret.span.clone().into(),
+                    here: ret.span.clone(),
                 })?;
 
         let defined_function = self.functions.get(current_function_name).unwrap().clone();
@@ -378,9 +380,10 @@ impl Analyzer {
         if defined_function.return_type.kind != value_type.kind {
             return Err(Error::TypeMismatchInReturn {
                 src: self.source_code.clone(),
+                expected_type: defined_function.return_type.kind,
                 wrong_value_type: value_type.kind,
-                wrong_value: value_type.span.clone().into(),
-                type_def: defined_function.ret_type_decl_span.clone().into(),
+                wrong_value: value_type.span.clone(),
+                type_def: defined_function.ret_type_decl_span.clone(),
             });
         }
 
@@ -394,7 +397,7 @@ impl Analyzer {
             return Err(Error::TypeMismatchInCondition {
                 src: self.source_code.clone(),
                 wrong_value_type: condition_type.kind,
-                wrong_value: condition_type.span.clone().into(),
+                wrong_value: condition_type.span.clone(),
             });
         }
 
@@ -417,7 +420,7 @@ impl Analyzer {
             return Err(Error::TypeMismatchInCondition {
                 src: self.source_code.clone(),
                 wrong_value_type: condition_type.kind,
-                wrong_value: condition_type.span.clone().into(),
+                wrong_value: condition_type.span.clone(),
             });
         }
 
@@ -431,8 +434,8 @@ impl Analyzer {
             return Err(Error::VariableAlreadyDefined {
                 varname: declaration.variable.ident.to_string(),
                 src: self.source_code.clone(),
-                here: declaration.span.clone().into(),
-                previous_def: previous_var.decl_span.clone().into(),
+                here: declaration.span.clone(),
+                previous_def: previous_var.decl_span.clone(),
             });
         }
 
@@ -442,9 +445,10 @@ impl Analyzer {
             if declaration.r#type.kind != default_value_type.kind {
                 return Err(Error::TypeMismatchInAssign {
                     src: self.source_code.clone(),
+                    expected_type: declaration.r#type.kind.clone(),
                     wrong_value_type: default_value_type.kind,
-                    wrong_value: default_value.span().clone().into(),
-                    type_def: declaration.r#type.span.clone().into(),
+                    wrong_value: default_value.span().clone(),
+                    type_def: declaration.r#type.span.clone(),
                 });
             }
         }
@@ -465,7 +469,7 @@ impl Analyzer {
                 .ok_or(Error::VariableNotFound {
                     var_name: assignment.variable.ident.to_string(),
                     src: self.source_code.clone(),
-                    here: assignment.variable.span.clone().into(),
+                    here: assignment.variable.span.clone(),
                 })?;
 
         let expr_type = self.analyze_expr(&assignment.value)?;
@@ -473,12 +477,18 @@ impl Analyzer {
         if expr_type.kind != variable.r#type.kind {
             return Err(Error::TypeMismatchInAssign {
                 src: self.source_code.clone(),
+                expected_type: variable.r#type.kind,
                 wrong_value_type: expr_type.kind,
-                wrong_value: expr_type.span.clone().into(),
-                type_def: variable.type_decl_span.clone().into(),
+                wrong_value: expr_type.span.clone(),
+                type_def: variable.type_decl_span.clone(),
             });
         }
 
+        Ok(false)
+    }
+
+    fn analyze_write(&mut self, write: &ast::Write) -> Result<bool, Error> {
+        self.analyze_expr(&write.value)?;
         Ok(false)
     }
 
@@ -511,7 +521,7 @@ impl Analyzer {
                 .ok_or(Error::FunctionNotFound {
                     fn_name: fn_call.name.ident.to_string(),
                     src: self.source_code.clone(),
-                    here: fn_call.span.clone().into(),
+                    here: fn_call.span.clone(),
                 })?;
 
         if function.arguments.len() != fn_call.arguments.len() {
@@ -520,8 +530,8 @@ impl Analyzer {
                 expected: function.arguments.len(),
                 got: fn_call.arguments.len(),
                 src: self.source_code.clone(),
-                fn_decl_span: function.decl_span.clone().into(),
-                fn_call_span: fn_call.span.clone().into(),
+                fn_decl_span: function.decl_span.clone(),
+                fn_call_span: fn_call.span.clone(),
             });
         }
 
@@ -532,9 +542,10 @@ impl Analyzer {
             if expected_type.kind != provided_arg_type.kind {
                 return Err(Error::TypeMismatchInFnArg {
                     src: self.source_code.clone(),
+                    expected_type: expected_type.kind.clone(),
                     wrong_value_type: provided_arg_type.kind,
-                    wrong_value: provided_arg_type.span.clone().into(),
-                    arg: expected_type.span.clone().into(),
+                    wrong_value: provided_arg_type.span.clone(),
+                    arg: expected_type.span.clone(),
                 });
             }
         }
@@ -552,7 +563,7 @@ impl Analyzer {
             .ok_or(Error::VariableNotFound {
                 var_name: variable.ident.clone(),
                 src: self.source_code.clone(),
-                here: variable.span.clone().into(),
+                here: variable.span.clone(),
             })?;
 
         Ok(ast::Type {
@@ -573,9 +584,9 @@ impl Analyzer {
             return Err(Error::TypeMismatchInOperation {
                 src: self.source_code.clone(),
                 operand_type: operand_type.kind,
-                operand: operand_type.span.clone().into(),
+                operand: operand_type.span.clone(),
                 operator_type: expected_type,
-                operator: unary_op.span.clone().into(),
+                operator: unary_op.span.clone(),
             });
         }
 
@@ -595,7 +606,7 @@ impl Analyzer {
     fn analyze_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<ast::Type, Error> {
         use ast::BinaryOpKind::*;
 
-        // NOTE: this forbids 'example == Vrai', because:
+        // This forbids 'example == Vrai', because:
         // 1. I'm lazy
         // 2. Nobody should ever write that
         let expected_operand_type = match &binary_op.kind {
@@ -608,9 +619,9 @@ impl Analyzer {
             return Err(Error::TypeMismatchInOperation {
                 src: self.source_code.clone(),
                 operand_type: left_type.kind,
-                operand: left_type.span.clone().into(),
+                operand: left_type.span.clone(),
                 operator_type: expected_operand_type,
-                operator: binary_op.span.clone().into(),
+                operator: binary_op.span.clone(),
             });
         }
 
@@ -619,9 +630,9 @@ impl Analyzer {
             return Err(Error::TypeMismatchInOperation {
                 src: self.source_code.clone(),
                 operand_type: right_type.kind,
-                operand: right_type.span.clone().into(),
+                operand: right_type.span.clone(),
                 operator_type: expected_operand_type,
-                operator: binary_op.span.clone().into(),
+                operator: binary_op.span.clone(),
             });
         }
 
