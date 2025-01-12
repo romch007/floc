@@ -144,23 +144,6 @@ pub fn get_output_files(
     }
 }
 
-pub struct DeferedRemove {
-    path: PathBuf,
-}
-
-impl DeferedRemove {
-    /// Removes the file at `path` when dropping itself
-    pub fn new(path: PathBuf) -> Self {
-        Self { path }
-    }
-}
-
-impl Drop for DeferedRemove {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{ffi::OsStr, path::PathBuf};

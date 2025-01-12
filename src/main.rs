@@ -8,6 +8,7 @@ mod utils;
 use std::{ffi::OsStr, fs, io, path::Path, process};
 
 use miette::{IntoDiagnostic, WrapErr};
+use scopeguard::defer;
 
 macro_rules! os {
     ($val:expr) => {{
@@ -123,7 +124,9 @@ fn main() -> miette::Result<()> {
         }
 
         // Remove the object file whatever happens
-        let _defer = utils::DeferedRemove::new(llvm_output_file.clone());
+        defer! {
+            let _ = fs::remove_file(llvm_output_file.clone());
+        }
 
         let mut child = match process::Command::new("clang").args(&link_params).spawn() {
             Ok(child) => child,
