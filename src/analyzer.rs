@@ -251,7 +251,7 @@ impl Analyzer {
     }
 
     fn declare_variable(&mut self, var_name: &str, r#type: ast::Type, span: ast::Span) {
-        let type_decl_span = r#type.span.clone();
+        let type_decl_span = r#type.span;
 
         self.variables.last_mut().unwrap().insert(
             var_name.to_string(),
@@ -270,8 +270,8 @@ impl Analyzer {
                 return Err(Box::new(Error::FunctionAlreadyDefined {
                     fn_name: fn_decl.name.ident.to_string(),
                     src: self.source_code.clone(),
-                    here: fn_decl.span.clone(),
-                    previous_def: previous_fn.decl_span.clone(),
+                    here: fn_decl.span,
+                    previous_def: previous_fn.decl_span,
                 }));
             }
 
@@ -287,9 +287,9 @@ impl Analyzer {
                     name: fn_decl.name.ident.clone(),
                     return_type: fn_decl.return_type.clone(),
                     arguments: args,
-                    ret_type_decl_span: fn_decl.return_type.span.clone(),
+                    ret_type_decl_span: fn_decl.return_type.span,
                     args_span: fn_decl.arguments.iter().map(|arg| arg.span).collect(),
-                    decl_span: fn_decl.span.clone(),
+                    decl_span: fn_decl.span,
                 },
             );
         }
@@ -312,7 +312,7 @@ impl Analyzer {
         self.enter_block();
 
         for arg in &fn_decl.arguments {
-            self.declare_variable(&arg.name, arg.r#type.clone(), arg.span.clone());
+            self.declare_variable(&arg.name, arg.r#type.clone(), arg.span);
         }
 
         let mut does_return = false;
@@ -321,7 +321,7 @@ impl Analyzer {
             if does_return {
                 return Err(Box::new(Error::ExtraStmtsAfterReturn {
                     src: self.source_code.clone(),
-                    stmt_span: stmt.span().clone(),
+                    stmt_span: *stmt.span(),
                 }));
             }
 
@@ -363,7 +363,7 @@ impl Analyzer {
             if does_return {
                 return Err(Box::new(Error::ExtraStmtsAfterReturn {
                     src: self.source_code.clone(),
-                    stmt_span: stmt.span().clone(),
+                    stmt_span: *stmt.span(),
                 }));
             }
 
@@ -383,7 +383,7 @@ impl Analyzer {
                 .as_deref()
                 .ok_or(Error::ReturnOutsideFunction {
                     src: self.source_code.clone(),
-                    here: ret.span.clone(),
+                    here: ret.span,
                 })?;
 
         let defined_function = self.functions.get(current_function_name).unwrap().clone();
@@ -395,8 +395,8 @@ impl Analyzer {
                 src: self.source_code.clone(),
                 expected_type: defined_function.return_type.kind,
                 wrong_value_type: value_type.kind,
-                wrong_value: value_type.span.clone(),
-                type_def: defined_function.ret_type_decl_span.clone(),
+                wrong_value: value_type.span,
+                type_def: defined_function.ret_type_decl_span,
             }));
         }
 
@@ -410,7 +410,7 @@ impl Analyzer {
             return Err(Box::new(Error::TypeMismatchInCondition {
                 src: self.source_code.clone(),
                 wrong_value_type: condition_type.kind,
-                wrong_value: condition_type.span.clone(),
+                wrong_value: condition_type.span,
             }));
         }
 
@@ -433,7 +433,7 @@ impl Analyzer {
             return Err(Box::new(Error::TypeMismatchInCondition {
                 src: self.source_code.clone(),
                 wrong_value_type: condition_type.kind,
-                wrong_value: condition_type.span.clone(),
+                wrong_value: condition_type.span,
             }));
         }
 
@@ -447,8 +447,8 @@ impl Analyzer {
             return Err(Box::new(Error::VariableAlreadyDefined {
                 varname: declaration.variable.ident.to_string(),
                 src: self.source_code.clone(),
-                here: declaration.span.clone(),
-                previous_def: previous_var.decl_span.clone(),
+                here: declaration.span,
+                previous_def: previous_var.decl_span,
             }));
         }
 
@@ -460,8 +460,8 @@ impl Analyzer {
                     src: self.source_code.clone(),
                     expected_type: declaration.r#type.kind.clone(),
                     wrong_value_type: default_value_type.kind,
-                    wrong_value: default_value.span().clone(),
-                    type_def: declaration.r#type.span.clone(),
+                    wrong_value: *default_value.span(),
+                    type_def: declaration.r#type.span,
                 }));
             }
         }
@@ -469,7 +469,7 @@ impl Analyzer {
         self.declare_variable(
             &declaration.variable,
             declaration.r#type.clone(),
-            declaration.span.clone(),
+            declaration.span,
         );
 
         Ok(false)
@@ -482,7 +482,7 @@ impl Analyzer {
                 .ok_or(Error::VariableNotFound {
                     var_name: assignment.variable.ident.to_string(),
                     src: self.source_code.clone(),
-                    here: assignment.variable.span.clone(),
+                    here: assignment.variable.span,
                 })?;
 
         let expr_type = self.analyze_expr(&assignment.value)?;
@@ -492,8 +492,8 @@ impl Analyzer {
                 src: self.source_code.clone(),
                 expected_type: variable.r#type.kind,
                 wrong_value_type: expr_type.kind,
-                wrong_value: expr_type.span.clone(),
-                type_def: variable.type_decl_span.clone(),
+                wrong_value: expr_type.span,
+                type_def: variable.type_decl_span,
             }));
         }
 
@@ -509,15 +509,15 @@ impl Analyzer {
         match expr {
             ast::Expression::Integer(_, span) => Ok(ast::Type {
                 kind: ast::TypeKind::Integer,
-                span: span.clone(),
+                span: *span,
             }),
             ast::Expression::Read(span) => Ok(ast::Type {
                 kind: ast::TypeKind::Integer,
-                span: span.clone(),
+                span: *span,
             }),
             ast::Expression::Boolean(_, span) => Ok(ast::Type {
                 kind: ast::TypeKind::Boolean,
-                span: span.clone(),
+                span: *span,
             }),
             ast::Expression::Variable(var) => self.analyze_variable(var),
             ast::Expression::FunctionCall(fn_call) => self.analyze_function_call(fn_call),
@@ -537,7 +537,7 @@ impl Analyzer {
                 .ok_or(Error::FunctionNotFound {
                     fn_name: fn_call.name.ident.to_string(),
                     src: self.source_code.clone(),
-                    here: fn_call.span.clone(),
+                    here: fn_call.span,
                 })?;
 
         if function.arguments.len() != fn_call.arguments.len() {
@@ -564,7 +564,7 @@ impl Analyzer {
                 expected: function.arguments.len(),
                 got: fn_call.arguments.len(),
                 src: self.source_code.clone(),
-                fn_call_name: fn_call.name.span.clone(),
+                fn_call_name: fn_call.name.span,
                 fn_call_args,
                 fn_def_args,
             }));
@@ -579,16 +579,16 @@ impl Analyzer {
                     src: self.source_code.clone(),
                     expected_type: expected_type.kind.clone(),
                     wrong_value_type: provided_arg_type.kind,
-                    wrong_value: provided_arg_type.span.clone(),
-                    arg: expected_type.span.clone(),
-                    fn_call_name: fn_call.name.span.clone(),
+                    wrong_value: provided_arg_type.span,
+                    arg: expected_type.span,
+                    fn_call_name: fn_call.name.span,
                 }));
             }
         }
 
         Ok(ast::Type {
             kind: function.return_type.kind,
-            span: fn_call.span.clone(),
+            span: fn_call.span,
         })
     }
 
@@ -599,12 +599,12 @@ impl Analyzer {
             .ok_or(Error::VariableNotFound {
                 var_name: variable.ident.clone(),
                 src: self.source_code.clone(),
-                here: variable.span.clone(),
+                here: variable.span,
             })?;
 
         Ok(ast::Type {
             kind: var_type,
-            span: variable.span.clone(),
+            span: variable.span,
         })
     }
 
@@ -620,9 +620,9 @@ impl Analyzer {
             return Err(Box::new(Error::TypeMismatchInOperation {
                 src: self.source_code.clone(),
                 operand_type: operand_type.kind,
-                operand: operand_type.span.clone(),
+                operand: operand_type.span,
                 operator_type: expected_type,
-                operator: unary_op.span.clone(),
+                operator: unary_op.span,
             }));
         }
 
@@ -655,9 +655,9 @@ impl Analyzer {
             return Err(Box::new(Error::TypeMismatchInOperation {
                 src: self.source_code.clone(),
                 operand_type: left_type.kind,
-                operand: left_type.span.clone(),
+                operand: left_type.span,
                 operator_type: expected_operand_type,
-                operator: binary_op.span.clone(),
+                operator: binary_op.span,
             }));
         }
 
@@ -666,9 +666,9 @@ impl Analyzer {
             return Err(Box::new(Error::TypeMismatchInOperation {
                 src: self.source_code.clone(),
                 operand_type: right_type.kind,
-                operand: right_type.span.clone(),
+                operand: right_type.span,
                 operator_type: expected_operand_type,
-                operator: binary_op.span.clone(),
+                operator: binary_op.span,
             }));
         }
 
