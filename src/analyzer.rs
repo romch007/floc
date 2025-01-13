@@ -725,27 +725,20 @@ impl Analyzer {
                 operand_type: operand_type.kind,
                 operand: operand_type.span,
                 operator_type: expected_type,
-                operator: unary_op.span,
+                operator: unary_op.operator_span,
             }));
         }
 
-        // unary_op.span corresponds to the '-' and 'non' token,
-        // so we create a new span with everything
-        let span = ast::Span {
-            start: unary_op.span.start,
-            end: operand_type.span.end,
-        };
-
         Ok(ast::Type {
             kind: expected_type,
-            span,
+            span: unary_op.span,
         })
     }
 
     fn analyze_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<ast::Type, Box<Error>> {
         use ast::BinaryOpKind::*;
 
-        let (result_type, left_type_span, right_type_span) = if matches!(binary_op.kind, Eq | Neq) {
+        let result_type = if matches!(binary_op.kind, Eq | Neq) {
             // If it's an `equal` or `not equal` operation, check that both operands have the same type
 
             let left_type = self.analyze_expr(&binary_op.left)?;
@@ -765,11 +758,11 @@ impl Analyzer {
                     right_operand_type: right_type.kind,
                     right_operand: right_type.span,
                     operator_name: operator_name.to_string(),
-                    operator: binary_op.span,
+                    operator: binary_op.operator_span,
                 }));
             }
 
-            (ast::TypeKind::Boolean, left_type.span, right_type.span)
+            ast::TypeKind::Boolean
         } else {
             // If it's another kind of operation, do hardcoded checking
 
@@ -786,7 +779,7 @@ impl Analyzer {
                     operand_type: left_type.kind,
                     operand: left_type.span,
                     operator_type: expected_operand_type,
-                    operator: binary_op.span,
+                    operator: binary_op.operator_span,
                 }));
             }
 
@@ -797,28 +790,19 @@ impl Analyzer {
                     operand_type: right_type.kind,
                     operand: right_type.span,
                     operator_type: expected_operand_type,
-                    operator: binary_op.span,
+                    operator: binary_op.operator_span,
                 }));
             }
 
-            let result_type = match &binary_op.kind {
+            match &binary_op.kind {
                 Add | Sub | Mul | Div | Mod => ast::TypeKind::Integer,
                 Eq | Neq | Lt | Lte | Gt | Gte | LogicOr | LogicAnd => ast::TypeKind::Boolean,
-            };
-
-            (result_type, left_type.span, right_type.span)
-        };
-
-        // binary_op.span corresponds to the operator character,
-        // so we create a new span with everything
-        let span = ast::Span {
-            start: left_type_span.start,
-            end: right_type_span.end,
+            }
         };
 
         Ok(ast::Type {
             kind: result_type,
-            span,
+            span: binary_op.span,
         })
     }
 }

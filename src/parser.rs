@@ -136,22 +136,32 @@ impl Node for Expression {
                 rule => unreachable!("invalid primary expr '{rule:?}'"),
             })
             .map_prefix(|op, rhs| {
-                let span = op.as_span().into();
+                let operator_span: Span = op.as_span().into();
+                let span = Span {
+                    start: operator_span.start,
+                    end: rhs.span().end,
+                };
 
                 Self::UnaryOp(UnaryOp {
                     kind: UnaryOpKind::parse(op),
                     operand: Box::new(rhs),
                     span,
+                    operator_span,
                 })
             })
             .map_infix(|lhs, op, rhs| {
-                let span = op.as_span().into();
+                let operator_span: Span = op.as_span().into();
+                let span = Span {
+                    start: lhs.span().start,
+                    end: rhs.span().end,
+                };
 
                 Self::BinaryOp(BinaryOp {
                     left: Box::new(lhs),
                     kind: BinaryOpKind::parse(op),
                     right: Box::new(rhs),
                     span,
+                    operator_span,
                 })
             })
             .parse(pairs)
@@ -392,7 +402,7 @@ mod tests {
             left,
             kind: BinaryOpKind::LogicOr,
             right,
-            span: _,
+            ..
         }) = arg
         {
             // Validate the left operand
@@ -400,7 +410,7 @@ mod tests {
                 left: left_inner,
                 kind: BinaryOpKind::Sub,
                 right: right_inner,
-                span: _,
+                ..
             }) = &**left
             {
                 // Validate left_inner = 1
@@ -415,7 +425,7 @@ mod tests {
             if let Expression::UnaryOp(UnaryOp {
                 kind: UnaryOpKind::Neg,
                 operand,
-                span: _,
+                ..
             }) = &**right
             {
                 // Validate operand = 6
@@ -462,7 +472,7 @@ mod tests {
         if let Expression::UnaryOp(UnaryOp {
             kind: UnaryOpKind::LogicNot,
             operand,
-            span: _,
+            ..
         }) = arg
         {
             // Validate that the operand is a variable
@@ -491,7 +501,7 @@ mod tests {
         if let Expression::UnaryOp(UnaryOp {
             kind: UnaryOpKind::LogicNot,
             operand,
-            span: _,
+            ..
         }) = arg
         {
             // Validate that the operand is a variable (inside parentheses)
@@ -540,7 +550,7 @@ mod tests {
             left,
             kind: BinaryOpKind::LogicOr,
             right,
-            span: _,
+            ..
         }) = arg
         {
             // Validate the left operand

@@ -90,6 +90,7 @@ pub struct BinaryOp {
     pub kind: BinaryOpKind,
     pub right: Box<Expression>,
     pub span: Span,
+    pub operator_span: Span,
 }
 
 #[derive(Debug)]
@@ -103,6 +104,7 @@ pub struct UnaryOp {
     pub kind: UnaryOpKind,
     pub operand: Box<Expression>,
     pub span: Span,
+    pub operator_span: Span,
 }
 
 #[derive(Debug)]
@@ -115,8 +117,9 @@ pub enum Expression {
     BinaryOp(BinaryOp),
     UnaryOp(UnaryOp),
 }
+
 impl Expression {
-    pub(crate) fn span(&self) -> &Span {
+    pub fn span(&self) -> &Span {
         match self {
             Expression::Integer(_, span) => span,
             Expression::Variable(ident) => &ident.span,
