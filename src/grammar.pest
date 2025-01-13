@@ -35,16 +35,16 @@ lte       =  { "<=" }
 gte       =  { ">=" }
 lt        =  { "<" }
 gt        =  { ">" }
-logic_and = @{ "et" ~ !(ASCII_ALPHA | "_") }
-logic_or  = @{ "ou" ~ !(ASCII_ALPHA | "_") }
+logic_and = @{ "et" ~ !(ASCII_ALPHANUMERIC | "_") }
+logic_or  = @{ "ou" ~ !(ASCII_ALPHANUMERIC | "_") }
 
 prefix    = _{ neg | logic_not }
 neg       =  { "-" }
-logic_not = @{ "non" ~ !(ASCII_ALPHA | "_") }
+logic_not = @{ "non" ~ !(ASCII_ALPHANUMERIC | "_") }
 
 primary       = _{ integer | boolean | read | function_call | ident | "(" ~ expr ~ ")" }
 integer       = @{ ASCII_DIGIT+ }
-boolean       =  { "Vrai" | "Faux" }
+boolean       =  @{ ("Vrai" | "Faux") ~ !(ASCII_ALPHA | "_") }
 read          =  { "lire" ~ "(" ~ ")" }
 function_call =  { ident ~ "(" ~ expr_list ~ ")" }
 

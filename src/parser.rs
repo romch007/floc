@@ -360,12 +360,261 @@ impl Node for Program {
     }
 }
 
-pub fn parse(nammed_source: miette::NamedSource<String>) -> miette::Result<Program> {
-    let mut pest_output = PestParser::parse(Rule::prog, nammed_source.inner())
+pub fn parse(named_source: miette::NamedSource<String>) -> miette::Result<Program> {
+    let mut pest_output = PestParser::parse(Rule::prog, named_source.inner())
         .map_err(|pest_err| pest_err.into_miette())
         .wrap_err("cannot parse program")?;
 
     let program = Program::parse(pest_output.next().unwrap());
 
     Ok(program)
+}
+
+#[cfg(test)]
+mod tests {
+    use miette::NamedSource;
+
+    use super::*;
+
+    #[test]
+    fn tricky_or_with_neg() {
+        let source = NamedSource::new("test.flo", "ecrire(1 - 2 ou -6);".to_string());
+        let prog = parse(source).unwrap();
+
+        let Statement::Write(write_stmt) = &prog.statements[0] else {
+            panic!("not a write statement");
+        };
+
+        let arg = &write_stmt.value;
+
+        // Check that the parsed expression is structured as expected.
+        if let Expression::BinaryOp(BinaryOp {
+            left,
+            kind: BinaryOpKind::LogicOr,
+            right,
+            span: _,
+        }) = arg
+        {
+            // Validate the left operand
+            if let Expression::BinaryOp(BinaryOp {
+                left: left_inner,
+                kind: BinaryOpKind::Sub,
+                right: right_inner,
+                span: _,
+            }) = &**left
+            {
+                // Validate left_inner = 1
+                assert!(matches!(**left_inner, Expression::Integer(1, _)));
+                // Validate right_inner = 2
+                assert!(matches!(**right_inner, Expression::Integer(2, _)));
+            } else {
+                panic!("Left side of 'ou' is not a subtraction expression");
+            }
+
+            // Validate the right operand
+            if let Expression::UnaryOp(UnaryOp {
+                kind: UnaryOpKind::Neg,
+                operand,
+                span: _,
+            }) = &**right
+            {
+                // Validate operand = 6
+                assert!(matches!(**operand, Expression::Integer(6, _)));
+            } else {
+                panic!("Right side of 'ou' is not a negation expression");
+            }
+        } else {
+            panic!("Write statement argument is not a logical 'ou' expression");
+        }
+    }
+
+    #[test]
+    fn nona_as_ident() {
+        let source = NamedSource::new("test.flo", "ecrire(nona);".to_string());
+        let prog = parse(source).unwrap();
+
+        // Ensure the first statement is a Write statement
+        let Statement::Write(write_stmt) = &prog.statements[0] else {
+            panic!("not a write statement");
+        };
+
+        // Check the value being written is a variable
+        let arg = &write_stmt.value;
+        if let Expression::Variable(var) = arg {
+            assert_eq!(var.ident, "nona"); // Validate the variable name
+        } else {
+            panic!("Write statement argument is not a variable");
+        }
+    }
+
+    #[test]
+    fn non_a_as_op() {
+        let source = NamedSource::new("test.flo", "ecrire(non a);".to_string());
+        let prog = parse(source).unwrap();
+
+        // Ensure the first statement is a Write statement
+        let Statement::Write(write_stmt) = &prog.statements[0] else {
+            panic!("not a write statement");
+        };
+
+        // Check the value being written is a unary operation
+        let arg = &write_stmt.value;
+        if let Expression::UnaryOp(UnaryOp {
+            kind: UnaryOpKind::LogicNot,
+            operand,
+            span: _,
+        }) = arg
+        {
+            // Validate that the operand is a variable
+            if let Expression::Variable(var) = &**operand {
+                assert_eq!(var.ident, "a"); // Validate the variable name
+            } else {
+                panic!("Operand of 'non' is not a variable");
+            }
+        } else {
+            panic!("Write statement argument is not a unary 'non' expression");
+        }
+    }
+
+    #[test]
+    fn non_a_with_parent_as_op() {
+        let source = NamedSource::new("test.flo", "ecrire(non(a));".to_string());
+        let prog = parse(source).unwrap();
+
+        // Ensure the first statement is a Write statement
+        let Statement::Write(write_stmt) = &prog.statements[0] else {
+            panic!("not a write statement");
+        };
+
+        // Check the value being written is a unary operation
+        let arg = &write_stmt.value;
+        if let Expression::UnaryOp(UnaryOp {
+            kind: UnaryOpKind::LogicNot,
+            operand,
+            span: _,
+        }) = arg
+        {
+            // Validate that the operand is a variable (inside parentheses)
+            if let Expression::Variable(var) = &**operand {
+                assert_eq!(var.ident, "a"); // Validate the variable name
+            } else {
+                panic!("Operand of 'non' is not a variable");
+            }
+        } else {
+            panic!("Write statement argument is not a unary 'non' expression");
+        }
+    }
+
+    #[test]
+    fn underscore_ou_a_as_op() {
+        let source = NamedSource::new("test.flo", "ecrire(_oua);".to_string());
+        let prog = parse(source).unwrap();
+
+        // Ensure the first statement is a Write statement
+        let Statement::Write(write_stmt) = &prog.statements[0] else {
+            panic!("not a write statement");
+        };
+
+        // Check the value being written is a variable
+        let arg = &write_stmt.value;
+        if let Expression::Variable(var) = arg {
+            assert_eq!(var.ident, "_oua"); // Validate the variable name
+        } else {
+            panic!("Write statement argument is not a variable");
+        }
+    }
+
+    #[test]
+    fn underscore_ou_a_with_parent_as_ident() {
+        let source = NamedSource::new("test.flo", "ecrire((_)ou(a));".to_string());
+        let prog = parse(source).unwrap();
+
+        // Ensure the first statement is a Write statement
+        let Statement::Write(write_stmt) = &prog.statements[0] else {
+            panic!("not a write statement");
+        };
+
+        // Check the value being written is a binary operation
+        let arg = &write_stmt.value;
+        if let Expression::BinaryOp(BinaryOp {
+            left,
+            kind: BinaryOpKind::LogicOr,
+            right,
+            span: _,
+        }) = arg
+        {
+            // Validate the left operand
+            if let Expression::Variable(var) = &**left {
+                assert_eq!(var.ident, "_"); // Validate the variable name
+            } else {
+                panic!("Left operand of 'ou' is not a variable");
+            }
+
+            // Validate the right operand
+            if let Expression::Variable(var) = &**right {
+                assert_eq!(var.ident, "a"); // Validate the variable name
+            } else {
+                panic!("Right operand of 'ou' is not a variable");
+            }
+        } else {
+            panic!("Write statement argument is not a binary 'ou' expression");
+        }
+    }
+
+    #[test]
+    fn vraioufaux_as_ident() {
+        let source = NamedSource::new("test.flo", "ecrire(VraiouFaux);".to_string());
+        let prog = parse(source).unwrap();
+
+        // Ensure the first statement is a Write statement
+        let Statement::Write(write_stmt) = &prog.statements[0] else {
+            panic!("not a write statement");
+        };
+
+        // Check the value being written is a variable
+        let arg = &write_stmt.value;
+        if let Expression::Variable(var) = arg {
+            assert_eq!(var.ident, "VraiouFaux"); // Validate the variable name
+        } else {
+            panic!("Write statement argument is not a variable");
+        }
+    }
+
+    #[test]
+    fn nonfaux_as_ident() {
+        let source = NamedSource::new("test.flo", "ecrire(nonFaux);".to_string());
+        let prog = parse(source).unwrap();
+
+        // Ensure the first statement is a Write statement
+        let Statement::Write(write_stmt) = &prog.statements[0] else {
+            panic!("not a write statement");
+        };
+
+        // Check the value being written is a variable
+        let arg = &write_stmt.value;
+        if let Expression::Variable(var) = arg {
+            assert_eq!(var.ident, "nonFaux"); // Validate the variable name
+        } else {
+            panic!("Write statement argument is not a variable");
+        }
+    }
+
+    #[test]
+    fn non7_as_ident() {
+        let source = NamedSource::new("test.flo", "ecrire(non7);".to_string());
+        let prog = parse(source).unwrap();
+
+        // Ensure the first statement is a Write statement
+        let Statement::Write(write_stmt) = &prog.statements[0] else {
+            panic!("not a write statement");
+        };
+
+        // Check the value being written is a variable
+        let arg = &write_stmt.value;
+        if let Expression::Variable(var) = arg {
+            assert_eq!(var.ident, "non7"); // Validate the variable name
+        } else {
+            panic!("Write statement argument is not a variable");
+        }
+    }
 }
