@@ -753,8 +753,8 @@ impl Analyzer {
 
             if left_type.kind != right_type.kind {
                 let operator_name = match &binary_op.kind {
-                    Eq => "equal",
-                    Neq => "not equal",
+                    Eq => "equality",
+                    Neq => "inequality",
                     _ => unreachable!(),
                 };
 
