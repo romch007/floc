@@ -1,4 +1,7 @@
-use crate::{ast, utils};
+use crate::{
+    ast::{self, SpanIterExt},
+    utils,
+};
 use std::{cell::Cell, collections::HashMap};
 
 const MAX_LEVENSHTEIN_DIST_FOR_SUGGEST: usize = 3;
@@ -644,23 +647,17 @@ impl Analyzer {
                 })?;
 
         if function.arguments.len() != fn_call.arguments.len() {
-            let fn_call_args = if !fn_call.arguments.is_empty() {
-                let start = fn_call.arguments.first().unwrap().span().start;
-                let end = fn_call.arguments.last().unwrap().span().end;
+            // Construct a span that ranges from the start of the first argument
+            // to the end of the last argument of the function call
+            let fn_call_args = fn_call
+                .arguments
+                .iter()
+                .map(|expr| expr.span())
+                .merge_spans();
 
-                Some(ast::Span { start, end })
-            } else {
-                None
-            };
-
-            let fn_def_args = if !function.arguments.is_empty() {
-                let start = function.args_span.first().unwrap().start;
-                let end = function.args_span.last().unwrap().end;
-
-                Some(ast::Span { start, end })
-            } else {
-                None
-            };
+            // Construct a span that ranges from the start of the first argument
+            // to the end of the last argument of the function definition
+            let fn_def_args = function.args_span.iter().merge_spans();
 
             return Err(Box::new(Error::ArgumentCountMismatch {
                 func: fn_call.name.ident.clone(),
