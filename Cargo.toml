@@ -9,7 +9,7 @@ edition = "2021"
 clap = { version = "4.5.4", features = ["derive", "cargo"] }
 fastrand = "2.2.0"
 miette = { version = "7.4.0", features = ["fancy"] }
-pest = "2.7.10"
+pest = { version = "2.7.10", features = ["miette-error"] }
 pest_derive = "2.7.10"
 scopeguard = "1.2.0"
 thiserror = "2.0.3"
