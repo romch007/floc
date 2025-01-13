@@ -20,10 +20,10 @@ pub enum Error {
     #[error("Builder error: {0}")]
     Builer(#[from] inkwell::builder::BuilderError),
 
-    #[error("Verification error:\n{0}")]
+    #[error("Verification error: {0}")]
     Verification(String),
 
-    #[error("LLVM Error:\n{0}")]
+    #[error("LLVM Error: {0}")]
     Other(String),
 }
 
