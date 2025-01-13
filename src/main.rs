@@ -13,7 +13,7 @@ use std::{
     process,
 };
 
-use miette::{IntoDiagnostic, WrapErr};
+use miette::{bail, IntoDiagnostic, WrapErr};
 use scopeguard::defer;
 
 macro_rules! os {
@@ -160,8 +160,7 @@ fn main() -> miette::Result<()> {
         let mut child = match process::Command::new("clang").args(&link_params).spawn() {
             Ok(child) => child,
             Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
-                eprintln!("Link failed: cannot find `clang`");
-                process::exit(1);
+                bail!("link failed: cannot find `clang`");
             }
             Err(e) => Err(e).into_diagnostic().wrap_err("cannot link program")?,
         };
@@ -172,8 +171,7 @@ fn main() -> miette::Result<()> {
             .wrap_err("cannot link program")?;
 
         if !status.success() {
-            eprintln!("Link failed");
-            process::exit(1);
+            bail!("link failed: clang returned a non-zero exit code");
         }
     }
 

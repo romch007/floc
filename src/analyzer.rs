@@ -69,7 +69,28 @@ pub enum Error {
 
         operator_type: ast::TypeKind,
 
-        #[label("expected due to this operator")]
+        operator: ast::Span,
+    },
+
+    #[error("type mismatch in {operator_name}: operands have different types")]
+    #[diagnostic(code(floc::invalid_types_in_eq_or_neq))]
+    TypeMismatchInEqOrNeq {
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        left_operand_type: ast::TypeKind,
+
+        #[label("found '{left_operand_type}'")]
+        left_operand: ast::Span,
+
+        right_operand_type: ast::TypeKind,
+
+        #[label("found '{right_operand_type}'")]
+        right_operand: ast::Span,
+
+        operator_name: String,
+
+        #[label("due to this operator")]
         operator: ast::Span,
     },
 
@@ -724,46 +745,75 @@ impl Analyzer {
     fn analyze_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<ast::Type, Box<Error>> {
         use ast::BinaryOpKind::*;
 
-        // This forbids 'example == Vrai', because:
-        // 1. I'm lazy
-        // 2. Nobody should ever write that
-        let expected_operand_type = match &binary_op.kind {
-            Add | Sub | Mul | Div | Mod | Eq | Neq | Lt | Lte | Gt | Gte => ast::TypeKind::Integer,
-            LogicAnd | LogicOr => ast::TypeKind::Boolean,
-        };
+        let (result_type, left_type_span, right_type_span) = if matches!(binary_op.kind, Eq | Neq) {
+            // If it's an `equal` or `not equal` operation, check that both operands have the same type
 
-        let left_type = self.analyze_expr(&binary_op.left)?;
-        if expected_operand_type != left_type.kind {
-            return Err(Box::new(Error::TypeMismatchInOperation {
-                src: self.source_code.clone(),
-                operand_type: left_type.kind,
-                operand: left_type.span,
-                operator_type: expected_operand_type,
-                operator: binary_op.span,
-            }));
-        }
+            let left_type = self.analyze_expr(&binary_op.left)?;
+            let right_type = self.analyze_expr(&binary_op.right)?;
 
-        let right_type = self.analyze_expr(&binary_op.right)?;
-        if expected_operand_type != right_type.kind {
-            return Err(Box::new(Error::TypeMismatchInOperation {
-                src: self.source_code.clone(),
-                operand_type: right_type.kind,
-                operand: right_type.span,
-                operator_type: expected_operand_type,
-                operator: binary_op.span,
-            }));
-        }
+            if left_type.kind != right_type.kind {
+                let operator_name = match &binary_op.kind {
+                    Eq => "equal",
+                    Neq => "not equal",
+                    _ => unreachable!(),
+                };
 
-        let result_type = match &binary_op.kind {
-            Add | Sub | Mul | Div | Mod => ast::TypeKind::Integer,
-            Eq | Neq | Lt | Lte | Gt | Gte | LogicOr | LogicAnd => ast::TypeKind::Boolean,
+                return Err(Box::new(Error::TypeMismatchInEqOrNeq {
+                    src: self.source_code.clone(),
+                    left_operand_type: left_type.kind,
+                    left_operand: left_type.span,
+                    right_operand_type: right_type.kind,
+                    right_operand: right_type.span,
+                    operator_name: operator_name.to_string(),
+                    operator: binary_op.span,
+                }));
+            }
+
+            (ast::TypeKind::Boolean, left_type.span, right_type.span)
+        } else {
+            // If it's another kind of operation, do hardcoded checking
+
+            let expected_operand_type = match &binary_op.kind {
+                Add | Sub | Mul | Div | Mod | Lt | Lte | Gt | Gte => ast::TypeKind::Integer,
+                LogicAnd | LogicOr => ast::TypeKind::Boolean,
+                Eq | Neq => unreachable!(),
+            };
+
+            let left_type = self.analyze_expr(&binary_op.left)?;
+            if expected_operand_type != left_type.kind {
+                return Err(Box::new(Error::TypeMismatchInOperation {
+                    src: self.source_code.clone(),
+                    operand_type: left_type.kind,
+                    operand: left_type.span,
+                    operator_type: expected_operand_type,
+                    operator: binary_op.span,
+                }));
+            }
+
+            let right_type = self.analyze_expr(&binary_op.right)?;
+            if expected_operand_type != right_type.kind {
+                return Err(Box::new(Error::TypeMismatchInOperation {
+                    src: self.source_code.clone(),
+                    operand_type: right_type.kind,
+                    operand: right_type.span,
+                    operator_type: expected_operand_type,
+                    operator: binary_op.span,
+                }));
+            }
+
+            let result_type = match &binary_op.kind {
+                Add | Sub | Mul | Div | Mod => ast::TypeKind::Integer,
+                Eq | Neq | Lt | Lte | Gt | Gte | LogicOr | LogicAnd => ast::TypeKind::Boolean,
+            };
+
+            (result_type, left_type.span, right_type.span)
         };
 
         // binary_op.span corresponds to the operator character,
         // so we create a new span with everything
         let span = ast::Span {
-            start: left_type.span.start,
-            end: right_type.span.end,
+            start: left_type_span.start,
+            end: right_type_span.end,
         };
 
         Ok(ast::Type {
