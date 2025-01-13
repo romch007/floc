@@ -44,7 +44,7 @@ logic_not = @{ "non" ~ !(ASCII_ALPHANUMERIC | "_") }
 
 primary       = _{ integer | boolean | read | function_call | ident | "(" ~ expr ~ ")" }
 integer       = @{ ASCII_DIGIT+ }
-boolean       =  @{ ("Vrai" | "Faux") ~ !(ASCII_ALPHA | "_") }
+boolean       = @{ ("Vrai" | "Faux") ~ !(ASCII_ALPHA | "_") }
 read          =  { "lire" ~ "(" ~ ")" }
 function_call =  { ident ~ "(" ~ expr_list ~ ")" }
 
