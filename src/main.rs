@@ -5,7 +5,13 @@ mod codegen;
 mod parser;
 mod utils;
 
-use std::{ffi::OsStr, fs, io, path::Path, process};
+use std::{
+    ffi::OsStr,
+    fs,
+    io::{self, Read},
+    path::Path,
+    process,
+};
 
 use miette::{IntoDiagnostic, WrapErr};
 use scopeguard::defer;
@@ -18,9 +24,34 @@ macro_rules! os {
 
 fn main() -> miette::Result<()> {
     let args = cli::parse();
-    let source = fs::read_to_string(&args.source_file)
-        .into_diagnostic()
-        .wrap_err("cannot open source file")?;
+
+    let (source, filename) = match args.source_file.to_str() {
+        Some("-") => {
+            // Read from stdin
+            let mut source = String::new();
+            std::io::stdin()
+                .read_to_string(&mut source)
+                .into_diagnostic()
+                .wrap_err("cannot read stdin")?;
+
+            (source, "flo_out.flo")
+        }
+        _ => {
+            // Read regular file
+
+            let source = fs::read_to_string(&args.source_file)
+                .into_diagnostic()
+                .wrap_err("cannot open source file")?;
+
+            let filename = Path::new(&args.source_file)
+                .file_name()
+                .expect("no filename")
+                .to_str()
+                .expect("invalid filename");
+
+            (source, filename)
+        }
+    };
 
     let ast_prog = parser::parse(&source)
         .into_diagnostic()
@@ -35,12 +66,6 @@ fn main() -> miette::Result<()> {
         ast::dot::dump_graph(&ast_prog).unwrap();
         return Ok(());
     }
-
-    let filename = Path::new(&args.source_file)
-        .file_name()
-        .expect("no filename")
-        .to_str()
-        .expect("invalid filename");
 
     let mut analyzer = analyzer::Analyzer::new(miette::NamedSource::new(filename, source));
     analyzer
