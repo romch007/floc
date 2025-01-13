@@ -47,6 +47,10 @@ fn main() -> miette::Result<()> {
         .analyze_program(&ast_prog)
         .map_err(|boxed_err| *boxed_err)?;
 
+    for warning in analyzer.warnings() {
+        eprintln!("{warning:?}");
+    }
+
     let module_name = filename.strip_suffix(".flo").unwrap_or("<unknown>");
 
     let llvm_context = inkwell::context::Context::create();

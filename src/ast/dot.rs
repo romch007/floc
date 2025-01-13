@@ -1,5 +1,5 @@
 use std::{
-    cell::RefCell,
+    cell::Cell,
     io::{self, BufWriter, Write},
 };
 
@@ -386,18 +386,18 @@ where
 }
 
 struct NodeNameHelper {
-    count: RefCell<usize>,
+    count: Cell<usize>,
 }
 
 impl NodeNameHelper {
     pub fn new() -> Self {
         Self {
-            count: RefCell::new(0),
+            count: Cell::new(0),
         }
     }
 
     pub fn get_next_node_name(&self) -> String {
-        let id = self.count.replace_with(|&mut old| old + 1);
+        let id = self.count.replace(self.count.get() + 1);
         let name = format!("node{id}");
         name
     }

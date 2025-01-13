@@ -1,17 +1,41 @@
 use crate::{ast, utils};
-use std::collections::HashMap;
+use std::{cell::Cell, collections::HashMap};
 
 const MAX_LEVENSHTEIN_DIST_FOR_SUGGEST: usize = 3;
 
 #[derive(Debug, Clone)]
 struct Variable {
     r#type: ast::Type,
+    use_count: Cell<usize>,
 
     /// Span to the variable declaration
-    decl_span: ast::Span,
+    declaration_span: ast::Span,
 
     /// Span to the variable type in the variable declaration
-    type_decl_span: ast::Span,
+    type_declaration_span: ast::Span,
+}
+
+impl Variable {
+    pub fn new(
+        r#type: ast::Type,
+        declaration_span: ast::Span,
+        type_declaration_span: ast::Span,
+    ) -> Self {
+        Self {
+            r#type,
+            declaration_span,
+            type_declaration_span,
+            use_count: Cell::new(0),
+        }
+    }
+
+    pub fn increment_use_count(&self) {
+        self.use_count.replace(self.use_count.get() + 1);
+    }
+
+    pub fn is_unused(&self) -> bool {
+        self.use_count.get() == 0
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -222,11 +246,28 @@ pub enum Error {
     },
 }
 
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+pub enum Warning {
+    #[error("unused variable '{varname}'")]
+    #[diagnostic(code(floc::unused_variable))]
+    #[diagnostic(severity(Warning))]
+    UnusedVariable {
+        varname: String,
+
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        #[label("defined here")]
+        varname_decl_span: ast::Span,
+    },
+}
+
 pub struct Analyzer {
     variables: Vec<HashMap<String, Variable>>,
     functions: HashMap<String, Function>,
     parent_function: Option<String>,
     source_code: miette::NamedSource<String>,
+    warnings: Vec<miette::Report>,
 }
 
 impl Analyzer {
@@ -236,6 +277,7 @@ impl Analyzer {
             functions: HashMap::new(),
             parent_function: None,
             source_code,
+            warnings: Vec::new(),
         }
     }
 
@@ -243,12 +285,28 @@ impl Analyzer {
         &self.functions
     }
 
+    pub fn warnings(&self) -> &[miette::Report] {
+        &self.warnings
+    }
+
     fn enter_block(&mut self) {
         self.variables.push(HashMap::default());
     }
 
     fn leave_block(&mut self) {
-        self.variables.pop();
+        if let Some(stack_frame) = self.variables.pop() {
+            for (varname, unused_variable) in
+                stack_frame.into_iter().filter(|entry| entry.1.is_unused())
+            {
+                let report = miette::Report::new(Warning::UnusedVariable {
+                    varname,
+                    src: self.source_code.clone(),
+                    varname_decl_span: unused_variable.declaration_span,
+                });
+
+                self.warnings.push(report);
+            }
+        }
     }
 
     fn get_variable(&self, var_name: &str) -> Option<&Variable> {
@@ -281,11 +339,7 @@ impl Analyzer {
 
         self.variables.last_mut().unwrap().insert(
             var_name.to_string(),
-            Variable {
-                r#type,
-                decl_span: span,
-                type_decl_span,
-            },
+            Variable::new(r#type, span, type_decl_span),
         );
     }
 
@@ -474,7 +528,7 @@ impl Analyzer {
                 varname: declaration.variable.ident.to_string(),
                 src: self.source_code.clone(),
                 here: declaration.span,
-                previous_def: previous_var.decl_span,
+                previous_def: previous_var.declaration_span,
             }));
         }
 
@@ -520,7 +574,7 @@ impl Analyzer {
                 expected_type: variable.r#type.kind,
                 wrong_value_type: expr_type.kind,
                 wrong_value: expr_type.span,
-                type_def: variable.type_decl_span,
+                type_def: variable.type_declaration_span,
             }));
         }
 
@@ -621,18 +675,17 @@ impl Analyzer {
     }
 
     fn analyze_variable(&mut self, variable: &ast::Identifier) -> Result<ast::Type, Box<Error>> {
-        let var_type = self
-            .get_variable(variable)
-            .map(|var| var.r#type.kind.clone())
-            .ok_or(Error::VariableNotFound {
-                var_name: variable.ident.clone(),
-                src: self.source_code.clone(),
-                here: variable.span,
-                advice: self.get_help_var_not_found(&variable.ident),
-            })?;
+        let existing_variable = self.get_variable(variable).ok_or(Error::VariableNotFound {
+            var_name: variable.ident.clone(),
+            src: self.source_code.clone(),
+            here: variable.span,
+            advice: self.get_help_var_not_found(&variable.ident),
+        })?;
+
+        existing_variable.increment_use_count();
 
         Ok(ast::Type {
-            kind: var_type,
+            kind: existing_variable.r#type.clone().kind,
             span: variable.span,
         })
     }
