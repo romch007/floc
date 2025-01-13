@@ -53,9 +53,9 @@ fn main() -> miette::Result<()> {
         }
     };
 
-    let ast_prog = parser::parse(&source)
-        .into_diagnostic()
-        .wrap_err("cannot parse source code")?;
+    let nammed_source = miette::NamedSource::new(filename, source);
+
+    let ast_prog = parser::parse(nammed_source.clone())?;
 
     if args.emit_ast {
         println!("{ast_prog:#?}");
@@ -67,7 +67,7 @@ fn main() -> miette::Result<()> {
         return Ok(());
     }
 
-    let mut analyzer = analyzer::Analyzer::new(miette::NamedSource::new(filename, source));
+    let mut analyzer = analyzer::Analyzer::new(nammed_source.clone());
     analyzer
         .analyze_program(&ast_prog)
         .map_err(|boxed_err| *boxed_err)?;

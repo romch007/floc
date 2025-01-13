@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::{ast::*, utils::NaturalJoinExt};
 use pest::{iterators::Pair, pratt_parser::PrattParser, Parser};
 use pest_derive::Parser;
 use std::sync::OnceLock;
@@ -359,10 +359,43 @@ impl Node for Program {
     }
 }
 
-pub fn parse(source: &str) -> Result<Program, Box<pest::error::Error<Rule>>> {
-    let mut pest_output = PestParser::parse(Rule::prog, source).map_err(Box::new)?;
+pub fn parse(nammed_source: miette::NamedSource<String>) -> miette::Result<Program> {
+    let mut pest_output =
+        PestParser::parse(Rule::prog, nammed_source.inner()).map_err(|pest_err| {
+            pest_err_to_miette_report(pest_err).with_source_code(nammed_source.clone())
+        })?;
 
     let program = Program::parse(pest_output.next().unwrap());
 
     Ok(program)
+}
+
+fn pest_err_to_miette_report(pest_err: pest::error::Error<Rule>) -> miette::Report {
+    use miette::miette;
+    use pest::error::*;
+
+    let span: miette::SourceSpan = match pest_err.location {
+        InputLocation::Pos(p) => (p..p + 1).into(),
+        InputLocation::Span((start, end)) => (start, end).into(),
+    };
+
+    let spans = vec![miette::LabeledSpan::at(span, "here")];
+    let code = "floc::parse_error";
+
+    let report = match pest_err.variant {
+        // TODO: don't know what to do with negatives...
+        ErrorVariant::ParsingError { positives, .. } => {
+            let positives = positives
+                .into_iter()
+                .map(|rule| format!("{rule:?}"))
+                .natural_join(", ", " or ");
+
+            miette!(code = code, labels = spans, "expected {}", positives)
+        }
+        ErrorVariant::CustomError { message } => {
+            miette!(code = code, labels = spans, "{}", message)
+        }
+    };
+
+    report.wrap_err("cannot parse source code")
 }

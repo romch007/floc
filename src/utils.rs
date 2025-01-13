@@ -144,13 +144,56 @@ pub fn get_output_files(
     }
 }
 
+pub trait NaturalJoinExt {
+    /// Joins the items of an iterator into a single `String`, using `separator`
+    /// between items and `last_separator` before the final item.
+    ///
+    /// # Examples
+    /// ```
+    /// let words = vec!["a", "b", "c", "d", "e"];
+    /// let result = words.iter().natural_join(", ", " or ");
+    /// assert_eq!(result, "a, b, c, d or e");
+    /// ```
+    fn natural_join(self, separator: &str, last_separator: &str) -> String;
+}
+
+impl<I, T> NaturalJoinExt for I
+where
+    I: Iterator<Item = T>,
+    T: AsRef<str>,
+{
+    fn natural_join(mut self, separator: &str, last_separator: &str) -> String {
+        let mut result = String::new();
+
+        if let Some(first) = self.next() {
+            result.push_str(first.as_ref());
+
+            let mut prev = None;
+            for item in self {
+                if let Some(last) = prev.replace(item) {
+                    result.push_str(separator);
+                    result.push_str(last.as_ref());
+                }
+            }
+
+            // Add the last separator and last item
+            if let Some(last) = prev {
+                result.push_str(last_separator);
+                result.push_str(last.as_ref());
+            }
+        }
+
+        result
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{ffi::OsStr, path::PathBuf};
 
     use inkwell::targets::FileType;
 
-    use super::get_output_files;
+    use super::*;
     use crate::cli;
 
     #[test]
@@ -278,5 +321,12 @@ mod tests {
         let (file_type, _llvm_output, link_output) = get_output_files(&args, "testing", true);
         assert_eq!(file_type, FileType::Object);
         assert_eq!(link_output, Some(PathBuf::from("anything.docx")));
+    }
+
+    #[test]
+    fn natural_join_simple() {
+        let res = ["a", "b", "c", "d"].iter().natural_join(", ", " or ");
+
+        assert_eq!(res, "a, b, c or d");
     }
 }
