@@ -149,3 +149,5 @@ entier test_case(entier m, entier n) {
 }
 
 ecrire(test_case(3, 3));", [50, 10, 100] }
+
+testprogram! { example_power, include_str!("../flo_examples/power.flo"), [65536], [2, 16] }

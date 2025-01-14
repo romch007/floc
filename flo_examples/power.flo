@@ -1,0 +1,13 @@
+entier power(entier a, entier b) {
+  entier i;
+  entier r = 1;
+
+  tantque (i < b) {
+    i = i + 1;
+    r = r * a;
+  }
+
+  retourner r;
+}
+
+ecrire(power(lire(), lire()));
