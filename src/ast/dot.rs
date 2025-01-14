@@ -50,7 +50,7 @@ impl ToGraph for Expression {
             _ => unreachable!(),
         };
 
-        write_node(w, &node_name, &node_label)?;
+        write_node(w, &node_name, &node_label, "box")?;
 
         Ok(node_name)
     }
@@ -67,7 +67,7 @@ impl ToGraph for UnaryOp {
             UnaryOpKind::LogicNot => "!",
         };
 
-        write_node(w, &node_name, sign)?;
+        write_node(w, &node_name, sign, "circle")?;
 
         let operand_node = self.operand.visit(w, name_helper)?;
 
@@ -98,7 +98,7 @@ impl ToGraph for BinaryOp {
             BinaryOpKind::LogicAnd => "&&",
             BinaryOpKind::LogicOr => "||",
         };
-        write_node(w, &node_name, sign)?;
+        write_node(w, &node_name, sign, "circle")?;
 
         let left_node = self.left.visit(w, name_helper)?;
         let right_node = self.right.visit(w, name_helper)?;
@@ -116,7 +116,12 @@ impl ToGraph for FunctionCall {
         W: io::Write,
     {
         let node_name = name_helper.get_next_node_name();
-        write_node(w, &node_name, &format!("{}(...)", self.name.ident))?;
+        write_node(
+            w,
+            &node_name,
+            &format!("{}(...)", self.name.ident),
+            "ellipse",
+        )?;
 
         for (i, arg) in self.arguments.iter().enumerate() {
             let arg_node_name = arg.visit(w, name_helper)?;
@@ -168,7 +173,7 @@ impl ToGraph for Statement {
             _ => unreachable!(),
         };
 
-        write_node(w, &node_name, &node_label)?;
+        write_node(w, &node_name, &node_label, "ellipse")?;
 
         Ok(node_name)
     }
@@ -180,7 +185,7 @@ impl ToGraph for While {
         W: io::Write,
     {
         let node_name = name_helper.get_next_node_name();
-        write_node(w, &node_name, "while")?;
+        write_node(w, &node_name, "while", "ellipse")?;
 
         let condition_node_name = self.condition.visit(w, name_helper)?;
         write_edge(w, &node_name, &condition_node_name, Some("condition"))?;
@@ -198,7 +203,7 @@ impl ToGraph for If {
         W: io::Write,
     {
         let node_name = name_helper.get_next_node_name();
-        write_node(w, &node_name, "if")?;
+        write_node(w, &node_name, "if", "ellipse")?;
 
         let condition_node_name = self.condition.visit(w, name_helper)?;
         write_edge(w, &node_name, &condition_node_name, Some("condition"))?;
@@ -221,14 +226,14 @@ impl ToGraph for Declaration {
         W: io::Write,
     {
         let node_name = name_helper.get_next_node_name();
-        write_node(w, &node_name, "var declaration")?;
+        write_node(w, &node_name, "var declaration", "ellipse")?;
 
         let type_node_name = name_helper.get_next_node_name();
-        write_node(w, &type_node_name, &self.r#type.kind.to_string())?;
+        write_node(w, &type_node_name, &self.r#type.kind.to_string(), "diamond")?;
         write_edge(w, &node_name, &type_node_name, Some("type"))?;
 
         let name_node_name = name_helper.get_next_node_name();
-        write_node(w, &name_node_name, &self.variable)?;
+        write_node(w, &name_node_name, &self.variable, "ellipse")?;
         write_edge(w, &node_name, &name_node_name, Some("name"))?;
 
         if let Some(value) = &self.value {
@@ -246,10 +251,10 @@ impl ToGraph for Assignment {
         W: io::Write,
     {
         let node_name = name_helper.get_next_node_name();
-        write_node(w, &node_name, "var assignment")?;
+        write_node(w, &node_name, "var assignment", "ellipse")?;
 
         let name_node_name = name_helper.get_next_node_name();
-        write_node(w, &name_node_name, &self.variable)?;
+        write_node(w, &name_node_name, &self.variable, "ellipse")?;
         write_edge(w, &node_name, &name_node_name, Some("name"))?;
 
         let value_node_name = self.value.visit(w, name_helper)?;
@@ -264,11 +269,18 @@ impl ToGraph for FunctionDeclaration {
     where
         W: io::Write,
     {
+        writeln!(
+            w,
+            "subgraph cluster{fn_name} {{\nstyle=filled;color=lightgrey;label=\"function {fn_name}\";",
+            fn_name = self.name.ident
+        )?;
+
         let node_name = name_helper.get_next_node_name();
         write_node(
             w,
             &node_name,
             &format!("declaring {}(...)", self.name.ident),
+            "ellipse",
         )?;
 
         let return_type_node_name = name_helper.get_next_node_name();
@@ -276,6 +288,7 @@ impl ToGraph for FunctionDeclaration {
             w,
             &return_type_node_name,
             &self.return_type.kind.to_string(),
+            "diamond",
         )?;
         write_edge(w, &node_name, &return_type_node_name, Some("return type"))?;
 
@@ -284,6 +297,8 @@ impl ToGraph for FunctionDeclaration {
 
         let block_node_name = write_block(w, name_helper, &self.statements)?;
         write_edge(w, &node_name, &block_node_name, Some("body"))?;
+
+        writeln!(w, "}}")?;
 
         Ok(node_name)
     }
@@ -295,7 +310,7 @@ impl ToGraph for Program {
         W: io::Write,
     {
         let node_name = name_helper.get_next_node_name();
-        write_node(w, &node_name, "program")?;
+        write_node(w, &node_name, "program", "ellipse")?;
 
         for fn_decl in &self.function_decls {
             let _fn_decl_node_name = fn_decl.visit(w, name_helper)?;
@@ -309,20 +324,20 @@ impl ToGraph for Program {
     }
 }
 
-fn write_node<W>(w: &mut W, name: &str, label: &str) -> Result<(), io::Error>
+fn write_node<W>(w: &mut W, name: &str, label: &str, shape: &str) -> Result<(), io::Error>
 where
     W: io::Write,
 {
-    writeln!(w, "\"{name}\"[label=\"{label}\"];")?;
+    writeln!(w, "\"{name}\"[shape={shape},label=\"{label}\"];")?;
 
     Ok(())
 }
 
-fn write_node_unescaped<W>(w: &mut W, name: &str, label: &str) -> Result<(), io::Error>
+fn write_node_unescaped<W>(w: &mut W, name: &str, label: &str, shape: &str) -> Result<(), io::Error>
 where
     W: io::Write,
 {
-    writeln!(w, "\"{name}\"[label={label}];")?;
+    writeln!(w, "\"{name}\"[label={label},shape={shape}];")?;
 
     Ok(())
 }
@@ -351,7 +366,7 @@ where
     W: io::Write,
 {
     let block_node_name = name_helper.get_next_node_name();
-    write_node_unescaped(w, &block_node_name, "<{<I>block</I>}>")?;
+    write_node_unescaped(w, &block_node_name, "<{<I>block</I>}>", "ellipse")?;
 
     for stmt in stmts {
         let stmt_node_name = stmt.visit(w, name_helper)?;
@@ -370,15 +385,15 @@ where
     W: io::Write,
 {
     let arg_node_name = name_helper.get_next_node_name();
-    write_node_unescaped(w, &arg_node_name, "<{<I>args</I>}>")?;
+    write_node_unescaped(w, &arg_node_name, "<{<I>args</I>}>", "ellipse")?;
 
     for arg in args {
         let type_node_name = name_helper.get_next_node_name();
-        write_node(w, &type_node_name, &arg.r#type.kind.to_string())?;
+        write_node(w, &type_node_name, &arg.r#type.kind.to_string(), "diamond")?;
         write_edge(w, &arg_node_name, &type_node_name, Some("type"))?;
 
         let name_node_name = name_helper.get_next_node_name();
-        write_node(w, &name_node_name, &arg.name)?;
+        write_node(w, &name_node_name, &arg.name, "ellipse")?;
         write_edge(w, &arg_node_name, &name_node_name, Some("name"))?;
     }
 
