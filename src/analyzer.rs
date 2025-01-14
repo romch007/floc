@@ -580,15 +580,15 @@ impl Analyzer {
     }
 
     fn analyze_assignment(&mut self, assignment: &ast::Assignment) -> Result<bool, Box<Error>> {
-        let variable =
-            self.get_variable(&assignment.variable)
-                .cloned()
-                .ok_or(Error::VariableNotFound {
-                    var_name: assignment.variable.ident.to_string(),
-                    src: self.source_code.clone(),
-                    here: assignment.variable.span,
-                    advice: self.get_help_var_not_found(&assignment.variable.ident),
-                })?;
+        let variable = self
+            .get_variable(&assignment.variable)
+            .cloned()
+            .ok_or_else(|| Error::VariableNotFound {
+                var_name: assignment.variable.ident.to_string(),
+                src: self.source_code.clone(),
+                here: assignment.variable.span,
+                advice: self.get_help_var_not_found(&assignment.variable.ident),
+            })?;
 
         let expr_type = self.analyze_expr(&assignment.value)?;
 
@@ -635,16 +635,16 @@ impl Analyzer {
         &mut self,
         fn_call: &ast::FunctionCall,
     ) -> Result<ast::Type, Box<Error>> {
-        let function =
-            self.functions
-                .get(&fn_call.name.ident)
-                .cloned()
-                .ok_or(Error::FunctionNotFound {
-                    fn_name: fn_call.name.ident.to_string(),
-                    src: self.source_code.clone(),
-                    here: fn_call.span,
-                    advice: self.get_help_fn_not_found(&fn_call.name.ident),
-                })?;
+        let function = self
+            .functions
+            .get(&fn_call.name.ident)
+            .cloned()
+            .ok_or_else(|| Error::FunctionNotFound {
+                fn_name: fn_call.name.ident.to_string(),
+                src: self.source_code.clone(),
+                here: fn_call.span,
+                advice: self.get_help_fn_not_found(&fn_call.name.ident),
+            })?;
 
         if function.arguments.len() != fn_call.arguments.len() {
             // Construct a span that ranges from the start of the first argument
@@ -693,12 +693,14 @@ impl Analyzer {
     }
 
     fn analyze_variable(&mut self, variable: &ast::Identifier) -> Result<ast::Type, Box<Error>> {
-        let existing_variable = self.get_variable(variable).ok_or(Error::VariableNotFound {
-            var_name: variable.ident.clone(),
-            src: self.source_code.clone(),
-            here: variable.span,
-            advice: self.get_help_var_not_found(&variable.ident),
-        })?;
+        let existing_variable =
+            self.get_variable(variable)
+                .ok_or_else(|| Error::VariableNotFound {
+                    var_name: variable.ident.clone(),
+                    src: self.source_code.clone(),
+                    here: variable.span,
+                    advice: self.get_help_var_not_found(&variable.ident),
+                })?;
 
         existing_variable.increment_use_count();
 
