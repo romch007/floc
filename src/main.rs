@@ -25,32 +25,29 @@ macro_rules! os {
 fn main() -> miette::Result<()> {
     let args = cli::parse();
 
-    let (source, filename) = match args.source_file.to_str() {
-        Some("-") => {
-            // Read from stdin
-            let mut source = String::new();
-            std::io::stdin()
-                .read_to_string(&mut source)
-                .into_diagnostic()
-                .wrap_err("cannot read stdin")?;
+    let (source, filename) = if let Some("-") = args.source_file.to_str() {
+        // Read from stdin
+        let mut source = String::new();
+        std::io::stdin()
+            .read_to_string(&mut source)
+            .into_diagnostic()
+            .wrap_err("cannot read stdin")?;
 
-            (source, "flo_out.flo")
-        }
-        _ => {
-            // Read regular file
+        (source, "flo_out.flo")
+    } else {
+        // Read regular file
 
-            let source = fs::read_to_string(&args.source_file)
-                .into_diagnostic()
-                .wrap_err("cannot open source file")?;
+        let source = fs::read_to_string(&args.source_file)
+            .into_diagnostic()
+            .wrap_err("cannot open source file")?;
 
-            let filename = Path::new(&args.source_file)
-                .file_name()
-                .expect("no filename")
-                .to_str()
-                .expect("invalid filename");
+        let filename = Path::new(&args.source_file)
+            .file_name()
+            .expect("no filename")
+            .to_str()
+            .expect("invalid filename");
 
-            (source, filename)
-        }
+        (source, filename)
     };
 
     let named_source = miette::NamedSource::new(filename, source);
