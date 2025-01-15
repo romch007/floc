@@ -3,6 +3,7 @@ mod ast;
 mod cli;
 mod codegen;
 mod parser;
+mod syntax_highlight;
 mod utils;
 
 use std::{
@@ -49,6 +50,14 @@ fn main() -> miette::Result<()> {
 
         (source, filename)
     };
+
+    miette::set_hook(Box::new(|_| {
+        Box::new(
+            miette::MietteHandlerOpts::new()
+                .with_syntax_highlighting(syntax_highlight::FloHighlighter)
+                .build(),
+        )
+    }))?;
 
     let named_source = miette::NamedSource::new(filename, source);
 
