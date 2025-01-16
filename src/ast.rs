@@ -217,7 +217,7 @@ pub enum Statement {
 }
 
 impl Statement {
-    pub(crate) fn span(&self) -> &Span {
+    pub fn span(&self) -> &Span {
         match self {
             Statement::Assignment(assign) => &assign.span,
             Statement::Declaration(decl) => &decl.span,
