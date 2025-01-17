@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn merge_spans_multiple() {
-        let spans = vec![
+        let spans = [
             Span { start: 1, end: 5 },
             Span { start: 6, end: 10 },
             Span { start: 11, end: 15 },
@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn merge_spans_single() {
-        let spans = vec![Span { start: 3, end: 7 }];
+        let spans = [Span { start: 3, end: 7 }];
 
         let merged_span = spans.iter().merge_spans();
         assert_eq!(merged_span, Some(Span { start: 3, end: 7 }));
@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn merge_spans_empty() {
-        let spans: Vec<Span> = vec![];
+        let spans = [];
 
         let merged_span = spans.iter().merge_spans();
         assert_eq!(merged_span, None);
