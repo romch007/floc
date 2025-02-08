@@ -1,4 +1,5 @@
 use crate::ast::*;
+use crate::utils::Span;
 use miette::Context;
 use pest::{iterators::Pair, pratt_parser::PrattParser, Parser};
 use pest_derive::Parser;

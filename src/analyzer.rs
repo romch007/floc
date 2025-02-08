@@ -1,6 +1,6 @@
 use crate::{
-    ast::{self, SpanIterExt},
-    utils,
+    ast::{self},
+    utils::{self, Span, SpanIterExt},
 };
 use std::{cell::Cell, collections::HashMap};
 
@@ -12,18 +12,14 @@ struct Variable {
     use_count: Cell<usize>,
 
     /// Span to the variable declaration
-    declaration_span: ast::Span,
+    declaration_span: Span,
 
     /// Span to the variable type in the variable declaration
-    type_declaration_span: ast::Span,
+    type_declaration_span: Span,
 }
 
 impl Variable {
-    pub fn new(
-        r#type: ast::Type,
-        declaration_span: ast::Span,
-        type_declaration_span: ast::Span,
-    ) -> Self {
+    pub fn new(r#type: ast::Type, declaration_span: Span, type_declaration_span: Span) -> Self {
         Self {
             r#type,
             declaration_span,
@@ -48,13 +44,13 @@ pub struct Function {
     pub arguments: Vec<ast::Type>,
 
     /// Span to the return type in the function declaration
-    ret_type_decl_span: ast::Span,
+    ret_type_decl_span: Span,
 
     /// Spans to the function arguments
-    args_span: Vec<ast::Span>,
+    args_span: Vec<Span>,
 
     /// Span to the function declaration
-    decl_span: ast::Span,
+    decl_span: Span,
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
@@ -68,11 +64,11 @@ pub enum Error {
         operand_type: ast::TypeKind,
 
         #[label("expected {operator_type}, found '{operand_type}'")]
-        operand: ast::Span,
+        operand: Span,
 
         operator_type: ast::TypeKind,
 
-        operator: ast::Span,
+        operator: Span,
     },
 
     #[error("type mismatch in {operator_name}: operands have different types")]
@@ -84,17 +80,17 @@ pub enum Error {
         left_operand_type: ast::TypeKind,
 
         #[label("found '{left_operand_type}'")]
-        left_operand: ast::Span,
+        left_operand: Span,
 
         right_operand_type: ast::TypeKind,
 
         #[label("found '{right_operand_type}'")]
-        right_operand: ast::Span,
+        right_operand: Span,
 
         operator_name: String,
 
         #[label("due to this operator")]
-        operator: ast::Span,
+        operator: Span,
     },
 
     #[error("type mismatch in assignment")]
@@ -108,10 +104,10 @@ pub enum Error {
         wrong_value_type: ast::TypeKind,
 
         #[label("expected {expected_type}, found '{wrong_value_type}'")]
-        wrong_value: ast::Span,
+        wrong_value: Span,
 
         #[label("expected due to this type")]
-        type_def: ast::Span,
+        type_def: Span,
     },
 
     #[error("type mismatch in return statement")]
@@ -125,10 +121,10 @@ pub enum Error {
         wrong_value_type: ast::TypeKind,
 
         #[label("expected {expected_type}, found '{wrong_value_type}'")]
-        wrong_value: ast::Span,
+        wrong_value: Span,
 
         #[label("expected due to this type")]
-        type_def: ast::Span,
+        type_def: Span,
     },
 
     #[error("type mismatch in condition")]
@@ -140,7 +136,7 @@ pub enum Error {
         wrong_value_type: ast::TypeKind,
 
         #[label("expected booleen, found '{wrong_value_type}'")]
-        wrong_value: ast::Span,
+        wrong_value: Span,
     },
 
     #[error("type mismatch in function argument")]
@@ -154,13 +150,13 @@ pub enum Error {
         wrong_value_type: ast::TypeKind,
 
         #[label("expected {expected_type}, found '{wrong_value_type}'")]
-        wrong_value: ast::Span,
+        wrong_value: Span,
 
         #[label("expected due to this type")]
-        arg: ast::Span,
+        arg: Span,
 
         #[label("arguments to this function are incorrect")]
-        fn_call_name: ast::Span,
+        fn_call_name: Span,
     },
 
     #[error("variable '{var_name}' not found")]
@@ -172,7 +168,7 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("variable used here")]
-        here: ast::Span,
+        here: Span,
 
         #[help]
         advice: Option<String>,
@@ -187,10 +183,10 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("here")]
-        here: ast::Span,
+        here: Span,
 
         #[label("previous definition here")]
-        previous_def: ast::Span,
+        previous_def: Span,
     },
 
     #[error("function '{fn_name}' is already defined")]
@@ -202,10 +198,10 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("here")]
-        here: ast::Span,
+        here: Span,
 
         #[label("previous definition here")]
-        previous_def: ast::Span,
+        previous_def: Span,
     },
 
     #[error("function '{fn_name}' not found")]
@@ -217,7 +213,7 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("used here")]
-        here: ast::Span,
+        here: Span,
 
         #[help]
         advice: Option<String>,
@@ -230,7 +226,7 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("here")]
-        here: ast::Span,
+        here: Span,
     },
 
     #[error("not all code paths return")]
@@ -244,7 +240,7 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("here")]
-        stmt_span: ast::Span,
+        stmt_span: Span,
     },
 
     #[error("function '{func}' expected {expected} argument(s) but got {got}")]
@@ -260,13 +256,13 @@ pub enum Error {
         src: miette::NamedSource<String>,
 
         #[label("arguments to this function are incorrect")]
-        fn_call_name: ast::Span,
+        fn_call_name: Span,
 
         #[label("{got} arguments(s) supplied")]
-        fn_call_args: Option<ast::Span>,
+        fn_call_args: Option<Span>,
 
         #[label("expected {expected} arguments(s)")]
-        fn_def_args: Option<ast::Span>,
+        fn_def_args: Option<Span>,
     },
 }
 
@@ -282,7 +278,7 @@ pub enum Warning {
         src: miette::NamedSource<String>,
 
         #[label("defined here")]
-        varname_decl_span: ast::Span,
+        varname_decl_span: Span,
     },
 }
 
@@ -358,7 +354,7 @@ impl Analyzer {
             .map(|name| format!("did you mean '{name}'?"))
     }
 
-    fn declare_variable(&mut self, var_name: &str, r#type: ast::Type, span: ast::Span) {
+    fn declare_variable(&mut self, var_name: &str, r#type: ast::Type, span: Span) {
         let type_decl_span = r#type.span;
 
         self.variables.last_mut().unwrap().insert(
