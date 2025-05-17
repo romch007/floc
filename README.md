@@ -10,7 +10,7 @@ The Flo programming language is an imperative and statically-typed language desi
 
 What you need:
 - Rust
-- LLVM 18 with `clang` in path
+- LLVM 18.1 with `clang` in path
 
 ### Building and running:
 ```bash

@@ -8,19 +8,19 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.5.4", features = ["derive", "cargo"] }
 fastrand = "2.3.0"
-miette = { version = "7.4.0", features = ["fancy"] }
-owo-colors = "4.1.0"
-pest = { version = "2.7.10", features = ["miette-error"] }
-pest_derive = "2.7.10"
+miette = { version = "7.6.0", features = ["fancy"] }
+owo-colors = "4.2.1"
+pest = { version = "2.8.0", features = ["miette-error"] }
+pest_derive = "2.8.0"
 regex = "1.11.1"
 scopeguard = "1.2.0"
 thiserror = "2.0.3"
 
 [target.'cfg(not(windows))'.dependencies]
-inkwell = { version = "0.5.0", features = ["llvm18-0-prefer-dynamic"] }
+inkwell = { version = "0.6.0", features = ["llvm18-1-prefer-dynamic"] }
 
 [target.'cfg(windows)'.dependencies]
-inkwell = { version = "0.5.0", features = ["llvm18-0-force-static", "target-x86"], default-features = false }
+inkwell = { version = "0.6.0", features = ["llvm18-1-force-static", "target-x86"], default-features = false }
 
 [build-dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
