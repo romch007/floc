@@ -39,7 +39,9 @@ fn main() -> miette::Result<()> {
 
         let source = fs::read_to_string(&args.source_file)
             .into_diagnostic()
-            .wrap_err("cannot open source file")?;
+            .wrap_err_with(|| {
+                format!("cannot open source file '{}'", args.source_file.display())
+            })?;
 
         let filename = Path::new(&args.source_file)
             .file_name()
