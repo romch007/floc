@@ -112,8 +112,6 @@ fn main() -> miette::Result<()> {
         .to_str()
         .expect("invalid utf8 in target triple");
 
-    println!("{target_triple}");
-
     let is_msvc = target_triple.ends_with("msvc");
 
     let (llvm_file_type, llvm_output_file, exec_output_file) =
