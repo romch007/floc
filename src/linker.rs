@@ -1,5 +1,5 @@
 use cc::windows_registry;
-use miette::{bail, Context, IntoDiagnostic};
+use miette::{Context, IntoDiagnostic, bail};
 use std::{
     ffi::{OsStr, OsString},
     path::Path,
@@ -7,13 +7,12 @@ use std::{
 };
 
 macro_rules! os {
-    ($val:expr) => {{
-        OsStr::new($val)
-    }};
+    ($val:expr) => {{ OsStr::new($val) }};
 }
 
-pub fn link_msvc(object_file: &Path, output_file: &Path) -> miette::Result<()> {
-    let linker = windows_registry::find_tool("x64", "link.exe").wrap_err("cannot find link.exe")?;
+pub fn link_msvc(object_file: &Path, output_file: &Path, msvc_arch: &str) -> miette::Result<()> {
+    let linker = windows_registry::find_tool(msvc_arch, "link.exe")
+        .wrap_err_with(|| format!("cannot find link.exe for arch {msvc_arch}"))?;
 
     let mut out_arg = OsString::from("/OUT:");
     out_arg.push(output_file.as_os_str());

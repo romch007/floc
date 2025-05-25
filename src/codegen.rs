@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::Path};
 
 use inkwell::{
+    AddressSpace, IntPredicate,
     builder::Builder,
     context::Context,
     module::Module,
@@ -10,7 +11,6 @@ use inkwell::{
     },
     types::{BasicMetadataTypeEnum, IntType},
     values::{BasicMetadataValueEnum, FunctionValue, GlobalValue, IntValue, PointerValue},
-    AddressSpace, IntPredicate,
 };
 
 use crate::{analyzer, ast, cli};

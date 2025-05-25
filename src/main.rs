@@ -8,7 +8,7 @@ mod utils;
 
 use std::{fs, io::Read, path::Path};
 
-use miette::{IntoDiagnostic, WrapErr};
+use miette::{IntoDiagnostic, WrapErr, bail};
 use scopeguard::defer;
 
 fn main() -> miette::Result<()> {
@@ -129,7 +129,19 @@ fn main() -> miette::Result<()> {
         }
 
         if is_msvc {
-            linker::link_msvc(&llvm_output_file, &exec_output_file)
+            let msvc_arch = if target_triple.starts_with("x86_64") {
+                "x64"
+            } else if target_triple.starts_with("i686") {
+                "x86"
+            } else if target_triple.starts_with("aarch64") {
+                "arm64"
+            } else if target_triple.starts_with("arm64ec") {
+                "arm64"
+            } else {
+                bail!("invalid target triple '{target_triple}' for MSVC");
+            };
+
+            linker::link_msvc(&llvm_output_file, &exec_output_file, msvc_arch)
         } else {
             linker::link_cc(&llvm_output_file, &exec_output_file)
         }

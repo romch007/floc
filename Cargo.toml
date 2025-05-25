@@ -19,7 +19,12 @@ thiserror = "2.0.3"
 inkwell = { version = "0.6.0", features = ["llvm18-1-prefer-dynamic"] }
 
 [target.'cfg(windows)'.dependencies]
-inkwell = { version = "0.6.0", features = ["llvm18-1-force-static", "target-x86"], default-features = false }
+inkwell = { version = "0.6.0", features = [
+    "llvm18-1-force-static",
+    "target-x86",
+    "target-arm",
+    "target-aarch64",
+], default-features = false }
 
 [build-dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
