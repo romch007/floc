@@ -10,7 +10,7 @@ The Flo programming language is an imperative and statically-typed language desi
 
 What you need:
 - Rust
-- LLVM 18.1 with `clang` in path
+- LLVM 18.1
 
 ### Building and running:
 ```bash
@@ -23,7 +23,7 @@ $ cargo build --release
 $ target/release/floc[.exe] flo_examples/factorial.flo
 ```
 
-Note: If you are on Windows, make sure you are in a MSVC x64 native tools command prompt, or clang will fail to compile programs.
+Note: On Windows, make sure `link.exe` is available by installing Visual Studio with the "Desktop development with C++" workload.
 
 ### AUR
 
