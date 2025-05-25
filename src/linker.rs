@@ -3,7 +3,7 @@ use miette::{bail, Context, IntoDiagnostic};
 use std::{
     ffi::{OsStr, OsString},
     path::Path,
-    process::Stdio,
+    process::{Command, Stdio},
 };
 
 macro_rules! os {
@@ -37,6 +37,24 @@ pub fn link_msvc(object_file: &Path, output_file: &Path) -> miette::Result<()> {
 
     if !res.success() {
         bail!("link.exe returned a non-zero exit code");
+    }
+
+    Ok(())
+}
+
+pub fn link_cc(object_file: &Path, output_file: &Path) -> miette::Result<()> {
+    let args = [object_file.as_os_str(), os!("-o"), output_file.as_os_str()];
+
+    let res = Command::new("cc")
+        .args(args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .into_diagnostic()
+        .wrap_err("`cc` failed to start")?;
+
+    if !res.success() {
+        bail!("`cc` returned a non-zero exit code");
     }
 
     Ok(())

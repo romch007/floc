@@ -131,7 +131,7 @@ fn main() -> miette::Result<()> {
         if is_msvc {
             linker::link_msvc(&llvm_output_file, &exec_output_file)
         } else {
-            todo!()
+            linker::link_cc(&llvm_output_file, &exec_output_file)
         }
         .wrap_err("cannot link")?;
     }
