@@ -10,6 +10,7 @@ const MAX_LEVENSHTEIN_DIST_FOR_SUGGEST: usize = 3;
 struct Variable {
     r#type: ast::Type,
     use_count: Cell<usize>,
+    initialized: Cell<bool>,
 
     /// Span to the variable declaration
     declaration_span: Span,
@@ -19,12 +20,18 @@ struct Variable {
 }
 
 impl Variable {
-    pub fn new(r#type: ast::Type, declaration_span: Span, type_declaration_span: Span) -> Self {
+    pub fn new(
+        r#type: ast::Type,
+        declaration_span: Span,
+        type_declaration_span: Span,
+        initialized: bool,
+    ) -> Self {
         Self {
             r#type,
             declaration_span,
             type_declaration_span,
             use_count: Cell::new(0),
+            initialized: Cell::new(initialized),
         }
     }
 
@@ -32,8 +39,16 @@ impl Variable {
         self.use_count.replace(self.use_count.get() + 1);
     }
 
+    pub fn set_initialized(&self) {
+        self.initialized.replace(true);
+    }
+
     pub fn is_unused(&self) -> bool {
         self.use_count.get() == 0
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        self.initialized.get()
     }
 }
 
@@ -280,6 +295,22 @@ pub enum Warning {
         #[label("defined here")]
         varname_decl_span: Span,
     },
+
+    #[error("variable '{varname}' is used uninitialized")]
+    #[diagnostic(code(floc::variable_used_uninitialized))]
+    #[diagnostic(severity(Warning))]
+    VariableUsedUninitialized {
+        varname: String,
+
+        #[source_code]
+        src: miette::NamedSource<String>,
+
+        #[label("defined here")]
+        varname_decl_span: Span,
+
+        #[label("used here")]
+        varname_use_span: Span,
+    },
 }
 
 pub struct Analyzer {
@@ -354,12 +385,18 @@ impl Analyzer {
             .map(|name| format!("did you mean '{name}'?"))
     }
 
-    fn declare_variable(&mut self, var_name: &str, r#type: ast::Type, span: Span) {
+    fn declare_variable(
+        &mut self,
+        var_name: &str,
+        r#type: ast::Type,
+        span: Span,
+        initialized: bool,
+    ) {
         let type_decl_span = r#type.span;
 
         self.variables.last_mut().unwrap().insert(
             var_name.to_string(),
-            Variable::new(r#type, span, type_decl_span),
+            Variable::new(r#type, span, type_decl_span, initialized),
         );
     }
 
@@ -412,7 +449,7 @@ impl Analyzer {
         self.enter_block();
 
         for arg in &fn_decl.arguments {
-            self.declare_variable(&arg.name, arg.r#type.clone(), arg.span);
+            self.declare_variable(&arg.name, arg.r#type.clone(), arg.span, true);
         }
 
         let mut does_return = false;
@@ -552,8 +589,12 @@ impl Analyzer {
             }));
         }
 
+        let mut initialized = false;
+
         if let Some(default_value) = &declaration.value {
             let default_value_type = self.analyze_expr(default_value)?;
+
+            initialized = true;
 
             if declaration.r#type.kind != default_value_type.kind {
                 return Err(Box::new(Error::TypeMismatchInAssign {
@@ -570,28 +611,30 @@ impl Analyzer {
             &declaration.variable,
             declaration.r#type.clone(),
             declaration.span,
+            initialized,
         );
 
         Ok(false)
     }
 
     fn analyze_assignment(&mut self, assignment: &ast::Assignment) -> Result<bool, Box<Error>> {
-        let variable = self
-            .get_variable(&assignment.variable)
-            .cloned()
-            .ok_or_else(|| Error::VariableNotFound {
-                var_name: assignment.variable.ident.to_string(),
-                src: self.source_code.clone(),
-                here: assignment.variable.span,
-                advice: self.get_help_var_not_found(&assignment.variable.ident),
-            })?;
-
         let expr_type = self.analyze_expr(&assignment.value)?;
+
+        let variable =
+            self.get_variable(&assignment.variable)
+                .ok_or_else(|| Error::VariableNotFound {
+                    var_name: assignment.variable.ident.to_string(),
+                    src: self.source_code.clone(),
+                    here: assignment.variable.span,
+                    advice: self.get_help_var_not_found(&assignment.variable.ident),
+                })?;
+
+        variable.set_initialized();
 
         if expr_type.kind != variable.r#type.kind {
             return Err(Box::new(Error::TypeMismatchInAssign {
                 src: self.source_code.clone(),
-                expected_type: variable.r#type.kind,
+                expected_type: variable.r#type.kind.clone(),
                 wrong_value_type: expr_type.kind,
                 wrong_value: expr_type.span,
                 type_def: variable.type_declaration_span,
@@ -700,8 +743,21 @@ impl Analyzer {
 
         existing_variable.increment_use_count();
 
+        let var_type = existing_variable.r#type.clone();
+
+        if !existing_variable.is_initialized() {
+            let report = miette::Report::new(Warning::VariableUsedUninitialized {
+                varname: variable.ident.clone(),
+                src: self.source_code.clone(),
+                varname_decl_span: existing_variable.declaration_span,
+                varname_use_span: variable.span,
+            });
+
+            self.warnings.push(report);
+        }
+
         Ok(ast::Type {
-            kind: existing_variable.r#type.clone().kind,
+            kind: var_type.kind,
             span: variable.span,
         })
     }
