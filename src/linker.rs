@@ -48,7 +48,7 @@ pub fn link_cc(object_file: &Path, output_file: &Path) -> miette::Result<()> {
     let res = Command::new("cc")
         .args(args)
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::inherit())
         .status()
         .into_diagnostic()
         .wrap_err("`cc` failed to start")?;
