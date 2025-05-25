@@ -3,7 +3,7 @@ name = "floc"
 authors = ["Romain Chardiny <romain.chardiny@gmail.com>"]
 description = "Compiler for the Flo programming language"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 cc = "1.2.24"
