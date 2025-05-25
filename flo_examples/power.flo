@@ -1,5 +1,5 @@
 entier power(entier a, entier b) {
-  entier i;
+  entier i = 0;
   entier r = 1;
 
   tantque (i < b) {

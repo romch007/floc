@@ -100,7 +100,7 @@ macro_rules! testprogram {
             let output = String::from_utf8(output.stdout).expect("invalid UTF-8 in program output");
             let output_numbers = output
                 .trim()
-                .split('\n')
+                .lines()
                 .map(|line| line.parse::<i64>())
                 .collect::<Result<Vec<_>, _>>()
                 .expect("output is not a number");
