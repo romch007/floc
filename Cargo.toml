@@ -6,6 +6,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+cc = "1.2.24"
 clap = { version = "4.5.4", features = ["derive", "cargo"] }
 fastrand = "2.3.0"
 miette = { version = "7.6.0", features = ["fancy"] }

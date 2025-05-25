@@ -2,25 +2,14 @@ mod analyzer;
 mod ast;
 mod cli;
 mod codegen;
+mod linker;
 mod parser;
 mod utils;
 
-use std::{
-    ffi::OsStr,
-    fs,
-    io::{self, Read},
-    path::Path,
-    process,
-};
+use std::{fs, io::Read, path::Path};
 
-use miette::{bail, IntoDiagnostic, WrapErr};
+use miette::{IntoDiagnostic, WrapErr};
 use scopeguard::defer;
-
-macro_rules! os {
-    ($val:expr) => {{
-        OsStr::new($val)
-    }};
-}
 
 fn main() -> miette::Result<()> {
     let args = cli::parse();
@@ -123,10 +112,12 @@ fn main() -> miette::Result<()> {
         .to_str()
         .expect("invalid utf8 in target triple");
 
-    let on_windows = target_triple.contains("windows");
+    println!("{target_triple}");
+
+    let is_msvc = target_triple.ends_with("msvc");
 
     let (llvm_file_type, llvm_output_file, exec_output_file) =
-        utils::get_output_files(&args, module_name, on_windows);
+        utils::get_output_files(&args, module_name, is_msvc);
 
     codegen
         .compile(&target_machine, &llvm_output_file, llvm_file_type)
@@ -134,44 +125,17 @@ fn main() -> miette::Result<()> {
         .wrap_err("cannot compile program")?;
 
     if let Some(exec_output_file) = exec_output_file {
-        let mut link_params = vec![
-            llvm_output_file.as_os_str(),
-            os!("-target"),
-            target_triple.as_ref(),
-            os!("-o"),
-            exec_output_file.as_ref(),
-        ];
-
-        if on_windows {
-            // See https://learn.microsoft.com/en-us/cpp/porting/visual-cpp-change-history-2003-2015?view=msvc-170#stdio_and_conio
-            link_params.push(os!("-llegacy_stdio_definitions"));
-        }
-
-        if let Some(additional_link_params) = &args.link_params {
-            link_params.extend(additional_link_params.split(' ').map(OsStr::new));
-        }
-
         // Remove the object file whatever happens
         defer! {
             let _ = fs::remove_file(llvm_output_file.clone());
         }
 
-        let mut child = match process::Command::new("clang").args(&link_params).spawn() {
-            Ok(child) => child,
-            Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
-                bail!("link failed: cannot find `clang`");
-            }
-            Err(e) => Err(e).into_diagnostic().wrap_err("cannot link program")?,
-        };
-
-        let status = child
-            .wait()
-            .into_diagnostic()
-            .wrap_err("cannot link program")?;
-
-        if !status.success() {
-            bail!("link failed: clang returned a non-zero exit code");
+        if is_msvc {
+            linker::link_msvc(&llvm_output_file, &exec_output_file)
+        } else {
+            todo!()
         }
+        .wrap_err("cannot link")?;
     }
 
     Ok(())

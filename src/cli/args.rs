@@ -50,10 +50,6 @@ pub struct Args {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Additional params to pass to clang at link time
-    #[arg(long)]
-    pub link_params: Option<String>,
-
     /// Source file to compile
     pub source_file: PathBuf,
 }

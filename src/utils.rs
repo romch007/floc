@@ -152,7 +152,7 @@ pub fn levenshtein(a: &str, b: &str) -> usize {
 pub fn get_output_files(
     args: &cli::args::Args,
     module_name: &str,
-    on_windows: bool,
+    is_msvc: bool,
 ) -> (FileType, PathBuf, Option<PathBuf>) {
     if args.assemble {
         (
@@ -163,7 +163,7 @@ pub fn get_output_files(
             None,
         )
     } else {
-        let object_file_ext = if on_windows { "obj" } else { "o" };
+        let object_file_ext = if is_msvc { "obj" } else { "o" };
         let object_file = if args.compile {
             args.output
                 .clone()
@@ -182,7 +182,7 @@ pub fn get_output_files(
             let file_path = args.output.clone().unwrap_or_else(|| {
                 let mut path = PathBuf::from(module_name);
 
-                if on_windows {
+                if is_msvc {
                     path.set_extension("exe");
                 }
 
