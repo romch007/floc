@@ -4,7 +4,7 @@ fn generate_shell_completion() {
     use std::{env, fs};
 
     use clap::{CommandFactory, ValueEnum};
-    use clap_complete::{generate_to, Shell};
+    use clap_complete::{Shell, generate_to};
 
     let shell_comp_out_dir = env::var("SHELL_COMPLETIONS_DIR")
         .or_else(|_| env::var("OUT_DIR"))
@@ -71,7 +71,25 @@ fn generate_wrapper() {
         .expect("could not write bindings");
 }
 
+fn get_llvm_cxxflags(llvm_config_path: &str) -> String {
+    let res = std::process::Command::new(llvm_config_path)
+        .arg("--cxxflags")
+        .output()
+        .expect("cannot run llvm-config");
+
+    if !res.status.success() {
+        panic!("llvm-config failed");
+    }
+
+    String::from_utf8(res.stdout).unwrap()
+}
+
 fn compile_wrapper() {
+    let llvm_config_path = std::env::var("DEP_LLVM_18_CONFIG_PATH").unwrap();
+    let cxxflags = get_llvm_cxxflags(&llvm_config_path);
+
+    unsafe { std::env::set_var("CXXFLAGS", &cxxflags) };
+
     cc::Build::new()
         .cpp(true)
         .file("llvm-wrapper/wrapper.cpp")

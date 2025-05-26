@@ -303,6 +303,7 @@ dependencies = [
  "clap_mangen",
  "fastrand",
  "inkwell",
+ "llvm-sys",
  "miette",
  "pest",
  "pest_derive",
