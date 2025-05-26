@@ -204,6 +204,14 @@ pub fn get_arch_from_target_triple(target_triple: &str) -> Arch {
     unsafe { llvm_wrapper::arch_from_target_triple(target_triple.as_ptr()) }
 }
 
+pub fn is_msvc(target_triple: &str) -> bool {
+    let target_triple = CString::new(target_triple).unwrap();
+
+    let ret = unsafe { llvm_wrapper::is_msvc(target_triple.as_ptr()) };
+
+    ret != 0
+}
+
 #[cfg(test)]
 mod tests {
     use std::{ffi::OsStr, path::PathBuf};

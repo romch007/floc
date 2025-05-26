@@ -113,7 +113,8 @@ fn main() -> miette::Result<()> {
         .to_str()
         .expect("invalid utf8 in target triple");
 
-    let is_msvc = target_triple.ends_with("msvc");
+    let target_arch = utils::get_arch_from_target_triple(target_triple);
+    let is_msvc = utils::is_msvc(target_triple);
 
     let (llvm_file_type, llvm_output_file, exec_output_file) =
         utils::get_output_files(&args, module_name, is_msvc);
@@ -130,16 +131,12 @@ fn main() -> miette::Result<()> {
         }
 
         if is_msvc {
-            let msvc_arch = if target_triple.starts_with("x86_64") {
-                "x64"
-            } else if target_triple.starts_with("i686") {
-                "x86"
-            } else if target_triple.starts_with("aarch64") {
-                "arm64"
-            } else if target_triple.starts_with("arm64ec") {
-                "arm64"
-            } else {
-                bail!("invalid target triple '{target_triple}' for MSVC");
+            let msvc_arch = match target_arch {
+                utils::Arch::x86_64 => "x64",
+                utils::Arch::x86 => "x86",
+                utils::Arch::aarch64 => "arm64",
+                utils::Arch::arm => "arm",
+                _ => bail!("invalid target triple '{target_triple}' for MSVC"),
             };
 
             linker::link_msvc(&llvm_output_file, &exec_output_file, msvc_arch)

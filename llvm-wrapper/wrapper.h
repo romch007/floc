@@ -75,6 +75,8 @@ typedef enum {
 
 arch_t arch_from_target_triple(const char *target_triple);
 
+int is_msvc(const char* target_triple);
+
 #ifdef __cplusplus
 }
 #endif

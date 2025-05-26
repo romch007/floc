@@ -16,4 +16,10 @@ arch_t arch_from_target_triple(const char* target_triple) {
   }
 }
 
+int is_msvc(const char *target_triple) {
+  llvm::Triple triple(target_triple);
+
+  return triple.getEnvironment() == llvm::Triple::EnvironmentType::MSVC;
+}
+
 }
