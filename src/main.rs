@@ -3,6 +3,7 @@ mod ast;
 mod cli;
 mod codegen;
 mod linker;
+mod llvm_wrapper;
 mod parser;
 mod utils;
 

@@ -1,11 +1,11 @@
 use std::env;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{CString, OsStr, OsString};
 use std::iter::repeat_with;
 use std::path::PathBuf;
 
 use inkwell::targets::FileType;
 
-use crate::cli;
+use crate::{cli, llvm_wrapper};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Span {
@@ -194,6 +194,14 @@ pub fn get_output_files(
 
         (FileType::Object, object_file, exec_file)
     }
+}
+
+pub type Arch = llvm_wrapper::arch_t;
+
+pub fn get_arch_from_target_triple(target_triple: &str) -> Arch {
+    let target_triple = CString::new(target_triple).unwrap();
+
+    unsafe { llvm_wrapper::arch_from_target_triple(target_triple.as_ptr()) }
 }
 
 #[cfg(test)]
