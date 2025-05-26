@@ -46,6 +46,10 @@ pub struct Args {
     #[arg(short = 'S', long)]
     pub assemble: bool,
 
+    /// Verbose output
+    #[arg(short = 'v', long)]
+    pub verbose: bool,
+
     /// Linker to execute (ignored when using MSVC)
     #[arg(long)]
     pub linker: Option<String>,

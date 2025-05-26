@@ -1,9 +1,9 @@
 pub mod args;
 
 use args::Args;
-use clap::crate_version;
 use clap::CommandFactory;
 use clap::FromArgMatches;
+use clap::crate_version;
 use std::sync::LazyLock;
 
 static VERSION: LazyLock<String> = LazyLock::new(get_version);

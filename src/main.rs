@@ -42,6 +42,10 @@ fn main() -> miette::Result<()> {
         (source, filename)
     };
 
+    if args.verbose {
+        eprintln!("-- parsing");
+    }
+
     let named_source = miette::NamedSource::new(filename, source);
 
     let ast_prog = parser::parse(named_source.clone())?;
@@ -56,6 +60,10 @@ fn main() -> miette::Result<()> {
         return Ok(());
     }
 
+    if args.verbose {
+        eprintln!("-- analyzing");
+    }
+
     let mut analyzer = analyzer::Analyzer::new(named_source.clone());
     analyzer
         .analyze_program(&ast_prog)
@@ -66,6 +74,10 @@ fn main() -> miette::Result<()> {
     }
 
     let module_name = filename.strip_suffix(".flo").unwrap_or("<unknown>");
+
+    if args.verbose {
+        eprintln!("-- compiling");
+    }
 
     let llvm_context = inkwell::context::Context::create();
     let mut codegen = codegen::Compiler::new(&llvm_context, module_name);
@@ -113,11 +125,19 @@ fn main() -> miette::Result<()> {
         .to_str()
         .expect("invalid utf8 in target triple");
 
+    if args.verbose {
+        eprintln!("LLVM target triple is {target_triple}");
+    }
+
     let target_arch = utils::get_arch_from_target_triple(target_triple);
     let is_msvc = utils::is_msvc(target_triple);
 
     let (llvm_file_type, llvm_output_file, exec_output_file) =
         utils::get_output_files(&args, module_name, is_msvc);
+
+    if args.verbose {
+        eprintln!("output file is {}", llvm_output_file.display());
+    }
 
     codegen
         .compile(&target_machine, &llvm_output_file, llvm_file_type)
@@ -130,12 +150,17 @@ fn main() -> miette::Result<()> {
             let _ = fs::remove_file(llvm_output_file.clone());
         }
 
+        if args.verbose {
+            eprintln!("-- linking");
+        }
+
         if is_msvc {
             linker::link_msvc(
                 &llvm_output_file,
                 &exec_output_file,
                 args.link_static,
                 &target_arch,
+                args.verbose,
             )
         } else {
             linker::link_cc(
@@ -143,6 +168,7 @@ fn main() -> miette::Result<()> {
                 &llvm_output_file,
                 &exec_output_file,
                 args.link_static,
+                args.verbose,
             )
         }
         .wrap_err("cannot link")?;

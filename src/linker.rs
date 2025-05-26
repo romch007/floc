@@ -17,14 +17,19 @@ pub fn link_msvc(
     output_file: &Path,
     link_static: bool,
     arch: &utils::Arch,
+    verbose: bool,
 ) -> miette::Result<()> {
     let msvc_arch = match arch {
         utils::Arch::x86_64 => "x64",
         utils::Arch::x86 => "x86",
         utils::Arch::aarch64 => "arm64",
-        utils::Arch::arm => "arm",
         _ => bail!("invalid arch {arch:?} for MSVC"),
     };
+
+    if verbose {
+        eprintln!("using MSVC arch {msvc_arch}");
+    }
+
     let linker = windows_registry::find_tool(msvc_arch, "link.exe")
         .wrap_err_with(|| format!("cannot find link.exe for arch {msvc_arch}"))?;
 
@@ -43,11 +48,23 @@ pub fn link_msvc(
         out_arg.as_os_str(),
     ];
 
+    if verbose {
+        eprintln!("calling {} with args {args:?}", linker.path().display());
+    }
+
+    let stdio = || {
+        if verbose {
+            Stdio::inherit()
+        } else {
+            Stdio::null()
+        }
+    };
+
     let res = linker
         .to_command()
         .args(args)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(stdio())
+        .stderr(stdio())
         .status()
         .into_diagnostic()
         .wrap_err("link.exe failed to start")?;
@@ -64,6 +81,7 @@ pub fn link_cc(
     object_file: &Path,
     output_file: &Path,
     link_static: bool,
+    verbose: bool,
 ) -> miette::Result<()> {
     let mut args = vec![object_file.as_os_str(), os!("-o"), output_file.as_os_str()];
 
@@ -71,9 +89,17 @@ pub fn link_cc(
         args.push(os!("-static"));
     }
 
+    if verbose {
+        eprintln!("calling {linker} with args {args:?}");
+    }
+
     let res = Command::new(linker)
         .args(args)
-        .stdout(Stdio::null())
+        .stdout(if verbose {
+            Stdio::inherit()
+        } else {
+            Stdio::null()
+        })
         .stderr(Stdio::inherit())
         .status()
         .into_diagnostic()

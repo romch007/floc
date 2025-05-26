@@ -23,7 +23,6 @@ inkwell = { version = "0.6.0", features = ["llvm18-1-prefer-dynamic"] }
 inkwell = { version = "0.6.0", features = [
     "llvm18-1-force-static",
     "target-x86",
-    "target-arm",
     "target-aarch64",
 ], default-features = false }
 
