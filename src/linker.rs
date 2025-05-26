@@ -10,7 +10,7 @@ macro_rules! os {
     ($val:expr) => {{ OsStr::new($val) }};
 }
 
-pub fn link_msvc(object_file: &Path, output_file: &Path, msvc_arch: &str) -> miette::Result<()> {
+pub fn link_msvc(msvc_arch: &str, object_file: &Path, output_file: &Path) -> miette::Result<()> {
     let linker = windows_registry::find_tool(msvc_arch, "link.exe")
         .wrap_err_with(|| format!("cannot find link.exe for arch {msvc_arch}"))?;
 
@@ -41,19 +41,28 @@ pub fn link_msvc(object_file: &Path, output_file: &Path, msvc_arch: &str) -> mie
     Ok(())
 }
 
-pub fn link_cc(object_file: &Path, output_file: &Path) -> miette::Result<()> {
-    let args = [object_file.as_os_str(), os!("-o"), output_file.as_os_str()];
+pub fn link_cc(
+    linker: &str,
+    object_file: &Path,
+    output_file: &Path,
+    link_static: bool,
+) -> miette::Result<()> {
+    let mut args = vec![object_file.as_os_str(), os!("-o"), output_file.as_os_str()];
 
-    let res = Command::new("cc")
+    if link_static {
+        args.push(os!("-static"));
+    }
+
+    let res = Command::new(linker)
         .args(args)
         .stdout(Stdio::null())
         .stderr(Stdio::inherit())
         .status()
         .into_diagnostic()
-        .wrap_err("`cc` failed to start")?;
+        .wrap_err_with(|| format!("`{linker}` failed to start"))?;
 
     if !res.success() {
-        bail!("`cc` returned a non-zero exit code");
+        bail!("`{linker}` returned a non-zero exit code");
     }
 
     Ok(())

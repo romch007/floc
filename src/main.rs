@@ -139,9 +139,14 @@ fn main() -> miette::Result<()> {
                 _ => bail!("invalid target triple '{target_triple}' for MSVC"),
             };
 
-            linker::link_msvc(&llvm_output_file, &exec_output_file, msvc_arch)
+            linker::link_msvc(msvc_arch, &llvm_output_file, &exec_output_file)
         } else {
-            linker::link_cc(&llvm_output_file, &exec_output_file)
+            linker::link_cc(
+                args.linker.as_deref().unwrap_or("cc"),
+                &llvm_output_file,
+                &exec_output_file,
+                args.link_static,
+            )
         }
         .wrap_err("cannot link")?;
     }

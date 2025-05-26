@@ -46,6 +46,14 @@ pub struct Args {
     #[arg(short = 'S', long)]
     pub assemble: bool,
 
+    /// Linker to execute (ignored when using MSVC)
+    #[arg(long)]
+    pub linker: Option<String>,
+
+    /// Statically link program
+    #[arg(long = "static", default_value_t = false)]
+    pub link_static: bool,
+
     /// Output executable
     #[arg(short, long)]
     pub output: Option<PathBuf>,
