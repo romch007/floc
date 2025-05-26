@@ -6,11 +6,25 @@ use std::{
     process::{Command, Stdio},
 };
 
+use crate::utils;
+
 macro_rules! os {
     ($val:expr) => {{ OsStr::new($val) }};
 }
 
-pub fn link_msvc(msvc_arch: &str, object_file: &Path, output_file: &Path) -> miette::Result<()> {
+pub fn link_msvc(
+    object_file: &Path,
+    output_file: &Path,
+    link_static: bool,
+    arch: &utils::Arch,
+) -> miette::Result<()> {
+    let msvc_arch = match arch {
+        utils::Arch::x86_64 => "x64",
+        utils::Arch::x86 => "x86",
+        utils::Arch::aarch64 => "arm64",
+        utils::Arch::arm => "arm",
+        _ => bail!("invalid arch {arch:?} for MSVC"),
+    };
     let linker = windows_registry::find_tool(msvc_arch, "link.exe")
         .wrap_err_with(|| format!("cannot find link.exe for arch {msvc_arch}"))?;
 
@@ -20,7 +34,11 @@ pub fn link_msvc(msvc_arch: &str, object_file: &Path, output_file: &Path) -> mie
     let args = [
         object_file.as_os_str(),
         os!("legacy_stdio_definitions.lib"),
-        os!("msvcrt.lib"),
+        if link_static {
+            os!("libcmt.lib")
+        } else {
+            os!("msvcrt.lib")
+        },
         os!("/SUBSYSTEM:CONSOLE"),
         out_arg.as_os_str(),
     ];
