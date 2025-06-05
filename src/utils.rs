@@ -196,12 +196,103 @@ pub fn get_output_files(
     }
 }
 
-pub type Arch = llvm_wrapper::arch_t;
+macro_rules! define_arch_enum {
+    (
+        from: $enum_from:ty,
+        name: $enum_name:ident,
+        archs: [$($variant:ident),*],
+        unknown_field: $unknown_field:ident
+    ) => {
+        #[derive(Debug)]
+        #[allow(non_camel_case_types)]
+        pub enum $enum_name {
+            $($variant),*,
+        }
 
-pub fn get_arch_from_target_triple(target_triple: &str) -> Arch {
+        impl $enum_name {
+            pub fn from_wrapper(arch: $enum_from) -> Option<Self> {
+                match arch {
+                    $( <$enum_from>::$variant => Some(<$enum_name>::$variant), )*
+                    <$enum_from>::$unknown_field => None,
+                }
+            }
+        }
+    };
+}
+
+define_arch_enum!(
+    from: llvm_wrapper::arch_t,
+    name: Arch,
+    archs: [
+        arm,
+        armeb,
+        aarch64,
+        aarch64_be,
+        aarch64_32,
+        arc,
+        avr,
+        bpfel,
+        bpfeb,
+        csky,
+        dxil,
+        hexagon,
+        loongarch32,
+        loongarch64,
+        m68k,
+        mips,
+        mipsel,
+        mips64,
+        mips64el,
+        msp430,
+        ppc,
+        ppcle,
+        ppc64,
+        ppc64le,
+        r600,
+        amdgcn,
+        riscv32,
+        riscv64,
+        sparc,
+        sparcv9,
+        sparcel,
+        systemz,
+        tce,
+        tcele,
+        thumb,
+        thumbeb,
+        x86,
+        x86_64,
+        xcore,
+        xtensa,
+        nvptx,
+        nvptx64,
+        amdil,
+        amdil64,
+        hsail,
+        hsail64,
+        spir,
+        spir64,
+        spirv,
+        spirv32,
+        spirv64,
+        kalimba,
+        shave,
+        lanai,
+        wasm32,
+        wasm64,
+        renderscript32,
+        renderscript64,
+        ve
+    ],
+    unknown_field: unknown
+);
+
+pub fn get_arch_from_target_triple(target_triple: &str) -> Option<Arch> {
     let target_triple = CString::new(target_triple).unwrap();
 
-    unsafe { llvm_wrapper::arch_from_target_triple(target_triple.as_ptr()) }
+    let ret = unsafe { llvm_wrapper::arch_from_target_triple(target_triple.as_ptr()) };
+
+    Arch::from_wrapper(ret)
 }
 
 pub fn is_msvc(target_triple: &str) -> bool {

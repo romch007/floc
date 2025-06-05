@@ -129,7 +129,9 @@ fn main() -> miette::Result<()> {
         eprintln!("LLVM target triple is {target_triple}");
     }
 
-    let target_arch = utils::get_arch_from_target_triple(target_triple);
+    let target_arch = utils::get_arch_from_target_triple(target_triple)
+        .wrap_err_with(|| format!("unknown arch from target triple {target_triple}"))?;
+
     let is_msvc = utils::is_msvc(target_triple);
 
     let (llvm_file_type, llvm_output_file, exec_output_file) =
