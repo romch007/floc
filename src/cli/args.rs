@@ -22,6 +22,10 @@ pub struct Args {
     #[arg(long, default_value_t = false)]
     pub emit_optimized_ir: bool,
 
+    /// Print available targets and exit
+    #[arg(long, default_value_t = false)]
+    pub print_targets: bool,
+
     /// LLVM target triple
     #[arg(short, long)]
     pub target_triple: Option<String>,
@@ -63,7 +67,7 @@ pub struct Args {
     pub output: Option<PathBuf>,
 
     /// Source file to compile
-    pub source_file: PathBuf,
+    pub source_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]

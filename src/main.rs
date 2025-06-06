@@ -12,10 +12,49 @@ use std::{fs, io::Read, path::Path};
 use miette::{IntoDiagnostic, WrapErr};
 use scopeguard::defer;
 
+fn print_targets() -> miette::Result<()> {
+    println!("Available LLVM targets:");
+
+    let mut target = inkwell::targets::Target::get_first();
+
+    while let Some(t) = target {
+        let name = t
+            .get_name()
+            .to_str()
+            .into_diagnostic()
+            .wrap_err("invalid utf8 in target name")?;
+
+        let description = t
+            .get_description()
+            .to_str()
+            .into_diagnostic()
+            .wrap_err("invalid utf8 in target description")?;
+
+        println!("{:<15} - {}", name, description);
+
+        target = t.get_next();
+    }
+
+    Ok(())
+}
+
 fn main() -> miette::Result<()> {
     let args = cli::parse();
 
-    let (source, filename) = if let Some("-") = args.source_file.to_str() {
+    inkwell::targets::Target::initialize_all(&inkwell::targets::InitializationConfig::default());
+
+    if args.print_targets {
+        print_targets()?;
+
+        return Ok(());
+    }
+
+    let source_file = args
+        .source_file
+        .clone()
+        .wrap_err("no input file provided")?;
+
+    let (source, filename) = if let Some("-") = source_file.to_str() {
         // Read from stdin
         let mut source = String::new();
         std::io::stdin()
@@ -27,13 +66,11 @@ fn main() -> miette::Result<()> {
     } else {
         // Read regular file
 
-        let source = fs::read_to_string(&args.source_file)
+        let source = fs::read_to_string(&source_file)
             .into_diagnostic()
-            .wrap_err_with(|| {
-                format!("cannot open source file '{}'", args.source_file.display())
-            })?;
+            .wrap_err_with(|| format!("cannot open source file '{}'", source_file.display()))?;
 
-        let filename = Path::new(&args.source_file)
+        let filename = Path::new(&source_file)
             .file_name()
             .expect("no filename")
             .to_str()

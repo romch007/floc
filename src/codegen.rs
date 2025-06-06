@@ -6,9 +6,7 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassBuilderOptions,
-    targets::{
-        CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple,
-    },
+    targets::{CodeModel, FileType, RelocMode, Target, TargetMachine, TargetTriple},
     types::{BasicMetadataTypeEnum, IntType},
     values::{BasicMetadataValueEnum, FunctionValue, GlobalValue, IntValue, PointerValue},
 };
@@ -77,8 +75,6 @@ impl<'ctx> Compiler<'ctx> {
         target_features: Option<&str>,
         optimization_level: inkwell::OptimizationLevel,
     ) -> Result<TargetMachine, Error> {
-        Target::initialize_all(&InitializationConfig::default());
-
         let target_triple =
             target_triple.map_or_else(TargetMachine::get_default_triple, TargetTriple::create);
 
