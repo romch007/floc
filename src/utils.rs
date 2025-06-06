@@ -203,7 +203,7 @@ macro_rules! define_arch_enum {
         archs: [$($variant:ident),*],
         unknown_field: $unknown_field:ident
     ) => {
-        #[derive(Debug)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
         #[allow(non_camel_case_types)]
         pub enum $enum_name {
             $($variant),*,
@@ -467,5 +467,24 @@ mod tests {
 
         let merged_span = spans.iter().merge_spans();
         assert_eq!(merged_span, None);
+    }
+
+    #[test]
+    fn get_target_triple_arch() {
+        assert_eq!(
+            get_arch_from_target_triple("aarch64-apple-darwin").unwrap(),
+            Arch::aarch64,
+        );
+
+        assert_eq!(
+            get_arch_from_target_triple("x86_64-unknown-linux-gnu").unwrap(),
+            Arch::x86_64,
+        );
+    }
+
+    #[test]
+    fn target_triple_is_msvc() {
+        assert!(is_msvc("x86_64-pc-windows-msvc"));
+        assert!(!is_msvc("x86_64-pc-windows-gnu"));
     }
 }
