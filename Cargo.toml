@@ -3,6 +3,7 @@ name = "floc"
 authors = ["Romain Chardiny <romain.chardiny@gmail.com>"]
 description = "Compiler for the Flo programming language"
 version = "0.1.0"
+license = "MIT"
 edition = "2024"
 
 [dependencies]
@@ -15,6 +16,7 @@ pest_derive = "2.8.0"
 scopeguard = "1.2.0"
 thiserror = "2.0.3"
 llvm-sys = "181.2.0"
+clap_complete = "4.5.5"
 
 [target.'cfg(not(windows))'.dependencies]
 inkwell = { version = "0.6.0", features = ["llvm18-1-prefer-dynamic"] }

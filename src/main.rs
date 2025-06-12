@@ -9,6 +9,7 @@ mod utils;
 
 use std::{fs, io::Read, path::Path};
 
+use clap::CommandFactory;
 use miette::{IntoDiagnostic, WrapErr};
 use scopeguard::defer;
 
@@ -42,6 +43,14 @@ fn main() -> miette::Result<()> {
     let args = cli::parse();
 
     inkwell::targets::Target::initialize_all(&inkwell::targets::InitializationConfig::default());
+
+    if let Some(shell) = args.generate_shell_completion {
+        let mut cmd = cli::Args::command();
+
+        clap_complete::aot::generate(shell, &mut cmd, "floc", &mut std::io::stdout());
+
+        return Ok(());
+    }
 
     if args.print_targets {
         print_targets()?;

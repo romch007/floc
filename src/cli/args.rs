@@ -26,6 +26,10 @@ pub struct Args {
     #[arg(long, default_value_t = false)]
     pub print_targets: bool,
 
+    /// Generate shell completion for the given shell
+    #[arg(long)]
+    pub generate_shell_completion: Option<clap_complete::aot::Shell>,
+
     /// LLVM target triple
     #[arg(short, long)]
     pub target_triple: Option<String>,

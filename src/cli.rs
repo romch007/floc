@@ -1,6 +1,6 @@
 pub mod args;
 
-use args::Args;
+pub use args::Args;
 use clap::CommandFactory;
 use clap::FromArgMatches;
 use clap::crate_version;
