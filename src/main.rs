@@ -31,7 +31,7 @@ fn print_targets() -> miette::Result<()> {
             .into_diagnostic()
             .wrap_err("invalid utf8 in target description")?;
 
-        println!("{:<15} - {}", name, description);
+        println!("{name:<15} - {description}");
 
         target = t.get_next();
     }
