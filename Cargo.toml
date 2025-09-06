@@ -18,14 +18,8 @@ thiserror = "2.0.3"
 llvm-sys = "181.2.0"
 clap_complete = "4.5.5"
 
-[features]
-default = ["llvm-dynamic"]
-
-llvm-dynamic = ["inkwell/llvm18-1-force-dynamic"]
-llvm-static = ["inkwell/llvm18-1-force-static"]
-
 [target.'cfg(not(windows))'.dependencies]
-inkwell = { version = "0.6.0", features = ["target-all"], default-features = false }
+inkwell = { version = "0.6.0", features = ["llvm18-1-prefer-dynamic"] }
 
 [target.'cfg(windows)'.dependencies]
 inkwell = { version = "0.6.0", features = [
