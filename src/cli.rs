@@ -8,7 +8,7 @@ use std::sync::LazyLock;
 
 static VERSION: LazyLock<String> = LazyLock::new(get_version);
 
-fn get_version() -> String {
+pub fn get_version() -> String {
     let llvm_version = inkwell::support::get_llvm_version();
 
     format!(

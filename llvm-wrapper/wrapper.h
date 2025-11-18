@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include <llvm-c/Core.h>
+
 #define ARCH_LIST \
   X(arm) \
   X(armeb) \
@@ -76,6 +78,8 @@ typedef enum {
 arch_t arch_from_target_triple(const char *target_triple);
 
 int is_msvc(const char* target_triple);
+
+void add_comment_section(LLVMModuleRef module_ref, const char* compiler_string);
 
 #ifdef __cplusplus
 }

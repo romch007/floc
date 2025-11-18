@@ -303,6 +303,13 @@ pub fn is_msvc(target_triple: &str) -> bool {
     ret != 0
 }
 
+pub fn add_comment_section(module: &inkwell::module::Module, compiler_string: &str) {
+    let compiler_string = CString::new(compiler_string).unwrap();
+    let module_ptr = module.as_mut_ptr();
+
+    unsafe { llvm_wrapper::add_comment_section(module_ptr as *mut _, compiler_string.as_ptr()) };
+}
+
 #[cfg(test)]
 mod tests {
     use std::{ffi::OsStr, path::PathBuf};
