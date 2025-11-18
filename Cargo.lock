@@ -307,7 +307,7 @@ checksum = "0399f9d26e5191ce32c498bebd31e7a3ceabc2745f0ac54af3f335126c3f24b3"
 
 [[package]]
 name = "floc"
-version = "0.1.0"
+version = "0.2.2"
 dependencies = [
  "bindgen",
  "cc",

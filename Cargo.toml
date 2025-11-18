@@ -2,7 +2,7 @@
 name = "floc"
 authors = ["Romain Chardiny <romain.chardiny@gmail.com>"]
 description = "Compiler for the Flo programming language"
-version = "0.1.0"
+version = "0.2.2"
 license = "MIT"
 edition = "2024"
 
