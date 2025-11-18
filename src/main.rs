@@ -94,7 +94,11 @@ fn main() -> miette::Result<()> {
 
     let named_source = miette::NamedSource::new(filename, source);
 
+    let parser_timer = utils::Timer::start(args.verbose);
+
     let ast_prog = parser::parse(named_source.clone())?;
+
+    parser_timer.stop();
 
     if args.emit_ast {
         println!("{ast_prog:#?}");
@@ -110,10 +114,14 @@ fn main() -> miette::Result<()> {
         eprintln!("-- analyzing");
     }
 
+    let analyzer_timer = utils::Timer::start(args.verbose);
+
     let mut analyzer = analyzer::Analyzer::new(named_source.clone());
     analyzer
         .analyze_program(&ast_prog)
         .map_err(|boxed_err| *boxed_err)?;
+
+    analyzer_timer.stop();
 
     for warning in analyzer.warnings() {
         eprintln!("{warning:?}");
@@ -124,6 +132,8 @@ fn main() -> miette::Result<()> {
     if args.verbose {
         eprintln!("-- compiling");
     }
+
+    let compiler_timer = utils::Timer::start(args.verbose);
 
     let llvm_context = inkwell::context::Context::create();
     let mut codegen = codegen::Compiler::new(&llvm_context, module_name);
@@ -192,6 +202,8 @@ fn main() -> miette::Result<()> {
         .into_diagnostic()
         .wrap_err("cannot compile program")?;
 
+    compiler_timer.stop();
+
     if let Some(exec_output_file) = exec_output_file {
         // Remove the object file whatever happens
         defer! {
@@ -201,6 +213,8 @@ fn main() -> miette::Result<()> {
         if args.verbose {
             eprintln!("-- linking");
         }
+
+        let linker_timer = utils::Timer::start(args.verbose);
 
         if is_msvc {
             linker::link_msvc(
@@ -220,6 +234,8 @@ fn main() -> miette::Result<()> {
             )
         }
         .wrap_err("cannot link")?;
+
+        linker_timer.stop();
     }
 
     Ok(())

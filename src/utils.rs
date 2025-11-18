@@ -2,6 +2,7 @@ use std::env;
 use std::ffi::{CString, OsStr, OsString};
 use std::iter::repeat_with;
 use std::path::PathBuf;
+use std::time::Instant;
 
 use inkwell::targets::FileType;
 
@@ -193,6 +194,28 @@ pub fn get_output_files(
         };
 
         (FileType::Object, object_file, exec_file)
+    }
+}
+
+pub struct Timer {
+    start: Instant,
+    verbose: bool,
+}
+
+impl Timer {
+    pub fn start(verbose: bool) -> Self {
+        Self {
+            start: Instant::now(),
+            verbose,
+        }
+    }
+
+    pub fn stop(self) {
+        if self.verbose {
+            let elapsed = Instant::now() - self.start;
+
+            println!("++ took {elapsed:?}");
+        }
     }
 }
 
