@@ -42,10 +42,10 @@ impl ParseCallbacks for CustomCallbacks {
         original_variant_name: &str,
         _variant_value: bindgen::callbacks::EnumVariantValue,
     ) -> Option<String> {
-        if let Some("arch_t") = enum_name {
-            if let Some(stripped) = original_variant_name.strip_prefix("arch_") {
-                return Some(stripped.to_string());
-            }
+        if let Some("arch_t") = enum_name
+            && let Some(stripped) = original_variant_name.strip_prefix("arch_")
+        {
+            return Some(stripped.to_string());
         }
         None
     }
@@ -57,9 +57,7 @@ fn get_llvm_cxxflags(llvm_config_path: &str) -> String {
         .output()
         .expect("cannot run llvm-config");
 
-    if !res.status.success() {
-        panic!("llvm-config failed");
-    }
+    assert!(res.status.success(), "llvm-config failed");
 
     String::from_utf8(res.stdout).unwrap().trim().to_string()
 }
@@ -70,9 +68,7 @@ fn get_llvm_includedir(llvm_config_path: &str) -> String {
         .output()
         .expect("cannot run llvm-config");
 
-    if !res.status.success() {
-        panic!("llvm-config failed");
-    }
+    assert!(res.status.success(), "llvm-config failed");
 
     String::from_utf8(res.stdout).unwrap().trim().to_string()
 }
@@ -103,7 +99,7 @@ fn generate_wrapper(llvm_config_path: &str) {
 }
 
 fn compile_wrapper(llvm_config_path: &str) {
-    let cxxflags = get_llvm_cxxflags(&llvm_config_path);
+    let cxxflags = get_llvm_cxxflags(llvm_config_path);
 
     unsafe { std::env::set_var("CXXFLAGS", &cxxflags) };
 
