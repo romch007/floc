@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use inkwell::targets::FileType;
 
-use crate::{cli, llvm_wrapper};
+use crate::{cli, lexer, llvm_wrapper};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Span {
@@ -216,6 +216,79 @@ impl Timer {
 
             println!("++ took {elapsed:?}");
         }
+    }
+}
+
+pub struct SyntaxHighlighter;
+
+struct SyntaxHighlighterState;
+
+impl miette::highlighters::Highlighter for SyntaxHighlighter {
+    fn start_highlighter_state<'h>(
+        &'h self,
+        _source: &dyn miette::SpanContents<'_>,
+    ) -> Box<dyn miette::highlighters::HighlighterState + 'h> {
+        Box::new(SyntaxHighlighterState)
+    }
+}
+
+const DEFAULT_STYLE: owo_colors::Style = owo_colors::Style::new();
+const INTEGER_STYLE: owo_colors::Style = owo_colors::Style::new().blue();
+const OPERATOR_STYLE: owo_colors::Style = owo_colors::Style::new().yellow();
+const KEYWORD_STYLE: owo_colors::Style = owo_colors::Style::new().magenta().bold();
+const TYPE_STYLE: owo_colors::Style = owo_colors::Style::new().green();
+const INVALID_STYLE: owo_colors::Style = owo_colors::Style::new().red().underline();
+
+impl miette::highlighters::HighlighterState for SyntaxHighlighterState {
+    fn highlight_line<'s>(&mut self, line: &'s str) -> Vec<owo_colors::Styled<&'s str>> {
+        use logos::Logos;
+
+        let mut styled = Vec::new();
+        let mut lexer = lexer::Token::lexer(line);
+
+        let mut last_end = 0;
+
+        while let Some(res) = lexer.next() {
+            let slice = &line[lexer.span()];
+            let span = lexer.span();
+
+            if last_end < span.end {
+                let skipped = &line[last_end..span.start];
+                styled.push(DEFAULT_STYLE.style(skipped));
+            }
+
+            let style = match res {
+                Ok(lexer::Token::Integer(_)) | Ok(lexer::Token::Boolean(_)) => INTEGER_STYLE,
+                Ok(lexer::Token::Eq)
+                | Ok(lexer::Token::Neq)
+                | Ok(lexer::Token::Add)
+                | Ok(lexer::Token::Sub)
+                | Ok(lexer::Token::Mul)
+                | Ok(lexer::Token::Div)
+                | Ok(lexer::Token::Mod)
+                | Ok(lexer::Token::Lt)
+                | Ok(lexer::Token::Lte)
+                | Ok(lexer::Token::Gt)
+                | Ok(lexer::Token::Gte)
+                | Ok(lexer::Token::LogicOr)
+                | Ok(lexer::Token::LogicAnd) => OPERATOR_STYLE,
+                Ok(lexer::Token::Read)
+                | Ok(lexer::Token::Write)
+                | Ok(lexer::Token::If)
+                | Ok(lexer::Token::Else)
+                | Ok(lexer::Token::Return)
+                | Ok(lexer::Token::While) => KEYWORD_STYLE,
+                Ok(lexer::Token::IntegerType) | Ok(lexer::Token::BooleanType) => TYPE_STYLE,
+                Ok(_) => DEFAULT_STYLE,
+                Err(_) => INVALID_STYLE,
+            };
+
+            styled.push(style.style(slice));
+
+            last_end = span.end;
+        }
+
+        styled
     }
 }
 

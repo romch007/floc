@@ -2,6 +2,7 @@ mod analyzer;
 mod ast;
 mod cli;
 mod codegen;
+mod lexer;
 mod linker;
 mod llvm_wrapper;
 mod parser;
@@ -41,6 +42,14 @@ fn print_targets() -> miette::Result<()> {
 
 fn main() -> miette::Result<()> {
     let args = cli::parse();
+
+    miette::set_hook(Box::new(|_| {
+        Box::new(
+            miette::MietteHandlerOpts::new()
+                .with_syntax_highlighting(utils::SyntaxHighlighter)
+                .build(),
+        )
+    }))?;
 
     inkwell::targets::Target::initialize_all(&inkwell::targets::InitializationConfig::default());
 

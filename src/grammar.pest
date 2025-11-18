@@ -22,12 +22,11 @@ type = { "entier" | "booleen" }
 expr      = { prefix? ~ primary ~ (infix ~ prefix? ~ primary)* }
 expr_list = { (expr ~ ("," ~ expr)*)? }
 
-infix     = _{ add | sub | mul | div | pow | mod | eq | neq | lte | gte | lt | gt | logic_and | logic_or }
+infix     = _{ add | sub | mul | div | mod | eq | neq | lte | gte | lt | gt | logic_and | logic_or }
 add       =  { "+" }
 sub       =  { "-" }
 mul       =  { "*" }
 div       =  { "/" }
-pow       =  { "^" }
 mod       =  { "%" }
 eq        =  { "==" }
 neq       =  { "!=" }
