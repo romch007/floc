@@ -51,13 +51,44 @@ impl ParseCallbacks for CustomCallbacks {
     }
 }
 
-fn generate_wrapper() {
+fn get_llvm_cxxflags(llvm_config_path: &str) -> String {
+    let res = std::process::Command::new(llvm_config_path)
+        .arg("--cxxflags")
+        .output()
+        .expect("cannot run llvm-config");
+
+    if !res.status.success() {
+        panic!("llvm-config failed");
+    }
+
+    String::from_utf8(res.stdout).unwrap().trim().to_string()
+}
+
+fn get_llvm_includedir(llvm_config_path: &str) -> String {
+    let res = std::process::Command::new(llvm_config_path)
+        .arg("--includedir")
+        .output()
+        .expect("cannot run llvm-config");
+
+    if !res.status.success() {
+        panic!("llvm-config failed");
+    }
+
+    String::from_utf8(res.stdout).unwrap().trim().to_string()
+}
+
+fn generate_wrapper(llvm_config_path: &str) {
     use std::env;
+
+    let include_dir = get_llvm_includedir(llvm_config_path);
+    let extra_arg = format!("-I{include_dir}");
 
     let callbacks = CustomCallbacks;
 
     let bindings = bindgen::Builder::default()
         .header("llvm-wrapper/wrapper.h")
+        .clang_arg(&extra_arg)
+        .clang_arg("-v")
         .parse_callbacks(Box::new(callbacks))
         .default_enum_style(bindgen::EnumVariation::Rust {
             non_exhaustive: true,
@@ -71,21 +102,7 @@ fn generate_wrapper() {
         .expect("could not write bindings");
 }
 
-fn get_llvm_cxxflags(llvm_config_path: &str) -> String {
-    let res = std::process::Command::new(llvm_config_path)
-        .arg("--cxxflags")
-        .output()
-        .expect("cannot run llvm-config");
-
-    if !res.status.success() {
-        panic!("llvm-config failed");
-    }
-
-    String::from_utf8(res.stdout).unwrap()
-}
-
-fn compile_wrapper() {
-    let llvm_config_path = std::env::var("DEP_LLVM_18_CONFIG_PATH").unwrap();
+fn compile_wrapper(llvm_config_path: &str) {
     let cxxflags = get_llvm_cxxflags(&llvm_config_path);
 
     unsafe { std::env::set_var("CXXFLAGS", &cxxflags) };
@@ -97,7 +114,9 @@ fn compile_wrapper() {
 }
 
 fn main() {
-    generate_wrapper();
-    compile_wrapper();
+    let llvm_config_path = std::env::var("DEP_LLVM_18_CONFIG_PATH").unwrap();
+
+    generate_wrapper(&llvm_config_path);
+    compile_wrapper(&llvm_config_path);
     generate_shell_completion();
 }

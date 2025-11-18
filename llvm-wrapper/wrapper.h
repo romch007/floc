@@ -1,11 +1,11 @@
 #ifndef WRAPPER_H
 #define WRAPPER_H
 
+#include <llvm-c/Core.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <llvm-c/Core.h>
 
 #define ARCH_LIST                                                              \
   X(arm)                                                                       \
