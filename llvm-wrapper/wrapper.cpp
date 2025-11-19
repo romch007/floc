@@ -7,12 +7,14 @@
 
 extern "C" {
 
+using namespace llvm;
+
 arch_t arch_from_target_triple(const char *target_triple) {
-  llvm::Triple triple(target_triple);
+  Triple triple(target_triple);
 
   switch (triple.getArch()) {
 #define X(name)                                                                \
-  case llvm::Triple::name:                                                     \
+  case Triple::name:                                                           \
     return arch_##name;
     ARCH_LIST
 #undef X
@@ -22,29 +24,28 @@ arch_t arch_from_target_triple(const char *target_triple) {
 }
 
 int is_msvc(const char *target_triple) {
-  llvm::Triple triple(target_triple);
+  Triple triple(target_triple);
 
-  return triple.getEnvironment() == llvm::Triple::EnvironmentType::MSVC;
+  return triple.getEnvironment() == Triple::EnvironmentType::MSVC;
 }
 
 void add_comment_section(LLVMModuleRef module_ref,
                          const char *compiler_string) {
-  llvm::Module *module = llvm::unwrap(module_ref);
-  llvm::LLVMContext &context = module->getContext();
+  Module *module = unwrap(module_ref);
+  LLVMContext &context = module->getContext();
 
   std::string asmText = std::string(".section .comment\n") + ".string \"" +
                         compiler_string + "\"\n";
 
-  llvm::FunctionType *fnTy =
-      llvm::FunctionType::get(llvm::Type::getVoidTy(context), false);
+  FunctionType *fnTy = FunctionType::get(Type::getVoidTy(context), false);
 
-  llvm::Function *fn = llvm::Function::Create(
-      fnTy, llvm::GlobalValue::InternalLinkage, "__emit_comment", module);
+  Function *fn = Function::Create(fnTy, GlobalValue::InternalLinkage,
+                                  "__emit_comment", module);
 
-  llvm::BasicBlock *bb = llvm::BasicBlock::Create(context, "entry", fn);
-  llvm::IRBuilder<> builder(bb);
+  BasicBlock *bb = BasicBlock::Create(context, "entry", fn);
+  IRBuilder<> builder(bb);
 
-  llvm::InlineAsm *ia = llvm::InlineAsm::get(fnTy, asmText, "", true);
+  InlineAsm *ia = InlineAsm::get(fnTy, asmText, "", true);
 
   builder.CreateCall(ia);
   builder.CreateRetVoid();
