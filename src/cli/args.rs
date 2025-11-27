@@ -58,9 +58,9 @@ pub struct Args {
     #[arg(short = 'v', long)]
     pub verbose: bool,
 
-    /// Linker to execute (ignored when using MSVC)
+    /// Linker to use (this argument will be passed to cc via -fuse-ld=xxx)
     #[arg(long)]
-    pub linker: Option<String>,
+    pub use_ld: Option<String>,
 
     /// Statically link program
     #[arg(long = "static", default_value_t = false)]

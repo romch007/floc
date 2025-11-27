@@ -235,10 +235,10 @@ fn main() -> miette::Result<()> {
             )
         } else {
             linker::link_cc(
-                args.linker.as_deref().unwrap_or("cc"),
                 &llvm_output_file,
                 &exec_output_file,
                 args.link_static,
+                args.use_ld.as_deref(),
                 args.verbose,
             )
         }

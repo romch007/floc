@@ -76,24 +76,37 @@ pub fn link_msvc(
     Ok(())
 }
 
+const LINK_WRAPPER: &str = "cc";
+
 pub fn link_cc(
-    linker: &str,
     object_file: &Path,
     output_file: &Path,
     link_static: bool,
+    linker: Option<&str>,
     verbose: bool,
 ) -> miette::Result<()> {
-    let mut args = vec![object_file.as_os_str(), os!("-o"), output_file.as_os_str()];
+    let mut args = vec![
+        object_file.as_os_str().to_owned(),
+        os!("-o").to_owned(),
+        output_file.as_os_str().to_owned(),
+    ];
 
     if link_static {
-        args.push(os!("-static"));
+        args.push(os!("-static").into());
+    }
+
+    if let Some(linker) = linker {
+        let mut arg = os!("-fuse-ld=").to_owned();
+        arg.push(linker);
+
+        args.push(arg);
     }
 
     if verbose {
-        eprintln!("calling {linker} with args {args:?}");
+        eprintln!("calling {LINK_WRAPPER} with args {args:?}");
     }
 
-    let res = Command::new(linker)
+    let res = Command::new(LINK_WRAPPER)
         .args(args)
         .stdout(if verbose {
             Stdio::inherit()
@@ -103,10 +116,10 @@ pub fn link_cc(
         .stderr(Stdio::inherit())
         .status()
         .into_diagnostic()
-        .wrap_err_with(|| format!("`{linker}` failed to start"))?;
+        .wrap_err_with(|| format!("`{LINK_WRAPPER}` failed to start"))?;
 
     if !res.success() {
-        bail!("`{linker}` returned a non-zero exit code");
+        bail!("`{LINK_WRAPPER}` returned a non-zero exit code");
     }
 
     Ok(())
