@@ -1,18 +1,10 @@
-mod analyzer;
-mod ast;
-mod cli;
-mod codegen;
-mod lexer;
-mod linker;
-mod llvm_wrapper;
-mod parser;
-mod utils;
-
 use std::{fs, io::Read, path::Path};
 
 use clap::CommandFactory;
 use miette::{IntoDiagnostic, WrapErr};
 use scopeguard::defer;
+
+use floc::{analyzer, ast, cli, codegen, linker, parser, utils};
 
 fn print_targets() -> miette::Result<()> {
     println!("Available LLVM targets:");

@@ -103,6 +103,8 @@ fn compile_wrapper(llvm_config_path: &str) {
 
     unsafe { std::env::set_var("CXXFLAGS", &cxxflags) };
 
+    println!("cargo:rerun-if-changed=llvm-wrapper/wrapper.cpp");
+
     cc::Build::new()
         .cpp(true)
         .file("llvm-wrapper/wrapper.cpp")

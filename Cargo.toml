@@ -5,6 +5,14 @@ description = "Compiler for the Flo programming language"
 version = "0.2.2"
 license = "MIT"
 edition = "2024"
+build = "build.rs"
+
+[lib]
+name = "floc"
+path = "src/lib.rs"
+
+[[bin]]
+name = "floc"
 
 [dependencies]
 cc = "1.2.24"
