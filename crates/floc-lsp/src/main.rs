@@ -45,13 +45,25 @@ impl LanguageServer for Backend {
             CompletionItem {
                 label: "lire".to_string(),
                 kind: Some(CompletionItemKind::FUNCTION),
-                detail: Some("Read input from stdin".to_string()),
+                documentation: Some(Documentation::String("Read input from stdin".to_string())),
                 label_details: Some(CompletionItemLabelDetails {
                     detail: Some("()".to_string()),
                     description: None,
                 }),
                 insert_text: Some("lire();".to_string()),
                 insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                ..CompletionItem::default()
+            },
+            CompletionItem {
+                label: "ecrire".to_string(),
+                kind: Some(CompletionItemKind::FUNCTION),
+                documentation: Some(Documentation::String("Write value to stdout".to_string())),
+                label_details: Some(CompletionItemLabelDetails {
+                    detail: Some("(val)".to_string()),
+                    description: None,
+                }),
+                insert_text: Some("ecrire(${1:val});$0".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
                 ..CompletionItem::default()
             },
         ])))
