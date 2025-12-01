@@ -32,8 +32,16 @@ impl LanguageServer for Backend {
 
     async fn completion(&self, _: CompletionParams) -> Result<Option<CompletionResponse>> {
         Ok(Some(CompletionResponse::Array(vec![
-            CompletionItem::new_simple("Hello".to_string(), "Some detail".to_string()),
-            CompletionItem::new_simple("Bye".to_string(), "More detail".to_string()),
+            CompletionItem {
+                label: "entier".to_string(),
+                kind: Some(CompletionItemKind::KEYWORD),
+                ..CompletionItem::default()
+            },
+            CompletionItem {
+                label: "booleen".to_string(),
+                kind: Some(CompletionItemKind::KEYWORD),
+                ..CompletionItem::default()
+            },
         ])))
     }
 
