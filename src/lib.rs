@@ -1,9 +1,12 @@
 pub mod analyzer;
 pub mod ast;
 pub mod cli;
+#[cfg(feature = "codegen")]
 pub mod codegen;
 pub mod lexer;
+#[cfg(feature = "codegen")]
 pub mod linker;
+#[cfg(feature = "codegen")]
 pub mod llvm_wrapper;
 pub mod parser;
 pub mod utils;

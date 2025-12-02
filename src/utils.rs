@@ -1,12 +1,15 @@
-use std::env;
-use std::ffi::{CString, OsStr, OsString};
+use std::ffi::{OsStr, OsString};
 use std::iter::repeat_with;
-use std::path::PathBuf;
 use std::time::Instant;
 
-use inkwell::targets::FileType;
+use crate::lexer;
 
-use crate::{cli, lexer, llvm_wrapper};
+#[cfg(feature = "codegen")]
+use {
+    crate::{cli, llvm_wrapper},
+    std::ffi::CString,
+    std::path::PathBuf,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Span {
@@ -160,14 +163,17 @@ pub fn levenshtein(a: &str, b: &str) -> usize {
 }
 
 /// Determine LLVM file output type, LLVM file output path and linker output path based on cli args
+#[cfg(feature = "codegen")]
 pub fn get_output_files(
     args: &cli::args::Args,
     module_name: &str,
     is_msvc: bool,
-) -> (FileType, PathBuf, Option<PathBuf>) {
+) -> (inkwell::targets::FileType, PathBuf, Option<PathBuf>) {
+    use std::env;
+
     if args.assemble {
         (
-            FileType::Assembly,
+            inkwell::targets::FileType::Assembly,
             args.output
                 .clone()
                 .unwrap_or_else(|| format!("{module_name}.S").into()),
@@ -203,7 +209,7 @@ pub fn get_output_files(
             Some(file_path)
         };
 
-        (FileType::Object, object_file, exec_file)
+        (inkwell::targets::FileType::Object, object_file, exec_file)
     }
 }
 
@@ -302,6 +308,7 @@ impl miette::highlighters::HighlighterState for SyntaxHighlighterState {
     }
 }
 
+#[cfg(feature = "codegen")]
 macro_rules! define_arch_enum {
     (
         from: $enum_from:ty,
@@ -326,6 +333,7 @@ macro_rules! define_arch_enum {
     };
 }
 
+#[cfg(feature = "codegen")]
 define_arch_enum!(
     from: llvm_wrapper::arch_t,
     name: Arch,
@@ -393,6 +401,7 @@ define_arch_enum!(
     unknown_field: unknown
 );
 
+#[cfg(feature = "codegen")]
 pub fn get_arch_from_target_triple(target_triple: &str) -> Option<Arch> {
     let target_triple = CString::new(target_triple).unwrap();
 
@@ -401,6 +410,7 @@ pub fn get_arch_from_target_triple(target_triple: &str) -> Option<Arch> {
     Arch::from_wrapper(ret)
 }
 
+#[cfg(feature = "codegen")]
 pub fn is_msvc(target_triple: &str) -> bool {
     let target_triple = CString::new(target_triple).unwrap();
 
@@ -409,6 +419,7 @@ pub fn is_msvc(target_triple: &str) -> bool {
     ret != 0
 }
 
+#[cfg(feature = "codegen")]
 pub fn add_comment_section(module: &inkwell::module::Module, compiler_string: &str) {
     let compiler_string = CString::new(compiler_string).unwrap();
     let module_ptr = module.as_mut_ptr();

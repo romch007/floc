@@ -1,7 +1,4 @@
-use floc::{
-    ast::{Expression, Statement, visitor::Visitor},
-    utils::Span,
-};
+use floc::ast::{Expression, Statement, visitor::Visitor};
 
 pub struct Finder<'a> {
     pub offset: usize,

@@ -30,91 +30,98 @@ fn generate_shell_completion() {
     std::fs::write(PathBuf::from(&man_pages_out_dir).join("floc.1"), buf).unwrap();
 }
 
-use bindgen::callbacks::ParseCallbacks;
+#[cfg(feature = "codegen")]
+mod codegen {
+    use bindgen::callbacks::ParseCallbacks;
+    use std::path::PathBuf;
 
-#[derive(Debug)]
-struct CustomCallbacks;
+    #[derive(Debug)]
+    struct CustomCallbacks;
 
-impl ParseCallbacks for CustomCallbacks {
-    fn enum_variant_name(
-        &self,
-        enum_name: Option<&str>,
-        original_variant_name: &str,
-        _variant_value: bindgen::callbacks::EnumVariantValue,
-    ) -> Option<String> {
-        if let Some("arch_t") = enum_name
-            && let Some(stripped) = original_variant_name.strip_prefix("arch_")
-        {
-            return Some(stripped.to_string());
+    impl ParseCallbacks for CustomCallbacks {
+        fn enum_variant_name(
+            &self,
+            enum_name: Option<&str>,
+            original_variant_name: &str,
+            _variant_value: bindgen::callbacks::EnumVariantValue,
+        ) -> Option<String> {
+            if let Some("arch_t") = enum_name
+                && let Some(stripped) = original_variant_name.strip_prefix("arch_")
+            {
+                return Some(stripped.to_string());
+            }
+            None
         }
-        None
+    }
+
+    fn get_llvm_cxxflags(llvm_config_path: &str) -> String {
+        let res = std::process::Command::new(llvm_config_path)
+            .arg("--cxxflags")
+            .output()
+            .expect("cannot run llvm-config");
+
+        assert!(res.status.success(), "llvm-config failed");
+
+        String::from_utf8(res.stdout).unwrap().trim().to_string()
+    }
+
+    fn get_llvm_includedir(llvm_config_path: &str) -> String {
+        let res = std::process::Command::new(llvm_config_path)
+            .arg("--includedir")
+            .output()
+            .expect("cannot run llvm-config");
+
+        assert!(res.status.success(), "llvm-config failed");
+
+        String::from_utf8(res.stdout).unwrap().trim().to_string()
+    }
+
+    pub fn generate_wrapper(llvm_config_path: &str) {
+        use std::env;
+
+        let include_dir = get_llvm_includedir(llvm_config_path);
+        let extra_arg = format!("-I{include_dir}");
+
+        let callbacks = CustomCallbacks;
+
+        let bindings = bindgen::Builder::default()
+            .header("llvm-wrapper/wrapper.h")
+            .clang_arg(&extra_arg)
+            .clang_arg("-v")
+            .parse_callbacks(Box::new(callbacks))
+            .default_enum_style(bindgen::EnumVariation::Rust {
+                non_exhaustive: true,
+            })
+            .generate()
+            .expect("cannot generate bindings");
+
+        let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+        bindings
+            .write_to_file(out_path.join("llvm_wrapper.rs"))
+            .expect("could not write bindings");
+    }
+
+    pub fn compile_wrapper(llvm_config_path: &str) {
+        let cxxflags = get_llvm_cxxflags(llvm_config_path);
+
+        unsafe { std::env::set_var("CXXFLAGS", &cxxflags) };
+
+        println!("cargo:rerun-if-changed=llvm-wrapper/wrapper.cpp");
+
+        cc::Build::new()
+            .cpp(true)
+            .file("llvm-wrapper/wrapper.cpp")
+            .compile("llvm-wrapper");
     }
 }
 
-fn get_llvm_cxxflags(llvm_config_path: &str) -> String {
-    let res = std::process::Command::new(llvm_config_path)
-        .arg("--cxxflags")
-        .output()
-        .expect("cannot run llvm-config");
-
-    assert!(res.status.success(), "llvm-config failed");
-
-    String::from_utf8(res.stdout).unwrap().trim().to_string()
-}
-
-fn get_llvm_includedir(llvm_config_path: &str) -> String {
-    let res = std::process::Command::new(llvm_config_path)
-        .arg("--includedir")
-        .output()
-        .expect("cannot run llvm-config");
-
-    assert!(res.status.success(), "llvm-config failed");
-
-    String::from_utf8(res.stdout).unwrap().trim().to_string()
-}
-
-fn generate_wrapper(llvm_config_path: &str) {
-    use std::env;
-
-    let include_dir = get_llvm_includedir(llvm_config_path);
-    let extra_arg = format!("-I{include_dir}");
-
-    let callbacks = CustomCallbacks;
-
-    let bindings = bindgen::Builder::default()
-        .header("llvm-wrapper/wrapper.h")
-        .clang_arg(&extra_arg)
-        .clang_arg("-v")
-        .parse_callbacks(Box::new(callbacks))
-        .default_enum_style(bindgen::EnumVariation::Rust {
-            non_exhaustive: true,
-        })
-        .generate()
-        .expect("cannot generate bindings");
-
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    bindings
-        .write_to_file(out_path.join("llvm_wrapper.rs"))
-        .expect("could not write bindings");
-}
-
-fn compile_wrapper(llvm_config_path: &str) {
-    let cxxflags = get_llvm_cxxflags(llvm_config_path);
-
-    unsafe { std::env::set_var("CXXFLAGS", &cxxflags) };
-
-    println!("cargo:rerun-if-changed=llvm-wrapper/wrapper.cpp");
-
-    cc::Build::new()
-        .cpp(true)
-        .file("llvm-wrapper/wrapper.cpp")
-        .compile("llvm-wrapper");
-}
-
 fn main() {
-    let llvm_config_path = std::env::var("DEP_LLVM_18_CONFIG_PATH").unwrap();
+    #[cfg(feature = "codegen")]
+    {
+        let llvm_config_path = std::env::var("DEP_LLVM_18_CONFIG_PATH").unwrap();
+        codegen::generate_wrapper(&llvm_config_path);
+        codegen::compile_wrapper(&llvm_config_path);
+    }
 
-    generate_wrapper(&llvm_config_path);
-    compile_wrapper(&llvm_config_path);
     generate_shell_completion();
 }

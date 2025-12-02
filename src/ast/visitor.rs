@@ -74,7 +74,7 @@ pub trait Visitor<'a> {
         }
     }
 
-    fn visit_expression_pre(&mut self, expr: &'a Expression) {}
+    fn visit_expression_pre(&mut self, _expr: &'a Expression) {}
 
     fn visit_expression(&mut self, expr: &'a Expression) {
         self.visit_expression_pre(expr);
