@@ -14,6 +14,16 @@ pub struct Span {
     pub end: usize,
 }
 
+impl Span {
+    pub fn contains(&self, offset: usize) -> bool {
+        self.start <= offset && offset <= self.end
+    }
+
+    pub fn len(&self) -> usize {
+        self.end - self.start
+    }
+}
+
 pub trait SpanIterExt {
     /// Merges a sequence of `Span` references into a single `Span`.
     ///

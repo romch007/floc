@@ -1,4 +1,5 @@
 pub mod dot;
+pub mod visitor;
 
 use crate::utils::Span;
 

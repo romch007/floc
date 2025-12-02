@@ -389,6 +389,7 @@ name = "floc-lsp"
 version = "0.1.0"
 dependencies = [
  "floc",
+ "miette",
  "tokio",
  "tower-lsp",
 ]
