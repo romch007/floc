@@ -4,9 +4,11 @@ mod finder;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use floc::analyzer::{self, Analyzer};
-use floc::ast;
-use floc::ast::visitor::Visitor;
+use floc::{
+    analyzer::{self, Analyzer},
+    ast::{self, visitor::Visitor},
+    span::Span,
+};
 use miette::NamedSource;
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
@@ -59,7 +61,7 @@ impl Document {
         Position { line, character }
     }
 
-    fn span_to_range_utf16(&self, span: &floc::utils::Span) -> Range {
+    fn span_to_range_utf16(&self, span: &Span) -> Range {
         Range {
             start: self.offset_to_pos_utf16(span.start),
             end: self.offset_to_pos_utf16(span.end),
