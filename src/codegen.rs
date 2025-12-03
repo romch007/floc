@@ -208,7 +208,7 @@ impl<'ctx> Compiler<'ctx> {
             let function_params = function
                 .arguments
                 .iter()
-                .map(|arg| arg.to_llvm(self.context).into())
+                .map(|arg| arg.1.to_llvm(self.context).into())
                 .collect::<Vec<BasicMetadataTypeEnum<'ctx>>>();
 
             let function_type = function

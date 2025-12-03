@@ -42,7 +42,7 @@ impl Variable {
 pub struct Function {
     pub name: String,
     pub return_type: ast::Type,
-    pub arguments: Vec<ast::Type>,
+    pub arguments: Vec<(String, ast::Type)>,
 
     /// Span to the return type in the function declaration
     ret_type_decl_span: Span,
@@ -400,7 +400,7 @@ impl Analyzer {
             let args = fn_decl
                 .arguments
                 .iter()
-                .map(|arg| arg.r#type.clone())
+                .map(|arg| (arg.name.ident.clone(), arg.r#type.clone()))
                 .collect();
 
             self.functions.insert(
@@ -692,13 +692,13 @@ impl Analyzer {
         {
             let provided_arg_type = self.analyze_expr(fn_call_arg)?;
 
-            if expected_type.kind != provided_arg_type.kind {
+            if expected_type.1.kind != provided_arg_type.kind {
                 return Err(Box::new(Error::TypeMismatchInFnArg {
                     src: self.source_code.clone(),
-                    expected_type: expected_type.kind.clone(),
+                    expected_type: expected_type.1.kind.clone(),
                     wrong_value_type: provided_arg_type.kind,
                     wrong_value: provided_arg_type.span,
-                    arg: expected_type.span,
+                    arg: expected_type.1.span,
                     fn_call_name: fn_call.name.span,
                 }));
             }

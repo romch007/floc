@@ -202,15 +202,12 @@ impl LanguageServer for Backend {
                 let mut snippet = format!("{}(", name);
 
                 for (i, param) in function.arguments.iter().enumerate() {
-                    let index = i + 1;
-                    let param_name = format!("param{}", index);
-
-                    details += &format!("{} {}", param.kind, param_name);
+                    details += &format!("{} {}", param.1.kind, param.0);
                     if i < function.arguments.len() - 1 {
                         details += ", ";
                     }
 
-                    snippet += &format!("${{{}:{}}}", index, param_name);
+                    snippet += &format!("${{{}}}", param.0);
                     if i < function.arguments.len() - 1 {
                         snippet += ", ";
                     }
@@ -286,7 +283,9 @@ fn get_function_doc(function: &analyzer::Function) -> Hover {
 
     for param in &function.arguments {
         markdown += " - **";
-        markdown += param.kind.to_string().as_str();
+        markdown += param.1.kind.to_string().as_str();
+        markdown += " ";
+        markdown += param.0.as_str();
         markdown += "**\n";
     }
 
