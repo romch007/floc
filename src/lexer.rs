@@ -2,9 +2,23 @@
 
 use logos::Logos;
 
+#[derive(Debug, Default, Clone, PartialEq)]
+pub enum Error {
+    InvalidToken(char),
+    #[default]
+    Other,
+}
+
+impl Error {
+    pub fn from_lexer<'source>(lex: &mut logos::Lexer<'source, Token<'source>>) -> Self {
+        Self::InvalidToken(lex.slice().chars().next().unwrap())
+    }
+}
+
 #[derive(Debug, Logos, PartialEq)]
+#[logos(error(Error, Error::from_lexer))]
 #[logos(skip r"[ \t\n\f]+")]
-pub enum Token {
+pub enum Token<'source> {
     #[token("+")]
     Add,
 
@@ -68,8 +82,8 @@ pub enum Token {
     #[token(";")]
     SemiColon,
 
-    #[regex("[A-Za-z0-9_]+", |lex| lex.slice().to_string())]
-    Identifier(String),
+    #[regex("[A-Za-z0-9_]+", |lex| lex.slice())]
+    Identifier(&'source str),
 
     #[regex("[0-9]+", |lex| lex.slice().parse::<u64>().unwrap(), priority = 3)]
     Integer(u64),
