@@ -266,6 +266,27 @@ pub enum Error {
     },
 }
 
+impl Error {
+    pub fn main_span(&self) -> Option<&Span> {
+        match self {
+            Error::TypeMismatchInOperation { operator, .. } => Some(operator),
+            Error::TypeMismatchInEqOrNeq { operator, .. } => Some(operator),
+            Error::TypeMismatchInAssign { wrong_value, .. } => Some(wrong_value),
+            Error::TypeMismatchInReturn { wrong_value, .. } => Some(wrong_value),
+            Error::TypeMismatchInCondition { wrong_value, .. } => Some(wrong_value),
+            Error::TypeMismatchInFnArg { wrong_value, .. } => Some(wrong_value),
+            Error::VariableNotFound { here, .. } => Some(here),
+            Error::VariableAlreadyDefined { here, .. } => Some(here),
+            Error::FunctionAlreadyDefined { here, .. } => Some(here),
+            Error::FunctionNotFound { here, .. } => Some(here),
+            Error::ReturnOutsideFunction { here, .. } => Some(here),
+            Error::MissingReturn => None,
+            Error::ExtraStmtsAfterReturn { stmt_span, .. } => Some(stmt_span),
+            Error::ArgumentCountMismatch { fn_call_args, .. } => fn_call_args.as_ref(),
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum Warning {
     #[error("unused variable '{varname}'")]

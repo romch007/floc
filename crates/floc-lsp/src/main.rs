@@ -33,6 +33,36 @@ impl Document {
         }
         offset
     }
+
+    fn offset_to_pos_utf16(&self, offset: usize) -> Position {
+        let mut line = 0u32;
+        let mut character = 0u32;
+        let mut count = 0usize;
+
+        for ch in self.text.inner().as_str().chars() {
+            if count >= offset {
+                break;
+            }
+
+            if ch == '\n' {
+                line += 1;
+                character = 0;
+            } else {
+                character += ch.len_utf16() as u32;
+            }
+
+            count += ch.len_utf8();
+        }
+
+        Position { line, character }
+    }
+
+    fn span_to_range_utf16(&self, span: &floc::utils::Span) -> Range {
+        Range {
+            start: self.offset_to_pos_utf16(span.start),
+            end: self.offset_to_pos_utf16(span.end),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -52,6 +82,34 @@ impl Backend {
     async fn get_document(&self, uri: &Url) -> Option<Arc<Document>> {
         let docs = self.documents.read().await;
         docs.get(uri).map(|doc| Arc::clone(&doc))
+    }
+}
+
+impl Backend {
+    async fn update_diagnostic(
+        &self,
+        analyze_result: core::result::Result<(), Box<analyzer::Error>>,
+        document: Arc<Document>,
+        uri: Url,
+    ) {
+        if let Err(e) = analyze_result {
+            let message = e.to_string();
+            let span = e.main_span();
+            let range = span
+                .map(|s| document.span_to_range_utf16(s))
+                .unwrap_or_default();
+
+            let diagnostic = Diagnostic {
+                range,
+                message,
+                severity: Some(DiagnosticSeverity::ERROR),
+                ..Default::default()
+            };
+
+            self.client
+                .publish_diagnostics(uri, vec![diagnostic], None)
+                .await;
+        }
     }
 }
 
@@ -80,13 +138,20 @@ impl LanguageServer for Backend {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let source = NamedSource::new("lsp.flo", params.text_document.text.clone());
         if let Ok(ast) = floc::parser::parse(source.clone()) {
-            self.documents.write().await.insert(
-                params.text_document.uri.clone(),
-                Arc::new(Document {
-                    program: ast,
-                    text: source,
-                }),
-            );
+            let mut analyzer = Analyzer::new(source.clone());
+            let analyze_result = analyzer.analyze_program(&ast);
+
+            let document = Arc::new(Document {
+                program: ast,
+                text: source,
+            });
+            self.documents
+                .write()
+                .await
+                .insert(params.text_document.uri.clone(), document.clone());
+
+            self.update_diagnostic(analyze_result, document, params.text_document.uri)
+                .await;
         }
     }
 
@@ -94,13 +159,20 @@ impl LanguageServer for Backend {
         if let Some(change) = params.content_changes.into_iter().next() {
             let source = NamedSource::new("lsp.flo", change.text.clone());
             if let Ok(ast) = floc::parser::parse(source.clone()) {
-                self.documents.write().await.insert(
-                    params.text_document.uri,
-                    Arc::new(Document {
-                        program: ast,
-                        text: source,
-                    }),
-                );
+                let mut analyzer = Analyzer::new(source.clone());
+                let analyze_result = analyzer.analyze_program(&ast);
+
+                let document = Arc::new(Document {
+                    program: ast,
+                    text: source,
+                });
+                self.documents
+                    .write()
+                    .await
+                    .insert(params.text_document.uri.clone(), document.clone());
+
+                self.update_diagnostic(analyze_result, document, params.text_document.uri)
+                    .await;
             }
         }
     }
