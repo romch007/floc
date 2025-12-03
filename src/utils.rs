@@ -442,7 +442,7 @@ mod tests {
             compile: false,
             assemble: true,
             output: None,
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -458,7 +458,7 @@ mod tests {
             compile: false,
             assemble: true,
             output: Some("afile.txt".into()),
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -474,7 +474,7 @@ mod tests {
             compile: true,
             assemble: false,
             output: None,
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -490,7 +490,7 @@ mod tests {
             compile: true,
             assemble: false,
             output: None,
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -506,7 +506,7 @@ mod tests {
             compile: true,
             assemble: false,
             output: Some("something.mp4".into()),
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -522,7 +522,7 @@ mod tests {
             compile: false,
             assemble: false,
             output: None,
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -538,7 +538,7 @@ mod tests {
             compile: false,
             assemble: false,
             output: None,
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -554,7 +554,7 @@ mod tests {
             compile: false,
             assemble: false,
             output: Some("anything.docx".into()),
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
