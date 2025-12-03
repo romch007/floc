@@ -44,6 +44,9 @@ pub enum Token {
     #[token("&&")]
     LogicAnd,
 
+    #[token("not")]
+    LogicNot,
+
     #[token("(")]
     LParen,
 
