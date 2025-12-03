@@ -60,5 +60,16 @@ pub fn keyword_completion_items() -> Vec<CompletionItem> {
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             ..CompletionItem::default()
         },
+        CompletionItem {
+            label: "tantque".to_string(),
+            kind: Some(CompletionItemKind::SNIPPET),
+            label_details: Some(CompletionItemLabelDetails {
+                detail: Some(" (expression) {statements}".to_string()),
+                description: None,
+            }),
+            insert_text: Some("tantque (${1:expression}) {\n$0\n}".to_string()),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            ..CompletionItem::default()
+        },
     ]
 }
