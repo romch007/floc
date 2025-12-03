@@ -1,7 +1,7 @@
 pub mod dot;
 pub mod visitor;
 
-use crate::utils::Span;
+use crate::span::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Identifier {

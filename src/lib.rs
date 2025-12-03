@@ -9,4 +9,5 @@ pub mod linker;
 #[cfg(feature = "codegen")]
 pub mod llvm_wrapper;
 pub mod parser;
+pub mod span;
 pub mod utils;

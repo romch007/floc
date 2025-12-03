@@ -1,6 +1,7 @@
 use crate::{
-    ast::{self},
-    utils::{self, Span, SpanIterExt},
+    ast,
+    span::{Span, SpanIterExt},
+    utils,
 };
 use std::{cell::Cell, collections::HashMap};
 
