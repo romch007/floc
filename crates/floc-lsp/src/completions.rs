@@ -60,6 +60,7 @@ pub fn keyword_completion_items() -> Vec<CompletionItem> {
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             ..CompletionItem::default()
         },
+        // TODO: something smart for "sinon" & "sinon si"
         CompletionItem {
             label: "tantque".to_string(),
             kind: Some(CompletionItemKind::SNIPPET),

@@ -111,8 +111,58 @@ impl LanguageServer for Backend {
         Ok(())
     }
 
-    async fn completion(&self, _: CompletionParams) -> Result<Option<CompletionResponse>> {
-        Ok(Some(CompletionResponse::Array(keyword_completion_items())))
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        let mut completions: Vec<CompletionItem> = Vec::new();
+
+        // Add keywords + functions from the standard lib
+        completions.extend(keyword_completion_items());
+
+        let uri = params.text_document_position.text_document.uri;
+        if let Some(doc) = self.get_document(&uri).await {
+            let mut analyzer = Analyzer::new(doc.text.clone());
+            let _ = analyzer.analyze_program(&doc.program);
+
+            // Add all functions to completion
+            for (name, function) in analyzer.functions() {
+                let mut details = String::from("(");
+                let mut snippet = format!("{}(", name);
+
+                for (i, param) in function.arguments.iter().enumerate() {
+                    let index = i + 1;
+                    let param_name = format!("param{}", index);
+
+                    details += &format!("{} {}", param.kind, param_name);
+                    if i < function.arguments.len() - 1 {
+                        details += ", ";
+                    }
+
+                    snippet += &format!("${{{}:{}}}", index, param_name);
+                    if i < function.arguments.len() - 1 {
+                        snippet += ", ";
+                    }
+                }
+
+                details += ")";
+                // TODO: something smart to check whether or not we should add a semicolon
+                snippet += ")$0";
+
+                let item = CompletionItem {
+                    label: name.clone(),
+                    kind: Some(CompletionItemKind::FUNCTION),
+                    label_details: Some(CompletionItemLabelDetails {
+                        detail: Some(details),
+                        description: None,
+                    }),
+                    insert_text: Some(snippet),
+                    insert_text_format: Some(InsertTextFormat::SNIPPET),
+                    ..Default::default()
+                };
+
+                completions.push(item);
+            }
+        }
+
+        Ok(Some(CompletionResponse::Array(completions)))
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
@@ -121,6 +171,7 @@ impl LanguageServer for Backend {
             .await
         {
             // TODO: cache this?
+            // Il veut jouer à cache-cache ?
             let mut analyzer = Analyzer::new(doc.text.clone());
             let _ = analyzer.analyze_program(&doc.program);
 
