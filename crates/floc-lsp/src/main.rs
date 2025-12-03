@@ -1,9 +1,9 @@
 mod finder;
 
 use std::collections::HashMap;
-use std::fmt::Write;
 use std::sync::Arc;
 
+use floc::analyzer::{self, Analyzer};
 use floc::ast;
 use floc::ast::visitor::Visitor;
 use miette::NamedSource;
@@ -16,8 +16,23 @@ use crate::finder::Finder;
 
 #[derive(Debug)]
 struct Document {
-    pub text: String,
+    pub text: miette::NamedSource<String>,
     pub program: ast::Program,
+}
+
+impl Document {
+    fn pos_to_offset(&self, position: Position) -> usize {
+        let mut offset = 0;
+        for (line_idx, line) in self.text.inner().lines().enumerate() {
+            if line_idx == position.line as usize {
+                offset += position.character as usize;
+                break;
+            } else {
+                offset += line.len() + 1; // +1 for newline
+            }
+        }
+        offset
+    }
 }
 
 #[derive(Debug)]
@@ -69,7 +84,7 @@ impl LanguageServer for Backend {
                 params.text_document.uri.clone(),
                 Arc::new(Document {
                     program: ast,
-                    text: params.text_document.text.clone(),
+                    text: source,
                 }),
             );
         }
@@ -78,12 +93,12 @@ impl LanguageServer for Backend {
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         if let Some(change) = params.content_changes.into_iter().next() {
             let source = NamedSource::new("lsp.flo", change.text.clone());
-            if let Ok(ast) = floc::parser::parse(source) {
+            if let Ok(ast) = floc::parser::parse(source.clone()) {
                 self.documents.write().await.insert(
                     params.text_document.uri,
                     Arc::new(Document {
                         program: ast,
-                        text: change.text.clone(),
+                        text: source,
                     }),
                 );
             }
@@ -138,15 +153,19 @@ impl LanguageServer for Backend {
             .get_document(&params.text_document_position_params.text_document.uri)
             .await
         {
-            let offset =
-                position_to_offset(&doc.text, params.text_document_position_params.position);
+            // TODO: cache this?
+            let mut analyzer = Analyzer::new(doc.text.clone());
+            let _ = analyzer.analyze_program(&doc.program);
+
+            let offset = doc.pos_to_offset(params.text_document_position_params.position);
+
             let mut finder = Finder::new(offset);
             finder.visit_program(&doc.program);
 
-            if let Some(expr) = finder.found_expr {
-                let mut s = String::new();
-                write!(&mut s, "{expr:?}").unwrap();
-                self.client.log_message(MessageType::LOG, &s).await;
+            if let Some(ast::Expression::FunctionCall(fn_call)) = finder.found_expr {
+                if let Some(function) = analyzer.functions().get(&fn_call.name.ident) {
+                    return Ok(Some(get_function_doc(function)));
+                }
             }
         }
 
@@ -154,17 +173,38 @@ impl LanguageServer for Backend {
     }
 }
 
-fn position_to_offset(text: &str, position: Position) -> usize {
-    let mut offset = 0;
-    for (line_idx, line) in text.lines().enumerate() {
-        if line_idx == position.line as usize {
-            offset += position.character as usize;
-            break;
-        } else {
-            offset += line.len() + 1; // +1 for newline
-        }
+fn get_function_doc(function: &analyzer::Function) -> Hover {
+    let mut markdown = String::new();
+
+    markdown += "function ";
+    markdown += "**";
+    markdown += function.name.as_str();
+    markdown += "**";
+
+    markdown += "\n\n---\n\n";
+
+    markdown += "-> **";
+    markdown += function.return_type.kind.to_string().as_str();
+    markdown += "**\n";
+
+    markdown += "\n\n---\n\n";
+
+    markdown += "parameters:";
+    markdown += "\n";
+
+    for param in &function.arguments {
+        markdown += " - **";
+        markdown += param.kind.to_string().as_str();
+        markdown += "**\n";
     }
-    offset
+
+    Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: markdown,
+        }),
+        range: None,
+    }
 }
 
 #[tokio::main]
