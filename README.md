@@ -11,7 +11,7 @@ The Flo programming language is an imperative and statically-typed language desi
 What you need:
 - Rust (at least 1.85.0)
 - A C++ compiler
-- LLVM 18.1
+- LLVM 21
 - libclang (usually included with clang)
 
 ### Building and running:
