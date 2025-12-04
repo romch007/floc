@@ -313,6 +313,7 @@ pub struct Analyzer {
 }
 
 impl Analyzer {
+    #[inline]
     pub fn new(source_code: miette::NamedSource<String>) -> Self {
         Self {
             variables: Vec::with_capacity(1),
@@ -323,10 +324,12 @@ impl Analyzer {
         }
     }
 
+    #[inline]
     pub fn functions(&self) -> &HashMap<String, Function> {
         &self.functions
     }
 
+    #[inline]
     pub fn warnings(&self) -> &[miette::Report] {
         &self.warnings
     }
