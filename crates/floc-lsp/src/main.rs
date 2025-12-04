@@ -85,7 +85,7 @@ impl Backend {
 
     async fn get_document(&self, uri: &Url) -> Option<Arc<Document>> {
         let docs = self.documents.read().await;
-        docs.get(uri).map(|doc| Arc::clone(&doc))
+        docs.get(uri).map(Arc::clone)
     }
 }
 
@@ -251,10 +251,10 @@ impl LanguageServer for Backend {
             let mut finder = Finder::new(offset);
             finder.visit_program(&doc.program);
 
-            if let Some(ast::Expression::FunctionCall(fn_call)) = finder.found_expr {
-                if let Some(function) = analyzer.functions().get(&fn_call.name.ident) {
-                    return Ok(Some(get_function_doc(function)));
-                }
+            if let Some(ast::Expression::FunctionCall(fn_call)) = finder.found_expr
+                && let Some(function) = analyzer.functions().get(&fn_call.name.ident)
+            {
+                return Ok(Some(get_function_doc(function)));
             }
         }
 
@@ -303,6 +303,6 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::new(|client| Backend::new(client));
+    let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
 }

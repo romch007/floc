@@ -17,26 +17,24 @@ impl<'a> Finder<'a> {
 
     fn update_expr(&mut self, expr: &'a Expression) {
         if expr.span().contains(self.offset) {
-            match &self.found_expr {
-                Some(current) => {
-                    if expr.span().len() < current.span().len() {
-                        self.found_expr = Some(expr);
-                    }
+            if let Some(current) = &self.found_expr {
+                if expr.span().len() < current.span().len() {
+                    self.found_expr = Some(expr);
                 }
-                None => self.found_expr = Some(expr),
+            } else {
+                self.found_expr = Some(expr)
             }
         }
     }
 
     fn update_stmt(&mut self, stmt: &'a Statement) {
         if stmt.span().contains(self.offset) {
-            match &self.found_stmt {
-                Some(current) => {
-                    if stmt.span().len() < current.span().len() {
-                        self.found_stmt = Some(stmt);
-                    }
+            if let Some(current) = &self.found_stmt {
+                if stmt.span().len() < current.span().len() {
+                    self.found_stmt = Some(stmt);
                 }
-                None => self.found_stmt = Some(stmt),
+            } else {
+                self.found_stmt = Some(stmt)
             }
         }
     }
