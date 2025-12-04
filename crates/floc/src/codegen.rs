@@ -11,7 +11,7 @@ use inkwell::{
     values::{BasicMetadataValueEnum, FunctionValue, GlobalValue, IntValue, PointerValue},
 };
 
-use crate::{analyzer, ast, cli, utils};
+use crate::{analyzer, ast, cli, llvm};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -47,7 +47,7 @@ impl<'ctx> Compiler<'ctx> {
         let printf = Compiler::create_printf(context, &module);
         let scanf = Compiler::create_scanf(context, &module);
 
-        utils::add_comment_section(&module, &format!("floc {}", cli::get_version()));
+        llvm::add_comment_section(&module, &format!("floc {}", cli::get_version()));
 
         Self {
             context,
