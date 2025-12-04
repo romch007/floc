@@ -486,7 +486,7 @@ impl<'ctx> Compiler<'ctx> {
             &format!("{}_call", &fn_call.name.ident),
         )?;
 
-        Ok(retval.try_as_basic_value().unwrap_left().into_int_value())
+        Ok(retval.try_as_basic_value().unwrap_basic().into_int_value())
     }
 
     pub fn emit_read(&mut self) -> Result<IntValue<'ctx>, Error> {

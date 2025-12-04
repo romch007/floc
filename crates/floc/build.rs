@@ -118,7 +118,7 @@ mod codegen {
 fn main() {
     #[cfg(feature = "codegen")]
     {
-        let llvm_config_path = std::env::var("DEP_LLVM_18_CONFIG_PATH").unwrap();
+        let llvm_config_path = std::env::var("DEP_LLVM_21_CONFIG_PATH").unwrap();
         codegen::generate_wrapper(&llvm_config_path);
         codegen::compile_wrapper(&llvm_config_path);
     }
