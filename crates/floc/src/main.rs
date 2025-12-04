@@ -107,7 +107,9 @@ fn main() -> miette::Result<()> {
     }
 
     if args.emit_ast_as_dot {
-        ast::dot::dump_graph(&ast_prog).unwrap();
+        ast::dot::dump_graph(&ast_prog)
+            .into_diagnostic()
+            .wrap_err("cannot dump graph")?;
         return Ok(());
     }
 
@@ -128,7 +130,7 @@ fn main() -> miette::Result<()> {
         eprintln!("{warning:?}");
     }
 
-    let module_name = filename.strip_suffix(".flo").unwrap_or("<unknown>");
+    let module_name = filename.strip_suffix(".flo").unwrap_or(filename);
 
     if args.verbose {
         eprintln!("-- compiling");
