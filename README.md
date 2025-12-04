@@ -16,10 +16,10 @@ What you need:
 
 ### Building and running:
 ```bash
-$ cargo build --release
+$ cargo build --release --bin=floc
 ```
 
-(if you are building on Alpine Linux you need to run `RUSTFLAGS="-C target-feature=-crt-static" cargo b -r`)
+(if you are building on Alpine Linux you need to run `RUSTFLAGS="-C target-feature=-crt-static" cargo b -r --bin=floc`)
 
 ```bash
 $ target/release/floc[.exe] flo-examples/factorial.flo
