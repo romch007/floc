@@ -50,7 +50,7 @@ pub struct Args {
     #[arg(short, long)]
     pub compile: bool,
 
-    /// Only assemble, do not compile nor link
+    /// Only generate assembly, do not compile nor link
     #[arg(short = 'S', long)]
     pub assemble: bool,
 
