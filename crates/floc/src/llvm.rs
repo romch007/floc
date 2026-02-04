@@ -102,6 +102,7 @@ define_arch_enum!(
     unknown_field: unknown
 );
 
+#[must_use]
 pub fn get_arch_from_target_triple(target_triple: &str) -> Option<Arch> {
     let target_triple = CString::new(target_triple).unwrap();
 
@@ -110,6 +111,7 @@ pub fn get_arch_from_target_triple(target_triple: &str) -> Option<Arch> {
     Arch::from_wrapper(ret)
 }
 
+#[must_use]
 pub fn is_msvc(target_triple: &str) -> bool {
     let target_triple = CString::new(target_triple).unwrap();
 
@@ -122,7 +124,7 @@ pub fn add_comment_section(module: &inkwell::module::Module, compiler_string: &s
     let compiler_string = CString::new(compiler_string).unwrap();
     let module_ptr = module.as_mut_ptr();
 
-    unsafe { sys::add_comment_section(module_ptr as *mut _, compiler_string.as_ptr()) };
+    unsafe { sys::add_comment_section(module_ptr.cast(), compiler_string.as_ptr()) };
 }
 
 #[cfg(test)]

@@ -12,7 +12,14 @@ use floc::{
 use miette::NamedSource;
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::*;
+use tower_lsp::lsp_types::{
+    CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionOptions,
+    CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, Hover, HoverContents, HoverParams,
+    HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams,
+    InsertTextFormat, MarkupContent, MarkupKind, MessageType, Position, Range, ServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+};
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::completions::keyword_completion_items;
@@ -31,9 +38,8 @@ impl Document {
             if line_idx == position.line as usize {
                 offset += position.character as usize;
                 break;
-            } else {
-                offset += line.len() + 1; // +1 for newline
             }
+            offset += line.len() + 1; // +1 for newline
         }
         offset
     }
@@ -199,7 +205,7 @@ impl LanguageServer for Backend {
             // Add all functions to completion
             for (name, function) in analyzer.functions() {
                 let mut details = String::from("(");
-                let mut snippet = format!("{}(", name);
+                let mut snippet = format!("{name}(");
 
                 for (i, param) in function.arguments.iter().enumerate() {
                     details += &format!("{} {}", param.1.kind, param.0);

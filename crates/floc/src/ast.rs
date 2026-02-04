@@ -101,6 +101,7 @@ pub enum Expression {
 }
 
 impl Expression {
+    #[must_use]
     pub fn span(&self) -> &Span {
         match self {
             Expression::Integer(_, span) => span,
@@ -168,6 +169,7 @@ pub enum Statement {
 }
 
 impl Statement {
+    #[must_use]
     pub fn span(&self) -> &Span {
         match self {
             Statement::Assignment(assign) => &assign.span,

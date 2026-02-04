@@ -268,6 +268,7 @@ pub enum Error {
 }
 
 impl Error {
+    #[must_use]
     pub fn main_span(&self) -> Option<&Span> {
         match self {
             Error::TypeMismatchInOperation { operator, .. } => Some(operator),
@@ -314,6 +315,7 @@ pub struct Analyzer {
 
 impl Analyzer {
     #[inline]
+    #[must_use]
     pub fn new(source_code: miette::NamedSource<String>) -> Self {
         Self {
             variables: Vec::with_capacity(1),
@@ -325,11 +327,13 @@ impl Analyzer {
     }
 
     #[inline]
+    #[must_use]
     pub fn functions(&self) -> &HashMap<String, Function> {
         &self.functions
     }
 
     #[inline]
+    #[must_use]
     pub fn warnings(&self) -> &[miette::Report] {
         &self.warnings
     }
@@ -366,14 +370,14 @@ impl Analyzer {
             .variables
             .iter()
             .flat_map(|frame| frame.keys())
-            .map(|string| string.as_str());
+            .map(std::string::String::as_str);
 
         utils::closest_str(variable_names, var_name, MAX_LEVENSHTEIN_DIST_FOR_SUGGEST)
             .map(|name| format!("did you mean '{name}'?"))
     }
 
     fn get_help_fn_not_found(&self, fn_name: &str) -> Option<String> {
-        let fn_names = self.functions.keys().map(|string| string.as_str());
+        let fn_names = self.functions.keys().map(std::string::String::as_str);
 
         utils::closest_str(fn_names, fn_name, MAX_LEVENSHTEIN_DIST_FOR_SUGGEST)
             .map(|name| format!("did you mean '{name}'?"))
@@ -393,7 +397,7 @@ impl Analyzer {
         for fn_decl in &prog.function_decls {
             if let Some(previous_fn) = self.functions.get(&fn_decl.name.ident) {
                 return Err(Box::new(Error::FunctionAlreadyDefined {
-                    fn_name: fn_decl.name.ident.to_string(),
+                    fn_name: fn_decl.name.ident.clone(),
                     src: self.source_code.clone(),
                     here: fn_decl.span,
                     previous_def: previous_fn.decl_span,
@@ -570,7 +574,7 @@ impl Analyzer {
     fn analyze_declaration(&mut self, declaration: &ast::Declaration) -> Result<bool, Box<Error>> {
         if let Some(previous_var) = self.get_variable(&declaration.variable) {
             return Err(Box::new(Error::VariableAlreadyDefined {
-                varname: declaration.variable.ident.to_string(),
+                varname: declaration.variable.ident.clone(),
                 src: self.source_code.clone(),
                 here: declaration.span,
                 previous_def: previous_var.declaration_span,
@@ -605,7 +609,7 @@ impl Analyzer {
             .get_variable(&assignment.variable)
             .cloned()
             .ok_or_else(|| Error::VariableNotFound {
-                var_name: assignment.variable.ident.to_string(),
+                var_name: assignment.variable.ident.clone(),
                 src: self.source_code.clone(),
                 here: assignment.variable.span,
                 advice: self.get_help_var_not_found(&assignment.variable.ident),
@@ -661,7 +665,7 @@ impl Analyzer {
             .get(&fn_call.name.ident)
             .cloned()
             .ok_or_else(|| Error::FunctionNotFound {
-                fn_name: fn_call.name.ident.to_string(),
+                fn_name: fn_call.name.ident.clone(),
                 src: self.source_code.clone(),
                 here: fn_call.span,
                 advice: self.get_help_fn_not_found(&fn_call.name.ident),
@@ -673,7 +677,7 @@ impl Analyzer {
             let fn_call_args = fn_call
                 .arguments
                 .iter()
-                .map(|expr| expr.span())
+                .map(super::ast::Expression::span)
                 .merge_spans();
 
             // Construct a span that ranges from the start of the first argument
@@ -756,7 +760,9 @@ impl Analyzer {
     }
 
     fn analyze_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<ast::Type, Box<Error>> {
-        use ast::BinaryOpKind::*;
+        use ast::BinaryOpKind::{
+            Add, Div, Eq, Gt, Gte, LogicAnd, LogicOr, Lt, Lte, Mod, Mul, Neq, Sub,
+        };
 
         let result_type = if matches!(binary_op.kind, Eq | Neq) {
             // If it's an `equal` or `not equal` operation, check that both operands have the same type

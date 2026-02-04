@@ -1,4 +1,7 @@
-use crate::ast::*;
+use crate::ast::{
+    Argument, Assignment, Declaration, Expression, FunctionCall, FunctionDeclaration, Identifier,
+    If, Program, Return, Span, Statement, While, Write,
+};
 
 pub trait Visitor<'a> {
     fn visit_program(&mut self, program: &'a Program) {

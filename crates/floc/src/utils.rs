@@ -36,6 +36,7 @@ where
     distances.first().map(|pair| pair.0)
 }
 
+#[must_use]
 pub fn levenshtein(a: &str, b: &str) -> usize {
     let mut result = 0;
 
@@ -98,6 +99,7 @@ pub fn levenshtein(a: &str, b: &str) -> usize {
 
 /// Determine LLVM file output type, LLVM file output path and linker output path based on cli args
 #[cfg(feature = "codegen")]
+#[must_use]
 pub fn get_output_files(
     args: &cli::args::Args,
     module_name: &str,
@@ -153,6 +155,7 @@ pub struct Timer {
 }
 
 impl Timer {
+    #[must_use]
     pub fn start(verbose: bool) -> Self {
         Self {
             start: Instant::now(),
@@ -162,7 +165,7 @@ impl Timer {
 
     pub fn stop(self) {
         if self.verbose {
-            let elapsed = Instant::now() - self.start;
+            let elapsed = self.start.elapsed();
 
             println!("++ took {elapsed:?}");
         }
@@ -208,27 +211,31 @@ impl miette::highlighters::HighlighterState for SyntaxHighlighterState {
             }
 
             let style = match res {
-                Ok(lexer::Token::Integer(_)) | Ok(lexer::Token::Boolean(_)) => INTEGER_STYLE,
-                Ok(lexer::Token::Eq)
-                | Ok(lexer::Token::Neq)
-                | Ok(lexer::Token::Add)
-                | Ok(lexer::Token::Sub)
-                | Ok(lexer::Token::Mul)
-                | Ok(lexer::Token::Div)
-                | Ok(lexer::Token::Mod)
-                | Ok(lexer::Token::Lt)
-                | Ok(lexer::Token::Lte)
-                | Ok(lexer::Token::Gt)
-                | Ok(lexer::Token::Gte)
-                | Ok(lexer::Token::LogicOr)
-                | Ok(lexer::Token::LogicAnd) => OPERATOR_STYLE,
-                Ok(lexer::Token::Read)
-                | Ok(lexer::Token::Write)
-                | Ok(lexer::Token::If)
-                | Ok(lexer::Token::Else)
-                | Ok(lexer::Token::Return)
-                | Ok(lexer::Token::While) => KEYWORD_STYLE,
-                Ok(lexer::Token::IntegerType) | Ok(lexer::Token::BooleanType) => TYPE_STYLE,
+                Ok(lexer::Token::Integer(_) | lexer::Token::Boolean(_)) => INTEGER_STYLE,
+                Ok(
+                    lexer::Token::Eq
+                    | lexer::Token::Neq
+                    | lexer::Token::Add
+                    | lexer::Token::Sub
+                    | lexer::Token::Mul
+                    | lexer::Token::Div
+                    | lexer::Token::Mod
+                    | lexer::Token::Lt
+                    | lexer::Token::Lte
+                    | lexer::Token::Gt
+                    | lexer::Token::Gte
+                    | lexer::Token::LogicOr
+                    | lexer::Token::LogicAnd,
+                ) => OPERATOR_STYLE,
+                Ok(
+                    lexer::Token::Read
+                    | lexer::Token::Write
+                    | lexer::Token::If
+                    | lexer::Token::Else
+                    | lexer::Token::Return
+                    | lexer::Token::While,
+                ) => KEYWORD_STYLE,
+                Ok(lexer::Token::IntegerType | lexer::Token::BooleanType) => TYPE_STYLE,
                 Ok(_) => DEFAULT_STYLE,
                 Err(_) => INVALID_STYLE,
             };

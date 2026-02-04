@@ -6,11 +6,13 @@ pub struct Span {
 
 impl Span {
     #[inline]
+    #[must_use]
     pub fn contains(&self, offset: usize) -> bool {
         self.start <= offset && offset <= self.end
     }
 
     #[inline]
+    #[must_use]
     pub fn len(&self) -> usize {
         self.end - self.start
     }

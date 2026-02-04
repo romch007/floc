@@ -3,7 +3,10 @@ use std::{
     io::{self, BufWriter, Write},
 };
 
-use crate::ast::*;
+use crate::ast::{
+    Argument, Assignment, BinaryOp, BinaryOpKind, Declaration, Expression, FunctionCall,
+    FunctionDeclaration, If, Program, Statement, UnaryOp, UnaryOpKind, While,
+};
 
 pub fn dump_graph(prog: &Program) -> Result<(), io::Error> {
     let mut stdout = BufWriter::new(io::stdout().lock());

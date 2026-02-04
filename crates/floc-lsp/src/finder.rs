@@ -22,7 +22,7 @@ impl<'a> Finder<'a> {
                     self.found_expr = Some(expr);
                 }
             } else {
-                self.found_expr = Some(expr)
+                self.found_expr = Some(expr);
             }
         }
     }
@@ -34,7 +34,7 @@ impl<'a> Finder<'a> {
                     self.found_stmt = Some(stmt);
                 }
             } else {
-                self.found_stmt = Some(stmt)
+                self.found_stmt = Some(stmt);
             }
         }
     }

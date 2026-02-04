@@ -9,6 +9,7 @@ use std::sync::LazyLock;
 static VERSION: LazyLock<String> = LazyLock::new(get_version);
 
 #[cfg(feature = "codegen")]
+#[must_use]
 pub fn get_version() -> String {
     let llvm_version = inkwell::support::get_llvm_version();
 
