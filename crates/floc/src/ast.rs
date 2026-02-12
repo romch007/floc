@@ -1,6 +1,7 @@
 pub mod dot;
+pub mod visitor;
 
-use crate::utils::Span;
+use crate::span::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Identifier {
@@ -100,6 +101,7 @@ pub enum Expression {
 }
 
 impl Expression {
+    #[must_use]
     pub fn span(&self) -> &Span {
         match self {
             Expression::Integer(_, span) => span,
@@ -167,6 +169,7 @@ pub enum Statement {
 }
 
 impl Statement {
+    #[must_use]
     pub fn span(&self) -> &Span {
         match self {
             Statement::Assignment(assign) => &assign.span,

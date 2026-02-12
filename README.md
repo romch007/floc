@@ -11,18 +11,18 @@ The Flo programming language is an imperative and statically-typed language desi
 What you need:
 - Rust (at least 1.85.0)
 - A C++ compiler
-- LLVM 18.1
+- LLVM 21
 - libclang (usually included with clang)
 
 ### Building and running:
 ```bash
-$ cargo build --release
+$ cargo build --release --bin=floc
 ```
 
-(if you are building on Alpine Linux you need to run `RUSTFLAGS="-C target-feature=-crt-static" cargo b -r`)
+(if you are building on Alpine Linux you need to run `RUSTFLAGS="-C target-feature=-crt-static" cargo b -r --bin=floc`)
 
 ```bash
-$ target/release/floc[.exe] flo_examples/factorial.flo
+$ target/release/floc[.exe] flo-examples/factorial.flo
 ```
 
 Note: On Windows, make sure `link.exe` is available by installing Visual Studio with the "Desktop development with C++" workload.
@@ -36,22 +36,21 @@ Some cool stuff to do:
 
 - Render the AST as a dot graph:
 ```bash
-$ floc --emit-ast-as-dot flo_examples/prime.flo | dot -Tsvg > ast.svg
+$ floc --emit-ast-as-dot flo-examples/prime.flo | dot -Tsvg > ast.svg
 ```
 
 - Dump the generated LLVM IR:
 ```bash
-$ floc --emit-ir flo_examples/prime.flo
+$ floc --emit-ir flo-examples/prime.flo
 ```
 
 - Dump the generated LLVM IR after optimization passes:
 ```bash
-$ floc --emit-optimized-ir flo_examples/prime.flo
+$ floc --emit-optimized-ir flo-examples/prime.flo
 ```
 
 (use `--help` to get all available options)
 
 ## How to code in Flo
-[Link to the reference](FLO_REFERENCE.md)
 
-See some example programs [here](https://github.com/romch007/floc/tree/main/flo_examples)
+See some example programs [here](https://github.com/romch007/floc/tree/main/flo-examples)

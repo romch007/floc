@@ -6,7 +6,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use crate::utils;
+use crate::llvm;
 
 macro_rules! os {
     ($val:expr) => {{ OsStr::new($val) }};
@@ -16,13 +16,13 @@ pub fn link_msvc(
     object_file: &Path,
     output_file: &Path,
     link_static: bool,
-    arch: &utils::Arch,
+    arch: &llvm::Arch,
     verbose: bool,
 ) -> miette::Result<()> {
     let msvc_arch = match arch {
-        utils::Arch::x86_64 => "x64",
-        utils::Arch::x86 => "x86",
-        utils::Arch::aarch64 => "arm64",
+        llvm::Arch::x86_64 => "x64",
+        llvm::Arch::x86 => "x86",
+        llvm::Arch::aarch64 => "arm64",
         _ => bail!("invalid arch {arch:?} for MSVC"),
     };
 

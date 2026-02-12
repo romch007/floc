@@ -1,5 +1,9 @@
-use crate::ast::*;
-use crate::utils::Span;
+use crate::ast::{
+    Argument, Assignment, BinaryOp, BinaryOpKind, Declaration, Expression, FunctionCall,
+    FunctionDeclaration, Identifier, If, Program, Return, Statement, Type, TypeKind, UnaryOp,
+    UnaryOpKind, While, Write,
+};
+use crate::span::Span;
 use miette::Context;
 use pest::{Parser, iterators::Pair, pratt_parser::PrattParser};
 use pest_derive::Parser;
@@ -259,7 +263,7 @@ impl Node for If {
                 statements_else = Some(vec![Statement::If(If::parse(pairs.next().unwrap()))]);
             }
             _ => {}
-        };
+        }
 
         Self {
             condition,
@@ -373,7 +377,7 @@ impl Node for Program {
 
 pub fn parse(named_source: miette::NamedSource<String>) -> miette::Result<Program> {
     let mut pest_output = PestParser::parse(Rule::prog, named_source.inner())
-        .map_err(|pest_err| pest_err.into_miette())
+        .map_err(pest::error::Error::into_miette)
         .wrap_err("cannot parse program")?;
 
     let program = Program::parse(pest_output.next().unwrap());

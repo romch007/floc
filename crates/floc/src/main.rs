@@ -1,18 +1,10 @@
-mod analyzer;
-mod ast;
-mod cli;
-mod codegen;
-mod lexer;
-mod linker;
-mod llvm_wrapper;
-mod parser;
-mod utils;
-
 use std::{fs, io::Read, path::Path};
 
 use clap::CommandFactory;
 use miette::{IntoDiagnostic, WrapErr};
 use scopeguard::defer;
+
+use floc::{analyzer, ast, cli, codegen, linker, llvm, parser, utils};
 
 fn print_targets() -> miette::Result<()> {
     println!("Available LLVM targets:");
@@ -115,7 +107,9 @@ fn main() -> miette::Result<()> {
     }
 
     if args.emit_ast_as_dot {
-        ast::dot::dump_graph(&ast_prog).unwrap();
+        ast::dot::dump_graph(&ast_prog)
+            .into_diagnostic()
+            .wrap_err("cannot dump graph")?;
         return Ok(());
     }
 
@@ -136,7 +130,7 @@ fn main() -> miette::Result<()> {
         eprintln!("{warning:?}");
     }
 
-    let module_name = filename.strip_suffix(".flo").unwrap_or("<unknown>");
+    let module_name = filename.strip_suffix(".flo").unwrap_or(filename);
 
     if args.verbose {
         eprintln!("-- compiling");
@@ -194,10 +188,10 @@ fn main() -> miette::Result<()> {
         eprintln!("LLVM target triple is {target_triple}");
     }
 
-    let target_arch = utils::get_arch_from_target_triple(target_triple)
+    let target_arch = llvm::get_arch_from_target_triple(target_triple)
         .wrap_err_with(|| format!("unknown arch from target triple {target_triple}"))?;
 
-    let is_msvc = utils::is_msvc(target_triple);
+    let is_msvc = llvm::is_msvc(target_triple);
 
     let (llvm_file_type, llvm_output_file, exec_output_file) =
         utils::get_output_files(&args, module_name, is_msvc);

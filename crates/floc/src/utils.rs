@@ -1,64 +1,11 @@
-use std::env;
-use std::ffi::{CString, OsStr, OsString};
+use std::ffi::{OsStr, OsString};
 use std::iter::repeat_with;
-use std::path::PathBuf;
 use std::time::Instant;
 
-use inkwell::targets::FileType;
+use crate::lexer;
 
-use crate::{cli, lexer, llvm_wrapper};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Span {
-    pub start: usize,
-    pub end: usize,
-}
-
-pub trait SpanIterExt {
-    /// Merges a sequence of `Span` references into a single `Span`.
-    ///
-    /// The method computes a new `Span` that spans from the start of the first `Span`
-    /// to the end of the last `Span` in the iterator. If the iterator contains only one
-    /// `Span`, it returns that `Span` directly. If the iterator is empty, it returns `None`.
-    fn merge_spans(self) -> Option<Span>;
-}
-
-impl<'a, T> SpanIterExt for T
-where
-    T: Iterator<Item = &'a Span>,
-{
-    fn merge_spans(mut self) -> Option<Span> {
-        if let Some(first) = self.next() {
-            if let Some(last) = self.last() {
-                Some(Span {
-                    start: first.start,
-                    end: last.end,
-                })
-            } else {
-                // Only one span, return it
-                Some(*first)
-            }
-        } else {
-            // No spans
-            None
-        }
-    }
-}
-
-impl<'a> From<pest::Span<'a>> for Span {
-    fn from(value: pest::Span<'a>) -> Self {
-        Self {
-            start: value.start(),
-            end: value.end(),
-        }
-    }
-}
-
-impl From<Span> for miette::SourceSpan {
-    fn from(value: Span) -> Self {
-        (value.start, value.end - value.start).into()
-    }
-}
+#[cfg(feature = "codegen")]
+use {crate::cli, std::path::PathBuf};
 
 pub fn tmpname(prefix: &OsStr, suffix: &OsStr, rand_len: usize) -> OsString {
     let capacity = prefix
@@ -89,6 +36,7 @@ where
     distances.first().map(|pair| pair.0)
 }
 
+#[must_use]
 pub fn levenshtein(a: &str, b: &str) -> usize {
     let mut result = 0;
 
@@ -150,14 +98,18 @@ pub fn levenshtein(a: &str, b: &str) -> usize {
 }
 
 /// Determine LLVM file output type, LLVM file output path and linker output path based on cli args
+#[cfg(feature = "codegen")]
+#[must_use]
 pub fn get_output_files(
     args: &cli::args::Args,
     module_name: &str,
     is_msvc: bool,
-) -> (FileType, PathBuf, Option<PathBuf>) {
+) -> (inkwell::targets::FileType, PathBuf, Option<PathBuf>) {
+    use std::env;
+
     if args.assemble {
         (
-            FileType::Assembly,
+            inkwell::targets::FileType::Assembly,
             args.output
                 .clone()
                 .unwrap_or_else(|| format!("{module_name}.S").into()),
@@ -193,7 +145,7 @@ pub fn get_output_files(
             Some(file_path)
         };
 
-        (FileType::Object, object_file, exec_file)
+        (inkwell::targets::FileType::Object, object_file, exec_file)
     }
 }
 
@@ -203,6 +155,7 @@ pub struct Timer {
 }
 
 impl Timer {
+    #[must_use]
     pub fn start(verbose: bool) -> Self {
         Self {
             start: Instant::now(),
@@ -212,7 +165,7 @@ impl Timer {
 
     pub fn stop(self) {
         if self.verbose {
-            let elapsed = Instant::now() - self.start;
+            let elapsed = self.start.elapsed();
 
             println!("++ took {elapsed:?}");
         }
@@ -258,27 +211,31 @@ impl miette::highlighters::HighlighterState for SyntaxHighlighterState {
             }
 
             let style = match res {
-                Ok(lexer::Token::Integer(_)) | Ok(lexer::Token::Boolean(_)) => INTEGER_STYLE,
-                Ok(lexer::Token::Eq)
-                | Ok(lexer::Token::Neq)
-                | Ok(lexer::Token::Add)
-                | Ok(lexer::Token::Sub)
-                | Ok(lexer::Token::Mul)
-                | Ok(lexer::Token::Div)
-                | Ok(lexer::Token::Mod)
-                | Ok(lexer::Token::Lt)
-                | Ok(lexer::Token::Lte)
-                | Ok(lexer::Token::Gt)
-                | Ok(lexer::Token::Gte)
-                | Ok(lexer::Token::LogicOr)
-                | Ok(lexer::Token::LogicAnd) => OPERATOR_STYLE,
-                Ok(lexer::Token::Read)
-                | Ok(lexer::Token::Write)
-                | Ok(lexer::Token::If)
-                | Ok(lexer::Token::Else)
-                | Ok(lexer::Token::Return)
-                | Ok(lexer::Token::While) => KEYWORD_STYLE,
-                Ok(lexer::Token::IntegerType) | Ok(lexer::Token::BooleanType) => TYPE_STYLE,
+                Ok(lexer::Token::Integer(_) | lexer::Token::Boolean(_)) => INTEGER_STYLE,
+                Ok(
+                    lexer::Token::Eq
+                    | lexer::Token::Neq
+                    | lexer::Token::Add
+                    | lexer::Token::Sub
+                    | lexer::Token::Mul
+                    | lexer::Token::Div
+                    | lexer::Token::Mod
+                    | lexer::Token::Lt
+                    | lexer::Token::Lte
+                    | lexer::Token::Gt
+                    | lexer::Token::Gte
+                    | lexer::Token::LogicOr
+                    | lexer::Token::LogicAnd,
+                ) => OPERATOR_STYLE,
+                Ok(
+                    lexer::Token::Read
+                    | lexer::Token::Write
+                    | lexer::Token::If
+                    | lexer::Token::Else
+                    | lexer::Token::Return
+                    | lexer::Token::While,
+                ) => KEYWORD_STYLE,
+                Ok(lexer::Token::IntegerType | lexer::Token::BooleanType) => TYPE_STYLE,
                 Ok(_) => DEFAULT_STYLE,
                 Err(_) => INVALID_STYLE,
             };
@@ -290,120 +247,6 @@ impl miette::highlighters::HighlighterState for SyntaxHighlighterState {
 
         styled
     }
-}
-
-macro_rules! define_arch_enum {
-    (
-        from: $enum_from:ty,
-        name: $enum_name:ident,
-        archs: [$($variant:ident),*],
-        unknown_field: $unknown_field:ident
-    ) => {
-        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-        #[allow(non_camel_case_types)]
-        pub enum $enum_name {
-            $($variant),*,
-        }
-
-        impl $enum_name {
-            pub fn from_wrapper(arch: $enum_from) -> Option<Self> {
-                match arch {
-                    $( <$enum_from>::$variant => Some(<$enum_name>::$variant), )*
-                    <$enum_from>::$unknown_field => None,
-                }
-            }
-        }
-    };
-}
-
-define_arch_enum!(
-    from: llvm_wrapper::arch_t,
-    name: Arch,
-    archs: [
-        arm,
-        armeb,
-        aarch64,
-        aarch64_be,
-        aarch64_32,
-        arc,
-        avr,
-        bpfel,
-        bpfeb,
-        csky,
-        dxil,
-        hexagon,
-        loongarch32,
-        loongarch64,
-        m68k,
-        mips,
-        mipsel,
-        mips64,
-        mips64el,
-        msp430,
-        ppc,
-        ppcle,
-        ppc64,
-        ppc64le,
-        r600,
-        amdgcn,
-        riscv32,
-        riscv64,
-        sparc,
-        sparcv9,
-        sparcel,
-        systemz,
-        tce,
-        tcele,
-        thumb,
-        thumbeb,
-        x86,
-        x86_64,
-        xcore,
-        xtensa,
-        nvptx,
-        nvptx64,
-        amdil,
-        amdil64,
-        hsail,
-        hsail64,
-        spir,
-        spir64,
-        spirv,
-        spirv32,
-        spirv64,
-        kalimba,
-        shave,
-        lanai,
-        wasm32,
-        wasm64,
-        renderscript32,
-        renderscript64,
-        ve
-    ],
-    unknown_field: unknown
-);
-
-pub fn get_arch_from_target_triple(target_triple: &str) -> Option<Arch> {
-    let target_triple = CString::new(target_triple).unwrap();
-
-    let ret = unsafe { llvm_wrapper::arch_from_target_triple(target_triple.as_ptr()) };
-
-    Arch::from_wrapper(ret)
-}
-
-pub fn is_msvc(target_triple: &str) -> bool {
-    let target_triple = CString::new(target_triple).unwrap();
-
-    let ret = unsafe { llvm_wrapper::is_msvc(target_triple.as_ptr()) };
-
-    ret != 0
-}
-
-pub fn add_comment_section(module: &inkwell::module::Module, compiler_string: &str) {
-    let compiler_string = CString::new(compiler_string).unwrap();
-    let module_ptr = module.as_mut_ptr();
-
-    unsafe { llvm_wrapper::add_comment_section(module_ptr as *mut _, compiler_string.as_ptr()) };
 }
 
 #[cfg(test)]
@@ -421,7 +264,7 @@ mod tests {
             compile: false,
             assemble: true,
             output: None,
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -437,7 +280,7 @@ mod tests {
             compile: false,
             assemble: true,
             output: Some("afile.txt".into()),
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -453,7 +296,7 @@ mod tests {
             compile: true,
             assemble: false,
             output: None,
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -469,7 +312,7 @@ mod tests {
             compile: true,
             assemble: false,
             output: None,
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -485,7 +328,7 @@ mod tests {
             compile: true,
             assemble: false,
             output: Some("something.mp4".into()),
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -501,7 +344,7 @@ mod tests {
             compile: false,
             assemble: false,
             output: None,
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -517,7 +360,7 @@ mod tests {
             compile: false,
             assemble: false,
             output: None,
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
@@ -533,61 +376,12 @@ mod tests {
             compile: false,
             assemble: false,
             output: Some("anything.docx".into()),
-            source_file: "dontcare".into(),
+            source_file: Some("dontcare".into()),
             ..Default::default()
         };
 
         let (file_type, _llvm_output, link_output) = get_output_files(&args, "testing", true);
         assert_eq!(file_type, FileType::Object);
         assert_eq!(link_output, Some(PathBuf::from("anything.docx")));
-    }
-
-    use super::{Span, SpanIterExt};
-
-    #[test]
-    fn merge_spans_multiple() {
-        let spans = [
-            Span { start: 1, end: 5 },
-            Span { start: 6, end: 10 },
-            Span { start: 11, end: 15 },
-        ];
-
-        let merged_span = spans.iter().merge_spans();
-        assert_eq!(merged_span, Some(Span { start: 1, end: 15 }));
-    }
-
-    #[test]
-    fn merge_spans_single() {
-        let spans = [Span { start: 3, end: 7 }];
-
-        let merged_span = spans.iter().merge_spans();
-        assert_eq!(merged_span, Some(Span { start: 3, end: 7 }));
-    }
-
-    #[test]
-    fn merge_spans_empty() {
-        let spans = [];
-
-        let merged_span = spans.iter().merge_spans();
-        assert_eq!(merged_span, None);
-    }
-
-    #[test]
-    fn get_target_triple_arch() {
-        assert_eq!(
-            get_arch_from_target_triple("aarch64-apple-darwin").unwrap(),
-            Arch::aarch64,
-        );
-
-        assert_eq!(
-            get_arch_from_target_triple("x86_64-unknown-linux-gnu").unwrap(),
-            Arch::x86_64,
-        );
-    }
-
-    #[test]
-    fn target_triple_is_msvc() {
-        assert!(is_msvc("x86_64-pc-windows-msvc"));
-        assert!(!is_msvc("x86_64-pc-windows-gnu"));
     }
 }

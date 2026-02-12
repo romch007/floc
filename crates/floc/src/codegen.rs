@@ -11,7 +11,7 @@ use inkwell::{
     values::{BasicMetadataValueEnum, FunctionValue, GlobalValue, IntValue, PointerValue},
 };
 
-use crate::{analyzer, ast, cli, utils};
+use crate::{analyzer, ast, cli, llvm};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -41,13 +41,14 @@ pub struct Compiler<'ctx> {
 }
 
 impl<'ctx> Compiler<'ctx> {
+    #[must_use]
     pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
         let printf = Compiler::create_printf(context, &module);
         let scanf = Compiler::create_scanf(context, &module);
 
-        utils::add_comment_section(&module, &format!("floc {}", cli::get_version()));
+        llvm::add_comment_section(&module, &format!("floc {}", cli::get_version()));
 
         Self {
             context,
@@ -208,7 +209,7 @@ impl<'ctx> Compiler<'ctx> {
             let function_params = function
                 .arguments
                 .iter()
-                .map(|arg| arg.to_llvm(self.context).into())
+                .map(|arg| arg.1.to_llvm(self.context).into())
                 .collect::<Vec<BasicMetadataTypeEnum<'ctx>>>();
 
             let function_type = function
@@ -486,7 +487,7 @@ impl<'ctx> Compiler<'ctx> {
             &format!("{}_call", &fn_call.name.ident),
         )?;
 
-        Ok(retval.try_as_basic_value().unwrap_left().into_int_value())
+        Ok(retval.try_as_basic_value().unwrap_basic().into_int_value())
     }
 
     pub fn emit_read(&mut self) -> Result<IntValue<'ctx>, Error> {
