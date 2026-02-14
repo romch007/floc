@@ -1,0 +1,44 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install LLVM on macOS
+        shell: bash
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm@21
+
+          export PATH="/usr/local/opt/llvm@21/bin:$PATH"
+
+      - name: Install LLVM on Windows
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/install-llvm-windows
+        with:
+          llvm_version: "21.1.8"
+
+      - name: Run tests on macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        run: cargo test --verbose
+
+      - name: Run tests on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cargo test --verbose
