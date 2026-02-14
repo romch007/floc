@@ -14,6 +14,8 @@ What you need:
 - LLVM 21
 - libclang (usually included with clang)
 
+floc has been tested on Linux, Windows, macOS, FreeBSD, NetBSD, OpenBSD, illumos and Haiku.
+
 ### Building and running:
 ```bash
 $ cargo build --release --bin=floc
