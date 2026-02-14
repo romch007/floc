@@ -1,0 +1,30 @@
+name: Install LLVM (Windows)
+description: Downloads and installs LLVM on Windows runners
+
+inputs:
+  llvm_version:
+    required: false
+    description: "LLVM version"
+    default: "21.1.8"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install LLVM
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.llvm_version }}"
+        $zipUrl = "https://github.com/romch007/llvm-win-build/releases/download/$version/LLVM-$version-msvc-x64.zip"
+        $zipPath  = "$env:RUNNER_TEMP\llvm.zip"
+        $destPath = "C:\LLVM"
+
+        Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
+
+        if (Test-Path $destPath) {
+          Remove-Item $destPath -Recurse -Force
+        }
+
+        Expand-Archive -Path $zipPath -DestinationPath $destPath -Force
+
+        "C:\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+

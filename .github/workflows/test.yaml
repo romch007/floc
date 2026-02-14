@@ -1,0 +1,55 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+      - ci
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install LLVM on Ubuntu
+        shell: bash
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt install -y lsb-release wget software-properties-common gnupg
+          
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
+          sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-21 100
+
+          clang --version
+          llvm-config --version
+
+      - name: Install LLVM on macOS
+        shell: bash
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm@21
+
+          export PATH="/usr/local/opt/llvm@21/bin:$PATH"
+
+      - name: Install LLVM on Windows
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/install-llvm-windows
+        with:
+          llvm_version: "21.1.8"
+
+      - name: Run tests
+        run: cargo test --verbose
