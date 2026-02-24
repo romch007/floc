@@ -1,6 +1,7 @@
 use std::{fs, io::Read, path::Path};
 
 use clap::CommandFactory;
+use inkwell::targets::TargetMachine;
 use miette::{IntoDiagnostic, WrapErr};
 use scopeguard::defer;
 
@@ -138,8 +139,14 @@ fn main() -> miette::Result<()> {
 
     let compiler_timer = utils::Timer::start(args.verbose);
 
+    let default_target_triple = TargetMachine::get_default_triple();
+    let target_triple = args
+        .target_triple
+        .as_deref()
+        .unwrap_or_else(|| default_target_triple.as_str().to_str().unwrap());
+
     let llvm_context = inkwell::context::Context::create();
-    let mut codegen = codegen::Compiler::new(&llvm_context, module_name);
+    let mut codegen = codegen::Compiler::new(&llvm_context, module_name, target_triple);
 
     let declared_functions = analyzer.functions().values().collect::<Vec<_>>();
 

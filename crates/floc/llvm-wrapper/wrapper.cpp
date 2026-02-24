@@ -29,6 +29,12 @@ int is_msvc(const char *target_triple) {
   return triple.getEnvironment() == Triple::EnvironmentType::MSVC;
 }
 
+int is_elf(const char *target_triple) {
+  Triple triple(target_triple);
+
+  return triple.isOSBinFormatELF();
+}
+
 void add_comment_section(LLVMModuleRef module_ref,
                          const char *compiler_string) {
   Module *module = unwrap(module_ref);

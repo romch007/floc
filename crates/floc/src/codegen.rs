@@ -42,13 +42,15 @@ pub struct Compiler<'ctx> {
 
 impl<'ctx> Compiler<'ctx> {
     #[must_use]
-    pub fn new(context: &'ctx Context, module_name: &str) -> Self {
+    pub fn new(context: &'ctx Context, module_name: &str, target_triple: &str) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
         let printf = Compiler::create_printf(context, &module);
         let scanf = Compiler::create_scanf(context, &module);
 
-        llvm::add_comment_section(&module, &format!("floc {}", cli::get_version()));
+        if llvm::is_elf(target_triple) {
+            llvm::add_comment_section(&module, &format!("floc {}", cli::get_version()));
+        }
 
         Self {
             context,
