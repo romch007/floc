@@ -185,12 +185,6 @@ fn main() -> miette::Result<()> {
         return Ok(());
     }
 
-    let target_triple = target_machine.get_triple();
-    let target_triple = target_triple
-        .as_str()
-        .to_str()
-        .expect("invalid utf8 in target triple");
-
     if args.verbose {
         eprintln!("LLVM target triple is {target_triple}");
     }
