@@ -510,7 +510,7 @@ impl Analyzer {
         let current_function_name =
             self.parent_function
                 .as_deref()
-                .ok_or(Error::ReturnOutsideFunction {
+                .ok_or_else(|| Error::ReturnOutsideFunction {
                     src: self.source_code.clone(),
                     here: ret.span,
                 })?;
