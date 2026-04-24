@@ -16,7 +16,7 @@ name = "floc"
 
 [features]
 default = ["codegen"]
-codegen = ["cc", "bindgen", "llvm-sys", "inkwell"]
+codegen = ["dep:cc", "dep:bindgen", "dep:llvm-sys", "dep:inkwell"]
 
 [dependencies]
 cc = { version = "1.2.24", optional = true }
