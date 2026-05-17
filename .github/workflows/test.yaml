@@ -28,11 +28,11 @@ jobs:
           
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
-          sudo ./llvm.sh 21
+          sudo ./llvm.sh 22
 
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
-          sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-21 100
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-22 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-22 100
+          sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-22 100
 
           clang --version
           llvm-config --version
@@ -41,7 +41,7 @@ jobs:
         shell: bash
         if: runner.os == 'macOS'
         run: |
-          brew install llvm@21
+          brew install llvm@22
 
           export PATH="/usr/local/opt/llvm@21/bin:$PATH"
 
@@ -49,7 +49,7 @@ jobs:
         if: runner.os == 'Windows'
         uses: ./.github/actions/install-llvm-windows
         with:
-          llvm_version: "21.1.8"
+          llvm_version: "22.1.5"
 
       - name: Run tests
         run: cargo test --verbose

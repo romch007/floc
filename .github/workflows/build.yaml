@@ -19,7 +19,7 @@ jobs:
       - name: Install LLVM
         uses: ./.github/actions/install-llvm-windows
         with:
-          llvm_version: "21.1.8"
+          llvm_version: "22.1.5"
 
       - name: Build floc
         shell: pwsh
