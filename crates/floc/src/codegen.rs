@@ -11,7 +11,7 @@ use inkwell::{
     values::{BasicMetadataValueEnum, FunctionValue, GlobalValue, IntValue, PointerValue},
 };
 
-use crate::{analyzer, ast, cli, llvm};
+use crate::{analyzer, ast, cli};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -42,15 +42,11 @@ pub struct Compiler<'ctx> {
 
 impl<'ctx> Compiler<'ctx> {
     #[must_use]
-    pub fn new(context: &'ctx Context, module_name: &str, target_triple: &str) -> Self {
+    pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
         let printf = Compiler::create_printf(context, &module);
         let scanf = Compiler::create_scanf(context, &module);
-
-        if llvm::is_elf(target_triple) {
-            llvm::add_comment_section(&module, &format!("floc {}", cli::get_version()));
-        }
 
         Self {
             context,
@@ -144,6 +140,14 @@ impl<'ctx> Compiler<'ctx> {
     }
 
     pub fn emit_program(&mut self, prog: &ast::Program) -> Result<(), Error> {
+        let comment = format!("floc {}", cli::get_version());
+        let md_string = self.context.metadata_string(&comment);
+        let md_node = self.context.metadata_node(&[md_string.into()]);
+
+        self.module
+            .add_global_metadata("llvm.ident", &md_node)
+            .unwrap();
+
         for fn_decl in &prog.function_decls {
             self.emit_function_declaration(fn_decl)?;
         }

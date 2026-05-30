@@ -120,22 +120,6 @@ pub fn is_msvc(target_triple: &str) -> bool {
     ret != 0
 }
 
-#[must_use]
-pub fn is_elf(target_triple: &str) -> bool {
-    let target_triple = CString::new(target_triple).unwrap();
-
-    let ret = unsafe { sys::is_elf(target_triple.as_ptr()) };
-
-    ret != 0
-}
-
-pub fn add_comment_section(module: &inkwell::module::Module, compiler_string: &str) {
-    let compiler_string = CString::new(compiler_string).unwrap();
-    let module_ptr = module.as_mut_ptr();
-
-    unsafe { sys::add_comment_section(module_ptr.cast(), compiler_string.as_ptr()) };
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

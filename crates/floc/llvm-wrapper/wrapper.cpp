@@ -28,32 +28,4 @@ int is_msvc(const char *target_triple) {
 
   return triple.getEnvironment() == Triple::EnvironmentType::MSVC;
 }
-
-int is_elf(const char *target_triple) {
-  Triple triple(target_triple);
-
-  return triple.isOSBinFormatELF();
-}
-
-void add_comment_section(LLVMModuleRef module_ref,
-                         const char *compiler_string) {
-  Module *module = unwrap(module_ref);
-  LLVMContext &context = module->getContext();
-
-  std::string asmText = std::string(".section .comment\n") + ".string \"" +
-                        compiler_string + "\"\n";
-
-  FunctionType *fnTy = FunctionType::get(Type::getVoidTy(context), false);
-
-  Function *fn = Function::Create(fnTy, GlobalValue::InternalLinkage,
-                                  "__emit_comment", module);
-
-  BasicBlock *bb = BasicBlock::Create(context, "entry", fn);
-  IRBuilder<> builder(bb);
-
-  InlineAsm *ia = InlineAsm::get(fnTy, asmText, "", true);
-
-  builder.CreateCall(ia);
-  builder.CreateRetVoid();
-}
 }

@@ -146,7 +146,7 @@ fn main() -> miette::Result<()> {
         .unwrap_or_else(|| default_target_triple.as_str().to_str().unwrap());
 
     let llvm_context = inkwell::context::Context::create();
-    let mut codegen = codegen::Compiler::new(&llvm_context, module_name, target_triple);
+    let mut codegen = codegen::Compiler::new(&llvm_context, module_name);
 
     let declared_functions = analyzer.functions().values().collect::<Vec<_>>();
 
