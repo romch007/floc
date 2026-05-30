@@ -13,6 +13,12 @@ impl Span {
 
     #[inline]
     #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    #[inline]
+    #[must_use]
     pub fn len(&self) -> usize {
         self.end - self.start
     }
