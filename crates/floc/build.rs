@@ -30,7 +30,6 @@ fn generate_shell_completion() {
     std::fs::write(PathBuf::from(&man_pages_out_dir).join("floc.1"), buf).unwrap();
 }
 
-#[cfg(feature = "codegen")]
 mod codegen {
     use bindgen::callbacks::ParseCallbacks;
     use std::path::PathBuf;
@@ -116,12 +115,9 @@ mod codegen {
 }
 
 fn main() {
-    #[cfg(feature = "codegen")]
-    {
-        let llvm_config_path = std::env::var("DEP_LLVM_22_CONFIG_PATH").unwrap();
-        codegen::generate_wrapper(&llvm_config_path);
-        codegen::compile_wrapper(&llvm_config_path);
-    }
+    let llvm_config_path = std::env::var("DEP_LLVM_22_CONFIG_PATH").unwrap();
+    codegen::generate_wrapper(&llvm_config_path);
+    codegen::compile_wrapper(&llvm_config_path);
 
     generate_shell_completion();
 }

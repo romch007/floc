@@ -2,10 +2,10 @@ use std::ffi::{OsStr, OsString};
 use std::iter::repeat_with;
 use std::time::Instant;
 
-use crate::lexer;
+use std::path::PathBuf;
 
-#[cfg(feature = "codegen")]
-use {crate::cli, std::path::PathBuf};
+use crate::cli;
+use crate::lexer;
 
 pub fn tmpname(prefix: &OsStr, suffix: &OsStr, rand_len: usize) -> OsString {
     let capacity = prefix
@@ -23,7 +23,6 @@ pub fn tmpname(prefix: &OsStr, suffix: &OsStr, rand_len: usize) -> OsString {
 }
 
 /// Determine LLVM file output type, LLVM file output path and linker output path based on cli args
-#[cfg(feature = "codegen")]
 #[must_use]
 pub fn get_output_files(
     args: &cli::args::Args,
