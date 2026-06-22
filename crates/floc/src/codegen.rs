@@ -96,31 +96,22 @@ impl<'ctx> Compiler<'ctx> {
         Ok(target_machine)
     }
 
-    pub fn optimize(&self, target_machine: &TargetMachine) -> Result<(), Error> {
-        let passes: &[&str] = &[
-            "instcombine<no-verify-fixpoint>",
-            "reassociate",
-            "gvn",
-            "simplifycfg",
-            "mem2reg",
-            "dse",
-            "loop-vectorize",
-            "loop-simplify",
-            "indvars",
-            "loop-unroll",
-            "jump-threading",
-            "sccp",
-            "dce",
-            "sink",
-            "tailcallelim",
-        ];
+    pub fn optimize(
+        &self,
+        target_machine: &TargetMachine,
+        optimization_level: cli::args::OptimizationLevel,
+    ) -> Result<(), Error> {
+        use cli::args::OptimizationLevel;
+
+        let pipeline = match optimization_level {
+            OptimizationLevel::None => "default<O0>",
+            OptimizationLevel::Less => "default<O1>",
+            OptimizationLevel::Default => "default<O2>",
+            OptimizationLevel::Aggressive => "default<O3>",
+        };
 
         self.module
-            .run_passes(
-                passes.join(",").as_str(),
-                target_machine,
-                PassBuilderOptions::create(),
-            )
+            .run_passes(pipeline, target_machine, PassBuilderOptions::create())
             .map_err(|err| Error::Other(err.to_string()))?;
 
         Ok(())

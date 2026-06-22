@@ -176,7 +176,7 @@ fn main() -> miette::Result<()> {
     .wrap_err("cannot create target matchine")?;
 
     codegen
-        .optimize(&target_machine)
+        .optimize(&target_machine, args.optimization_level)
         .into_diagnostic()
         .wrap_err("cannot compile program")?;
 
