@@ -47,7 +47,6 @@ where
             .collect::<Vec<_>>();
 
         let function_call = ident
-            .clone()
             .then(call_args.delimited_by(just(Token::LParen), just(Token::RParen)))
             .map_with(|(name, arguments), e| FunctionCall {
                 name,
@@ -68,9 +67,15 @@ where
                 .map_with(|n, e| Expression::Integer(n, to_span(e.span()))),
             select! { Token::Boolean(b) => b }
                 .map_with(|b, e| Expression::Boolean(b, to_span(e.span()))),
-            ident.clone().map(Expression::Variable),
+            ident.map(Expression::Variable),
             expr.delimited_by(just(Token::LParen), just(Token::RParen)),
-        ));
+        ))
+        .recover_with(via_parser(nested_delimiters(
+            Token::LParen,
+            Token::RParen,
+            [(Token::LBrace, Token::RBrace)],
+            |span| Expression::Error(to_span(span)),
+        )));
 
         macro_rules! binary {
             ($prec:expr, $tok:expr, $kind:expr) => {
@@ -136,8 +141,7 @@ where
             .delimited_by(just(Token::LBrace), just(Token::RBrace));
 
         let declaration = r#type
-            .clone()
-            .then(ident.clone())
+            .then(ident)
             .then(just(Token::Assignment).ignore_then(expr.clone()).or_not())
             .then_ignore(just(Token::SemiColon))
             .map_with(|((r#type, variable), value), e| {
@@ -150,7 +154,6 @@ where
             });
 
         let assignment = ident
-            .clone()
             .then_ignore(just(Token::Assignment))
             .then(expr.clone())
             .then_ignore(just(Token::SemiColon))
@@ -222,7 +225,6 @@ where
         });
 
         let discard_fn_call = ident
-            .clone()
             .then(
                 expr.clone()
                     .separated_by(just(Token::Comma))
@@ -246,11 +248,24 @@ where
             discard_fn_call,
             assignment,
         ))
+        .recover_with(via_parser(
+            nested_delimiters(
+                Token::LBrace,
+                Token::RBrace,
+                [(Token::LParen, Token::RParen)],
+                |span| Statement::Error(to_span(span)),
+            )
+            .or(none_of([Token::SemiColon, Token::RBrace])
+                .repeated()
+                .at_least(1)
+                .collect::<Vec<_>>()
+                .then(just(Token::SemiColon).or_not())
+                .map_with(|_, e| Statement::Error(to_span(e.span())))),
+        ))
     });
 
     let argument = r#type
-        .clone()
-        .then(ident.clone())
+        .then(ident)
         .map_with(|(r#type, name), e| Argument {
             r#type,
             name,

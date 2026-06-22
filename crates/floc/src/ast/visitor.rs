@@ -37,6 +37,7 @@ pub trait Visitor<'a> {
             Statement::While(whil) => self.visit_while(whil),
             Statement::If(if_stmt) => self.visit_if(if_stmt),
             Statement::DiscardFunctionCall(fn_call) => self.visit_function_call(fn_call),
+            Statement::Error(_) => {}
         }
     }
 
@@ -93,6 +94,7 @@ pub trait Visitor<'a> {
                 self.visit_expression(&bin.right);
             }
             Expression::UnaryOp(un) => self.visit_expression(&un.operand),
+            Expression::Error(_) => {}
         }
     }
 

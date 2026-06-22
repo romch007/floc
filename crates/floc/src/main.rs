@@ -121,14 +121,20 @@ fn main() -> miette::Result<()> {
     let analyzer_timer = utils::Timer::start(args.verbose);
 
     let mut analyzer = analyzer::Analyzer::new(named_source.clone());
-    analyzer
-        .analyze_program(&ast_prog)
-        .map_err(|boxed_err| *boxed_err)?;
+    analyzer.analyze_program(&ast_prog);
 
     analyzer_timer.stop();
 
     for warning in analyzer.warnings() {
-        eprintln!("{warning:?}");
+        eprintln!("{:?}", miette::Report::new(warning.clone()));
+    }
+
+    if !analyzer.errors().is_empty() {
+        for error in analyzer.errors() {
+            eprintln!("{:?}", miette::Report::new(error.clone()));
+        }
+
+        std::process::exit(1);
     }
 
     let module_name = filename.strip_suffix(".flo").unwrap_or(filename);

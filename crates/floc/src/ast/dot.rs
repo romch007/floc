@@ -50,6 +50,7 @@ impl ToGraph for Expression {
             Expression::Variable(var_name) => var_name.ident.clone(),
             Expression::Boolean(val, _) => val.to_string(),
             Expression::Read(_) => "read()".to_string(),
+            Expression::Error(_) => "<error>".to_string(),
             _ => unreachable!(),
         };
 
@@ -173,6 +174,7 @@ impl ToGraph for Statement {
 
                 "return".to_string()
             }
+            Statement::Error(_) => "<error>".to_string(),
             _ => unreachable!(),
         };
 

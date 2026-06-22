@@ -96,30 +96,9 @@ impl Backend {
 }
 
 impl Backend {
-    async fn update_diagnostic(
-        &self,
-        analyze_result: core::result::Result<(), Box<analyzer::Error>>,
-        document: Arc<Document>,
-        uri: Url,
-    ) {
-        if let Err(e) = analyze_result {
-            let message = e.to_string();
-            let span = e.main_span();
-            let range = span
-                .map(|s| document.span_to_range_utf16(s))
-                .unwrap_or_default();
-
-            let diagnostic = Diagnostic {
-                range,
-                message,
-                severity: Some(DiagnosticSeverity::ERROR),
-                ..Default::default()
-            };
-
-            self.client
-                .publish_diagnostics(uri, vec![diagnostic], None)
-                .await;
-        }
+    async fn update_diagnostic(&self, diagnostics: Vec<Diagnostic>, uri: Url) {
+        // An empty list clears previously reported diagnostics.
+        self.client.publish_diagnostics(uri, diagnostics, None).await;
     }
 }
 
@@ -148,19 +127,24 @@ impl LanguageServer for Backend {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let source = NamedSource::new("lsp.flo", params.text_document.text.clone());
         if let Ok(ast) = floc::parser::parse(source.clone()) {
-            let mut analyzer = Analyzer::new(source.clone());
-            let analyze_result = analyzer.analyze_program(&ast);
-
             let document = Arc::new(Document {
                 program: ast,
-                text: source,
+                text: source.clone(),
             });
+
+            // Confine the non-`Send` analyzer so it drops before the `.await`s.
+            let diagnostics = {
+                let mut analyzer = Analyzer::new(source);
+                analyzer.analyze_program(&document.program);
+                collect_diagnostics(&analyzer, &document)
+            };
+
             self.documents
                 .write()
                 .await
-                .insert(params.text_document.uri.clone(), document.clone());
+                .insert(params.text_document.uri.clone(), document);
 
-            self.update_diagnostic(analyze_result, document, params.text_document.uri)
+            self.update_diagnostic(diagnostics, params.text_document.uri)
                 .await;
         }
     }
@@ -169,19 +153,25 @@ impl LanguageServer for Backend {
         if let Some(change) = params.content_changes.into_iter().next() {
             let source = NamedSource::new("lsp.flo", change.text.clone());
             if let Ok(ast) = floc::parser::parse(source.clone()) {
-                let mut analyzer = Analyzer::new(source.clone());
-                let analyze_result = analyzer.analyze_program(&ast);
-
                 let document = Arc::new(Document {
                     program: ast,
-                    text: source,
+                    text: source.clone(),
                 });
+
+                // Keep the analyzer (which is not `Send`) confined to this block
+                // so it is dropped before the `.await` points below.
+                let diagnostics = {
+                    let mut analyzer = Analyzer::new(source);
+                    analyzer.analyze_program(&document.program);
+                    collect_diagnostics(&analyzer, &document)
+                };
+
                 self.documents
                     .write()
                     .await
-                    .insert(params.text_document.uri.clone(), document.clone());
+                    .insert(params.text_document.uri.clone(), document);
 
-                self.update_diagnostic(analyze_result, document, params.text_document.uri)
+                self.update_diagnostic(diagnostics, params.text_document.uri)
                     .await;
             }
         }
@@ -200,7 +190,7 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri;
         if let Some(doc) = self.get_document(&uri).await {
             let mut analyzer = Analyzer::new(doc.text.clone());
-            let _ = analyzer.analyze_program(&doc.program);
+            analyzer.analyze_program(&doc.program);
 
             // Add all functions to completion
             for (name, function) in analyzer.functions() {
@@ -250,7 +240,7 @@ impl LanguageServer for Backend {
             // TODO: cache this?
             // Il veut jouer à cache-cache ?
             let mut analyzer = Analyzer::new(doc.text.clone());
-            let _ = analyzer.analyze_program(&doc.program);
+            analyzer.analyze_program(&doc.program);
 
             let offset = doc.pos_to_offset(params.text_document_position_params.position);
 
@@ -266,6 +256,40 @@ impl LanguageServer for Backend {
 
         Ok(None)
     }
+}
+
+fn collect_diagnostics(analyzer: &Analyzer, document: &Document) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+
+    for error in analyzer.errors() {
+        let range = error
+            .main_span()
+            .map(|s| document.span_to_range_utf16(s))
+            .unwrap_or_default();
+
+        diagnostics.push(Diagnostic {
+            range,
+            message: error.to_string(),
+            severity: Some(DiagnosticSeverity::ERROR),
+            ..Default::default()
+        });
+    }
+
+    for warning in analyzer.warnings() {
+        let range = warning
+            .main_span()
+            .map(|s| document.span_to_range_utf16(s))
+            .unwrap_or_default();
+
+        diagnostics.push(Diagnostic {
+            range,
+            message: warning.to_string(),
+            severity: Some(DiagnosticSeverity::WARNING),
+            ..Default::default()
+        });
+    }
+
+    diagnostics
 }
 
 fn get_function_doc(function: &analyzer::Function) -> Hover {

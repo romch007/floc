@@ -278,6 +278,7 @@ impl<'ctx> Compiler<'ctx> {
 
                 Ok(false)
             }
+            ast::Statement::Error(_) => unreachable!("error node reached codegen"),
         }
     }
 
@@ -445,6 +446,7 @@ impl<'ctx> Compiler<'ctx> {
             ast::Expression::Read(_) => self.emit_read()?,
             ast::Expression::BinaryOp(binary_op) => self.emit_binary_op(binary_op)?,
             ast::Expression::UnaryOp(unary_op) => self.emit_unary_op(unary_op)?,
+            ast::Expression::Error(_) => unreachable!("error node reached codegen"),
         })
     }
 

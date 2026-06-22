@@ -98,6 +98,8 @@ pub enum Expression {
     FunctionCall(FunctionCall),
     BinaryOp(BinaryOp),
     UnaryOp(UnaryOp),
+    // Poison node emitted by parser error recovery.
+    Error(Span),
 }
 
 impl Expression {
@@ -111,6 +113,7 @@ impl Expression {
             Expression::FunctionCall(fn_call) => &fn_call.span,
             Expression::BinaryOp(binary_op) => &binary_op.span,
             Expression::UnaryOp(unary_op) => &unary_op.span,
+            Expression::Error(span) => span,
         }
     }
 }
@@ -166,6 +169,8 @@ pub enum Statement {
     While(While),
     If(If),
     DiscardFunctionCall(FunctionCall),
+    // Poison node emitted by parser error recovery.
+    Error(Span),
 }
 
 impl Statement {
@@ -179,6 +184,7 @@ impl Statement {
             Statement::While(whil) => &whil.span,
             Statement::If(i) => &i.span,
             Statement::DiscardFunctionCall(fn_call) => &fn_call.span,
+            Statement::Error(span) => span,
         }
     }
 }
