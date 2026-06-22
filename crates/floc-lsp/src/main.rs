@@ -1,5 +1,6 @@
 mod completions;
 mod finder;
+mod references;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -13,15 +14,17 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionOptions,
     CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams, Hover, HoverContents, HoverParams,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, DocumentHighlight,
+    DocumentHighlightKind, DocumentHighlightParams, Hover, HoverContents, HoverParams,
     HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams,
-    InsertTextFormat, MarkupContent, MarkupKind, MessageType, Position, Range, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    InsertTextFormat, MarkupContent, MarkupKind, MessageType, OneOf, Position, Range,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::completions::keyword_completion_items;
 use crate::finder::Finder;
+use crate::references::{RefKind, References};
 
 #[derive(Debug)]
 struct Document {
@@ -112,6 +115,7 @@ impl LanguageServer for Backend {
                 )),
                 completion_provider: Some(CompletionOptions::default()),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                document_highlight_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -178,6 +182,38 @@ impl LanguageServer for Backend {
 
     async fn shutdown(&self) -> Result<()> {
         Ok(())
+    }
+
+    async fn document_highlight(
+        &self,
+        params: DocumentHighlightParams,
+    ) -> Result<Option<Vec<DocumentHighlight>>> {
+        let position = params.text_document_position_params;
+
+        let Some(doc) = self.get_document(&position.text_document.uri).await else {
+            return Ok(None);
+        };
+
+        let offset = doc.pos_to_offset(position.position);
+        let references = References::collect(&doc.program);
+
+        let highlights = references
+            .at_offset(offset)
+            .into_iter()
+            .map(|reference| DocumentHighlight {
+                range: doc.span_to_range_utf16(&reference.span),
+                kind: Some(match reference.kind {
+                    RefKind::Read => DocumentHighlightKind::READ,
+                    RefKind::Write => DocumentHighlightKind::WRITE,
+                }),
+            })
+            .collect::<Vec<_>>();
+
+        if highlights.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(highlights))
+        }
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
