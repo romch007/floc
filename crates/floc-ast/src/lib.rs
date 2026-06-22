@@ -12,6 +12,7 @@ pub struct Identifier {
 impl std::ops::Deref for Identifier {
     type Target = String;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.ident
     }
@@ -103,6 +104,7 @@ pub enum Expression {
 }
 
 impl Expression {
+    #[inline]
     #[must_use]
     pub fn span(&self) -> &Span {
         match self {
@@ -174,6 +176,7 @@ pub enum Statement {
 }
 
 impl Statement {
+    #[inline]
     #[must_use]
     pub fn span(&self) -> &Span {
         match self {

@@ -25,6 +25,7 @@ impl Span {
 }
 
 impl From<std::ops::Range<usize>> for Span {
+    #[inline]
     fn from(value: std::ops::Range<usize>) -> Self {
         Self {
             start: value.start,
@@ -34,6 +35,7 @@ impl From<std::ops::Range<usize>> for Span {
 }
 
 impl From<chumsky::span::SimpleSpan> for Span {
+    #[inline]
     fn from(value: chumsky::span::SimpleSpan) -> Self {
         Self {
             start: value.start,
