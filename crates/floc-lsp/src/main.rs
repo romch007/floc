@@ -129,54 +129,20 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        let source = NamedSource::new("lsp.flo", params.text_document.text.clone());
-        if let Ok(ast) = floc_parser::parse(source.clone()) {
-            let document = Arc::new(Document {
-                program: ast,
-                text: source.clone(),
-            });
+        let uri = params.text_document.uri;
+        let (document, diagnostics) = analyze_source(params.text_document.text);
 
-            // Confine the non-`Send` analyzer so it drops before the `.await`s.
-            let diagnostics = {
-                let mut analyzer = Analyzer::new(source);
-                analyzer.analyze_program(&document.program);
-                collect_diagnostics(&analyzer, &document)
-            };
-
-            self.documents
-                .write()
-                .await
-                .insert(params.text_document.uri.clone(), document);
-
-            self.update_diagnostic(diagnostics, params.text_document.uri)
-                .await;
-        }
+        self.documents.write().await.insert(uri.clone(), document);
+        self.update_diagnostic(diagnostics, uri).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         if let Some(change) = params.content_changes.into_iter().next() {
-            let source = NamedSource::new("lsp.flo", change.text.clone());
-            if let Ok(ast) = floc_parser::parse(source.clone()) {
-                let document = Arc::new(Document {
-                    program: ast,
-                    text: source.clone(),
-                });
+            let uri = params.text_document.uri;
+            let (document, diagnostics) = analyze_source(change.text);
 
-                // Confine the non-`Send` analyzer so it drops before the `.await`s.
-                let diagnostics = {
-                    let mut analyzer = Analyzer::new(source);
-                    analyzer.analyze_program(&document.program);
-                    collect_diagnostics(&analyzer, &document)
-                };
-
-                self.documents
-                    .write()
-                    .await
-                    .insert(params.text_document.uri.clone(), document);
-
-                self.update_diagnostic(diagnostics, params.text_document.uri)
-                    .await;
-            }
+            self.documents.write().await.insert(uri.clone(), document);
+            self.update_diagnostic(diagnostics, uri).await;
         }
     }
 
@@ -291,6 +257,41 @@ impl LanguageServer for Backend {
 
         Ok(None)
     }
+}
+
+/// Parse and analyze `text`, producing the document and the diagnostics to
+/// publish. Parse errors are reported on their own; semantic analysis only runs
+/// once the source parses cleanly, to avoid cascading noise from poison nodes.
+fn analyze_source(text: String) -> (Arc<Document>, Vec<Diagnostic>) {
+    let source = NamedSource::new("lsp.flo", text);
+    let (program, parse_diagnostics) = floc_parser::parse_recover(source.inner().as_str());
+
+    let document = Arc::new(Document {
+        program: program.unwrap_or_else(|| ast::Program {
+            function_decls: Vec::new(),
+            statements: Vec::new(),
+        }),
+        text: source.clone(),
+    });
+
+    let diagnostics = if parse_diagnostics.is_empty() {
+        // The non-`Send` analyzer stays in this sync function, away from awaits.
+        let mut analyzer = Analyzer::new(source);
+        analyzer.analyze_program(&document.program);
+        collect_diagnostics(&analyzer, &document)
+    } else {
+        parse_diagnostics
+            .into_iter()
+            .map(|diagnostic| Diagnostic {
+                range: document.span_to_range_utf16(&diagnostic.span),
+                message: diagnostic.message,
+                severity: Some(DiagnosticSeverity::ERROR),
+                ..Default::default()
+            })
+            .collect()
+    };
+
+    (document, diagnostics)
 }
 
 fn collect_diagnostics(analyzer: &Analyzer, document: &Document) -> Vec<Diagnostic> {

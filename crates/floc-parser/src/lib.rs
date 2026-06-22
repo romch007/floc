@@ -317,42 +317,67 @@ pub struct ParseError {
     labels: Vec<miette::LabeledSpan>,
 }
 
-pub fn parse(named_source: miette::NamedSource<String>) -> miette::Result<Program> {
-    let result = {
-        let source = named_source.inner().as_str();
+/// A single parse error, with the span it covers and a human-readable message.
+pub struct ParseDiagnostic {
+    pub span: floc_span::Span,
+    pub message: String,
+}
 
-        let token_iter = Token::lexer(source).spanned().map(|(tok, span)| match tok {
-            Ok(tok) => (tok, span.into()),
-            Err(()) => (Token::Error, span.into()),
-        });
+/// Parse `source`, recovering from errors. Returns the (possibly partial) AST
+/// together with every error encountered, so callers can keep working with the
+/// tree while reporting diagnostics.
+#[must_use]
+pub fn parse_recover(source: &str) -> (Option<Program>, Vec<ParseDiagnostic>) {
+    let token_iter = Token::lexer(source).spanned().map(|(tok, span)| match tok {
+        Ok(tok) => (tok, span.into()),
+        Err(()) => (Token::Error, span.into()),
+    });
 
-        let token_stream =
-            Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s)| (t, s));
+    let token_stream = Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s)| (t, s));
 
-        program_parser()
-            .parse(token_stream)
-            .into_result()
-            .map_err(|errors| {
-                errors
-                    .into_iter()
-                    .map(|error| {
-                        let span = error.span();
-                        miette::LabeledSpan::new(
-                            Some(error.to_string()),
-                            span.start,
-                            span.end - span.start,
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            })
-    };
+    let (program, errors) = program_parser().parse(token_stream).into_output_errors();
 
-    result.map_err(|labels| {
-        miette::Report::new(ParseError {
-            src: named_source,
-            labels,
+    let diagnostics = errors
+        .into_iter()
+        .map(|error| {
+            let span = error.span();
+            ParseDiagnostic {
+                span: floc_span::Span {
+                    start: span.start,
+                    end: span.end,
+                },
+                message: error.to_string(),
+            }
         })
-    })
+        .collect();
+
+    (program, diagnostics)
+}
+
+pub fn parse(named_source: miette::NamedSource<String>) -> miette::Result<Program> {
+    let (program, diagnostics) = parse_recover(named_source.inner().as_str());
+
+    if let Some(program) = program
+        && diagnostics.is_empty()
+    {
+        return Ok(program);
+    }
+
+    let labels = diagnostics
+        .into_iter()
+        .map(|diagnostic| {
+            miette::LabeledSpan::new(
+                Some(diagnostic.message),
+                diagnostic.span.start,
+                diagnostic.span.len(),
+            )
+        })
+        .collect();
+
+    Err(miette::Report::new(ParseError {
+        src: named_source,
+        labels,
+    }))
 }
 
 #[cfg(test)]
@@ -360,6 +385,19 @@ mod tests {
     use miette::NamedSource;
 
     use super::*;
+
+    #[test]
+    fn parse_recover_reports_errors() {
+        let (_program, diagnostics) = parse_recover("ecrire(@);");
+        assert!(!diagnostics.is_empty());
+    }
+
+    #[test]
+    fn parse_recover_is_clean_on_valid_input() {
+        let (program, diagnostics) = parse_recover("ecrire(1);");
+        assert!(program.is_some());
+        assert!(diagnostics.is_empty());
+    }
 
     #[test]
     fn tricky_or_with_neg() {
