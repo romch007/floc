@@ -140,9 +140,16 @@ where
             .collect::<Vec<_>>()
             .delimited_by(just(Token::LBrace), just(Token::RBrace));
 
+        let value_expr = expr.clone().recover_with(via_parser(
+            none_of([Token::SemiColon, Token::RBrace])
+                .repeated()
+                .collect::<Vec<_>>()
+                .map_with(|_, e| Expression::Error(to_span(e.span()))),
+        ));
+
         let declaration = r#type
             .then(ident)
-            .then(just(Token::Assignment).ignore_then(expr.clone()).or_not())
+            .then(just(Token::Assignment).ignore_then(value_expr.clone()).or_not())
             .then_ignore(just(Token::SemiColon))
             .map_with(|((r#type, variable), value), e| {
                 Statement::Declaration(Declaration {
@@ -155,7 +162,7 @@ where
 
         let assignment = ident
             .then_ignore(just(Token::Assignment))
-            .then(expr.clone())
+            .then(value_expr.clone())
             .then_ignore(just(Token::SemiColon))
             .map_with(|(variable, value), e| {
                 Statement::Assignment(Assignment {
@@ -354,13 +361,15 @@ pub fn parse_recover(source: &str) -> (Option<Program>, Vec<ParseDiagnostic>) {
     (program, diagnostics)
 }
 
-pub fn parse(named_source: miette::NamedSource<String>) -> miette::Result<Program> {
-    let (program, diagnostics) = parse_recover(named_source.inner().as_str());
-
-    if let Some(program) = program
-        && diagnostics.is_empty()
-    {
-        return Ok(program);
+/// Build a miette report bundling every parse `diagnostic` against `named_source`.
+/// Returns `None` when there are no diagnostics.
+#[must_use]
+pub fn diagnostics_report(
+    named_source: miette::NamedSource<String>,
+    diagnostics: Vec<ParseDiagnostic>,
+) -> Option<miette::Report> {
+    if diagnostics.is_empty() {
+        return None;
     }
 
     let labels = diagnostics
@@ -374,9 +383,26 @@ pub fn parse(named_source: miette::NamedSource<String>) -> miette::Result<Progra
         })
         .collect();
 
-    Err(miette::Report::new(ParseError {
+    Some(miette::Report::new(ParseError {
         src: named_source,
         labels,
+    }))
+}
+
+pub fn parse(named_source: miette::NamedSource<String>) -> miette::Result<Program> {
+    let (program, diagnostics) = parse_recover(named_source.inner().as_str());
+
+    if let Some(program) = program
+        && diagnostics.is_empty()
+    {
+        return Ok(program);
+    }
+
+    Err(diagnostics_report(named_source.clone(), diagnostics).unwrap_or_else(|| {
+        miette::Report::new(ParseError {
+            src: named_source,
+            labels: Vec::new(),
+        })
     }))
 }
 
@@ -390,6 +416,32 @@ mod tests {
     fn parse_recover_reports_errors() {
         let (_program, diagnostics) = parse_recover("ecrire(@);");
         assert!(!diagnostics.is_empty());
+    }
+
+    #[test]
+    fn recover_declaration_with_missing_value() {
+        let (program, diagnostics) = parse_recover("entier p = ;");
+        assert!(!diagnostics.is_empty());
+
+        let program = program.expect("expected a (partial) program");
+        let Statement::Declaration(decl) = &program.statements[0] else {
+            panic!("expected a declaration statement");
+        };
+        assert_eq!(decl.variable.ident, "p");
+        assert!(matches!(decl.value, Some(Expression::Error(_))));
+    }
+
+    #[test]
+    fn recover_assignment_with_missing_value() {
+        let (program, diagnostics) = parse_recover("p = ;");
+        assert!(!diagnostics.is_empty());
+
+        let program = program.expect("expected a (partial) program");
+        let Statement::Assignment(assign) = &program.statements[0] else {
+            panic!("expected an assignment statement");
+        };
+        assert_eq!(assign.variable.ident, "p");
+        assert!(matches!(assign.value, Expression::Error(_)));
     }
 
     #[test]

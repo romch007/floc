@@ -98,21 +98,44 @@ fn main() -> miette::Result<()> {
 
     let parser_timer = utils::Timer::start(args.verbose);
 
-    let ast_prog = parser::parse(named_source.clone())?;
+    if args.emit_ast || args.emit_ast_as_dot {
+        let (ast_prog, diagnostics) = parser::parse_recover(named_source.inner().as_str());
+        parser_timer.stop();
+
+        let had_errors = !diagnostics.is_empty();
+        if let Some(report) = parser::diagnostics_report(named_source.clone(), diagnostics) {
+            eprintln!("{report:?}");
+        }
+
+        if let Some(ast_prog) = ast_prog {
+            if args.emit_ast {
+                println!("{ast_prog:#?}");
+            }
+            if args.emit_ast_as_dot {
+                ast::dot::dump_graph(&ast_prog)
+                    .into_diagnostic()
+                    .wrap_err("cannot dump graph")?;
+            }
+        }
+
+        if had_errors {
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
+    let (ast_prog, diagnostics) = parser::parse_recover(named_source.inner().as_str());
 
     parser_timer.stop();
 
-    if args.emit_ast {
-        println!("{ast_prog:#?}");
-        return Ok(());
+    let had_parse_errors = !diagnostics.is_empty();
+    if let Some(report) = parser::diagnostics_report(named_source.clone(), diagnostics) {
+        eprintln!("{report:?}");
     }
 
-    if args.emit_ast_as_dot {
-        ast::dot::dump_graph(&ast_prog)
-            .into_diagnostic()
-            .wrap_err("cannot dump graph")?;
-        return Ok(());
-    }
+    let Some(ast_prog) = ast_prog else {
+        std::process::exit(1);
+    };
 
     if args.verbose {
         eprintln!("-- analyzing");
@@ -129,11 +152,13 @@ fn main() -> miette::Result<()> {
         eprintln!("{:?}", miette::Report::new(warning.clone()));
     }
 
-    if !analyzer.errors().is_empty() {
-        for error in analyzer.errors() {
-            eprintln!("{:?}", miette::Report::new(error.clone()));
-        }
+    for error in analyzer.errors() {
+        eprintln!("{:?}", miette::Report::new(error.clone()));
+    }
 
+    // Bail before codegen on any error, but only after every parse and analysis
+    // diagnostic has been printed so the user sees them all at once.
+    if had_parse_errors || !analyzer.errors().is_empty() {
         std::process::exit(1);
     }
 
