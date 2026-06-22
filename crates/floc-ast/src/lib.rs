@@ -1,7 +1,7 @@
 pub mod dot;
 pub mod visitor;
 
-use crate::span::Span;
+use floc_span::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Identifier {

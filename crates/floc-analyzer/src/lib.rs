@@ -1,9 +1,8 @@
-use crate::{
-    ast,
-    span::{Span, SpanIterExt},
-    utils,
-};
+use floc_ast as ast;
+use floc_span::{Span, SpanIterExt};
 use std::{cell::Cell, collections::HashMap};
+
+mod util;
 
 const MAX_LEVENSHTEIN_DIST_FOR_SUGGEST: usize = 3;
 
@@ -393,14 +392,14 @@ impl Analyzer {
             .flat_map(|frame| frame.keys())
             .map(std::string::String::as_str);
 
-        utils::closest_str(variable_names, var_name, MAX_LEVENSHTEIN_DIST_FOR_SUGGEST)
+        util::closest_str(variable_names, var_name, MAX_LEVENSHTEIN_DIST_FOR_SUGGEST)
             .map(|name| format!("did you mean '{name}'?"))
     }
 
     fn get_help_fn_not_found(&self, fn_name: &str) -> Option<String> {
         let fn_names = self.functions.keys().map(std::string::String::as_str);
 
-        utils::closest_str(fn_names, fn_name, MAX_LEVENSHTEIN_DIST_FOR_SUGGEST)
+        util::closest_str(fn_names, fn_name, MAX_LEVENSHTEIN_DIST_FOR_SUGGEST)
             .map(|name| format!("did you mean '{name}'?"))
     }
 
@@ -530,13 +529,14 @@ impl Analyzer {
 
     fn check_condition(&mut self, condition_type: &Option<ast::Type>) {
         if let Some(condition_type) = condition_type
-            && condition_type.kind != ast::TypeKind::Boolean {
-                self.push_error(Error::TypeMismatchInCondition {
-                    src: self.source_code.clone(),
-                    wrong_value_type: condition_type.kind.clone(),
-                    wrong_value: condition_type.span,
-                });
-            }
+            && condition_type.kind != ast::TypeKind::Boolean
+        {
+            self.push_error(Error::TypeMismatchInCondition {
+                src: self.source_code.clone(),
+                wrong_value_type: condition_type.kind.clone(),
+                wrong_value: condition_type.span,
+            });
+        }
     }
 
     fn analyze_return(&mut self, ret: &ast::Return) -> bool {
@@ -554,15 +554,16 @@ impl Analyzer {
         let defined_function = self.functions.get(&current_function_name).unwrap().clone();
 
         if let Some(value_type) = value_type
-            && defined_function.return_type.kind != value_type.kind {
-                self.push_error(Error::TypeMismatchInReturn {
-                    src: self.source_code.clone(),
-                    expected_type: defined_function.return_type.kind,
-                    wrong_value_type: value_type.kind,
-                    wrong_value: value_type.span,
-                    type_def: defined_function.ret_type_decl_span,
-                });
-            }
+            && defined_function.return_type.kind != value_type.kind
+        {
+            self.push_error(Error::TypeMismatchInReturn {
+                src: self.source_code.clone(),
+                expected_type: defined_function.return_type.kind,
+                wrong_value_type: value_type.kind,
+                wrong_value: value_type.span,
+                type_def: defined_function.ret_type_decl_span,
+            });
+        }
 
         true
     }
@@ -610,15 +611,16 @@ impl Analyzer {
             let default_value_type = self.analyze_expr(default_value);
 
             if let Some(default_value_type) = default_value_type
-                && declaration.r#type.kind != default_value_type.kind {
-                    self.push_error(Error::TypeMismatchInAssign {
-                        src: self.source_code.clone(),
-                        expected_type: declaration.r#type.kind.clone(),
-                        wrong_value_type: default_value_type.kind,
-                        wrong_value: *default_value.span(),
-                        type_def: declaration.r#type.span,
-                    });
-                }
+                && declaration.r#type.kind != default_value_type.kind
+            {
+                self.push_error(Error::TypeMismatchInAssign {
+                    src: self.source_code.clone(),
+                    expected_type: declaration.r#type.kind.clone(),
+                    wrong_value_type: default_value_type.kind,
+                    wrong_value: *default_value.span(),
+                    type_def: declaration.r#type.span,
+                });
+            }
         }
 
         // Declare even on redefinition so later uses still resolve.
@@ -639,15 +641,16 @@ impl Analyzer {
         match variable {
             Some(variable) => {
                 if let Some(expr_type) = expr_type
-                    && expr_type.kind != variable.r#type.kind {
-                        self.push_error(Error::TypeMismatchInAssign {
-                            src: self.source_code.clone(),
-                            expected_type: variable.r#type.kind,
-                            wrong_value_type: expr_type.kind,
-                            wrong_value: expr_type.span,
-                            type_def: variable.type_declaration_span,
-                        });
-                    }
+                    && expr_type.kind != variable.r#type.kind
+                {
+                    self.push_error(Error::TypeMismatchInAssign {
+                        src: self.source_code.clone(),
+                        expected_type: variable.r#type.kind,
+                        wrong_value_type: expr_type.kind,
+                        wrong_value: expr_type.span,
+                        type_def: variable.type_declaration_span,
+                    });
+                }
             }
             None => {
                 let advice = self.get_help_var_not_found(&assignment.variable.ident);
@@ -717,7 +720,7 @@ impl Analyzer {
             let fn_call_args = fn_call
                 .arguments
                 .iter()
-                .map(super::ast::Expression::span)
+                .map(ast::Expression::span)
                 .merge_spans();
 
             // Construct a span that ranges from the start of the first argument
@@ -749,16 +752,17 @@ impl Analyzer {
             let provided_arg_type = self.analyze_expr(fn_call_arg);
 
             if let Some(provided_arg_type) = provided_arg_type
-                && expected_type.1.kind != provided_arg_type.kind {
-                    self.push_error(Error::TypeMismatchInFnArg {
-                        src: self.source_code.clone(),
-                        expected_type: expected_type.1.kind.clone(),
-                        wrong_value_type: provided_arg_type.kind,
-                        wrong_value: provided_arg_type.span,
-                        arg: expected_type.1.span,
-                        fn_call_name: fn_call.name.span,
-                    });
-                }
+                && expected_type.1.kind != provided_arg_type.kind
+            {
+                self.push_error(Error::TypeMismatchInFnArg {
+                    src: self.source_code.clone(),
+                    expected_type: expected_type.1.kind.clone(),
+                    wrong_value_type: provided_arg_type.kind,
+                    wrong_value: provided_arg_type.span,
+                    arg: expected_type.1.span,
+                    fn_call_name: fn_call.name.span,
+                });
+            }
         }
 
         Some(ast::Type {
@@ -802,15 +806,16 @@ impl Analyzer {
         let operand_type = self.analyze_expr(&unary_op.operand);
 
         if let Some(operand_type) = operand_type
-            && operand_type.kind != expected_type {
-                self.push_error(Error::TypeMismatchInOperation {
-                    src: self.source_code.clone(),
-                    operand_type: operand_type.kind,
-                    operand: operand_type.span,
-                    operator_type: expected_type.clone(),
-                    operator: unary_op.operator_span,
-                });
-            }
+            && operand_type.kind != expected_type
+        {
+            self.push_error(Error::TypeMismatchInOperation {
+                src: self.source_code.clone(),
+                operand_type: operand_type.kind,
+                operand: operand_type.span,
+                operator_type: expected_type.clone(),
+                operator: unary_op.operator_span,
+            });
+        }
 
         Some(ast::Type {
             kind: expected_type,
@@ -830,23 +835,24 @@ impl Analyzer {
             let right_type = self.analyze_expr(&binary_op.right);
 
             if let (Some(left_type), Some(right_type)) = (left_type, right_type)
-                && left_type.kind != right_type.kind {
-                    let operator_name = match &binary_op.kind {
-                        Eq => "equality",
-                        Neq => "inequality",
-                        _ => unreachable!(),
-                    };
+                && left_type.kind != right_type.kind
+            {
+                let operator_name = match &binary_op.kind {
+                    Eq => "equality",
+                    Neq => "inequality",
+                    _ => unreachable!(),
+                };
 
-                    self.push_error(Error::TypeMismatchInEqOrNeq {
-                        src: self.source_code.clone(),
-                        left_operand_type: left_type.kind,
-                        left_operand: left_type.span,
-                        right_operand_type: right_type.kind,
-                        right_operand: right_type.span,
-                        operator_name: operator_name.to_string(),
-                        operator: binary_op.operator_span,
-                    });
-                }
+                self.push_error(Error::TypeMismatchInEqOrNeq {
+                    src: self.source_code.clone(),
+                    left_operand_type: left_type.kind,
+                    left_operand: left_type.span,
+                    right_operand_type: right_type.kind,
+                    right_operand: right_type.span,
+                    operator_name: operator_name.to_string(),
+                    operator: binary_op.operator_span,
+                });
+            }
 
             ast::TypeKind::Boolean
         } else {
@@ -860,27 +866,29 @@ impl Analyzer {
 
             let left_type = self.analyze_expr(&binary_op.left);
             if let Some(left_type) = left_type
-                && expected_operand_type != left_type.kind {
-                    self.push_error(Error::TypeMismatchInOperation {
-                        src: self.source_code.clone(),
-                        operand_type: left_type.kind,
-                        operand: left_type.span,
-                        operator_type: expected_operand_type.clone(),
-                        operator: binary_op.operator_span,
-                    });
-                }
+                && expected_operand_type != left_type.kind
+            {
+                self.push_error(Error::TypeMismatchInOperation {
+                    src: self.source_code.clone(),
+                    operand_type: left_type.kind,
+                    operand: left_type.span,
+                    operator_type: expected_operand_type.clone(),
+                    operator: binary_op.operator_span,
+                });
+            }
 
             let right_type = self.analyze_expr(&binary_op.right);
             if let Some(right_type) = right_type
-                && expected_operand_type != right_type.kind {
-                    self.push_error(Error::TypeMismatchInOperation {
-                        src: self.source_code.clone(),
-                        operand_type: right_type.kind,
-                        operand: right_type.span,
-                        operator_type: expected_operand_type.clone(),
-                        operator: binary_op.operator_span,
-                    });
-                }
+                && expected_operand_type != right_type.kind
+            {
+                self.push_error(Error::TypeMismatchInOperation {
+                    src: self.source_code.clone(),
+                    operand_type: right_type.kind,
+                    operand: right_type.span,
+                    operator_type: expected_operand_type.clone(),
+                    operator: binary_op.operator_span,
+                });
+            }
 
             match &binary_op.kind {
                 Add | Sub | Mul | Div | Mod => ast::TypeKind::Integer,

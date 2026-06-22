@@ -1,0 +1,10 @@
+[package]
+name = "floc-ast"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "floc_ast"
+
+[dependencies]
+floc-span = { path = "../floc-span" }

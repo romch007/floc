@@ -1,0 +1,11 @@
+[package]
+name = "floc-span"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "floc_span"
+
+[dependencies]
+chumsky = "0.13"
+miette = "7.6.0"

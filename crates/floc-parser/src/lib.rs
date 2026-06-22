@@ -1,13 +1,13 @@
-use crate::ast::{
-    Argument, Assignment, BinaryOp, BinaryOpKind, Declaration, Expression, FunctionCall,
-    FunctionDeclaration, Identifier, If, Program, Return, Statement, Type, TypeKind, UnaryOp,
-    UnaryOpKind, While, Write,
-};
-use crate::lexer::Token;
 use chumsky::input::{Stream, ValueInput};
 use chumsky::pratt::{infix, left, prefix};
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
+use floc_ast::{
+    Argument, Assignment, BinaryOp, BinaryOpKind, Declaration, Expression, FunctionCall,
+    FunctionDeclaration, Identifier, If, Program, Return, Statement, Type, TypeKind, UnaryOp,
+    UnaryOpKind, While, Write,
+};
+use floc_lexer::Token;
 use logos::Logos;
 
 type Extra<'tok, 'src> = extra::Err<Rich<'tok, Token<'src>>>;
@@ -15,7 +15,7 @@ type Extra<'tok, 'src> = extra::Err<Rich<'tok, Token<'src>>>;
 // Concrete `SimpleSpan` parameter forces normalisation of `I::Span` that a bare
 // `.into()` won't trigger.
 #[inline]
-fn to_span(span: SimpleSpan) -> crate::span::Span {
+fn to_span(span: SimpleSpan) -> floc_span::Span {
     span.into()
 }
 
@@ -264,13 +264,11 @@ where
         ))
     });
 
-    let argument = r#type
-        .then(ident)
-        .map_with(|(r#type, name), e| Argument {
-            r#type,
-            name,
-            span: to_span(e.span()),
-        });
+    let argument = r#type.then(ident).map_with(|(r#type, name), e| Argument {
+        r#type,
+        name,
+        span: to_span(e.span()),
+    });
 
     let function_decl = r#type
         .then(ident)

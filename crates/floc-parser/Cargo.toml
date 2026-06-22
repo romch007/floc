@@ -1,0 +1,16 @@
+[package]
+name = "floc-parser"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "floc_parser"
+
+[dependencies]
+floc-ast = { path = "../floc-ast" }
+floc-lexer = { path = "../floc-lexer" }
+floc-span = { path = "../floc-span" }
+chumsky = { version = "0.13", features = ["pratt"] }
+logos = "0.16.1"
+miette = "7.6.0"
+thiserror = "2.0.3"

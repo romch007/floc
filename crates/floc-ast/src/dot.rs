@@ -3,7 +3,7 @@ use std::{
     io::{self, BufWriter, Write},
 };
 
-use crate::ast::{
+use crate::{
     Argument, Assignment, BinaryOp, BinaryOpKind, Declaration, Expression, FunctionCall,
     FunctionDeclaration, If, Program, Statement, UnaryOp, UnaryOpKind, While,
 };

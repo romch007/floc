@@ -360,11 +360,15 @@ version = "0.2.2"
 dependencies = [
  "bindgen",
  "cc",
- "chumsky",
  "clap",
  "clap_complete",
  "clap_mangen",
  "fastrand",
+ "floc-analyzer",
+ "floc-ast",
+ "floc-lexer",
+ "floc-parser",
+ "floc-span",
  "inkwell",
  "llvm-sys",
  "logos",
@@ -375,13 +379,61 @@ dependencies = [
 ]
 
 [[package]]
+name = "floc-analyzer"
+version = "0.1.0"
+dependencies = [
+ "floc-ast",
+ "floc-span",
+ "miette",
+ "thiserror",
+]
+
+[[package]]
+name = "floc-ast"
+version = "0.1.0"
+dependencies = [
+ "floc-span",
+]
+
+[[package]]
+name = "floc-lexer"
+version = "0.1.0"
+dependencies = [
+ "logos",
+]
+
+[[package]]
 name = "floc-lsp"
 version = "0.1.0"
 dependencies = [
- "floc",
+ "floc-analyzer",
+ "floc-ast",
+ "floc-parser",
+ "floc-span",
  "miette",
  "tokio",
  "tower-lsp",
+]
+
+[[package]]
+name = "floc-parser"
+version = "0.1.0"
+dependencies = [
+ "chumsky",
+ "floc-ast",
+ "floc-lexer",
+ "floc-span",
+ "logos",
+ "miette",
+ "thiserror",
+]
+
+[[package]]
+name = "floc-span"
+version = "0.1.0"
+dependencies = [
+ "chumsky",
+ "miette",
 ]
 
 [[package]]

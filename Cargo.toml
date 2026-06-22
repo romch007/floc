@@ -1,3 +1,11 @@
 [workspace]
-members = ["crates/floc", "crates/floc-lsp"]
+members = [
+    "crates/floc",
+    "crates/floc-span",
+    "crates/floc-lexer",
+    "crates/floc-ast",
+    "crates/floc-parser",
+    "crates/floc-analyzer",
+    "crates/floc-lsp",
+]
 resolver = "3"

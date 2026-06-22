@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-floc = { path = "../floc", default-features = false }
+floc-span = { path = "../floc-span" }
+floc-ast = { path = "../floc-ast" }
+floc-parser = { path = "../floc-parser" }
+floc-analyzer = { path = "../floc-analyzer" }
 miette = "7.6.0"
 tokio = { version = "1.48.0", features = ["full"] }
 tower-lsp = "0.20.0"

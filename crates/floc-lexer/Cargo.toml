@@ -1,0 +1,10 @@
+[package]
+name = "floc-lexer"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "floc_lexer"
+
+[dependencies]
+logos = "0.16.1"

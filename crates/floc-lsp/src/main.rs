@@ -4,11 +4,9 @@ mod finder;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use floc::{
-    analyzer::{self, Analyzer},
-    ast::{self, visitor::Visitor},
-    span::Span,
-};
+use floc_analyzer::{self as analyzer, Analyzer};
+use floc_ast::{self as ast, visitor::Visitor};
+use floc_span::Span;
 use miette::NamedSource;
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
@@ -98,7 +96,9 @@ impl Backend {
 impl Backend {
     async fn update_diagnostic(&self, diagnostics: Vec<Diagnostic>, uri: Url) {
         // An empty list clears previously reported diagnostics.
-        self.client.publish_diagnostics(uri, diagnostics, None).await;
+        self.client
+            .publish_diagnostics(uri, diagnostics, None)
+            .await;
     }
 }
 
@@ -126,7 +126,7 @@ impl LanguageServer for Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let source = NamedSource::new("lsp.flo", params.text_document.text.clone());
-        if let Ok(ast) = floc::parser::parse(source.clone()) {
+        if let Ok(ast) = floc_parser::parse(source.clone()) {
             let document = Arc::new(Document {
                 program: ast,
                 text: source.clone(),
@@ -152,14 +152,13 @@ impl LanguageServer for Backend {
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         if let Some(change) = params.content_changes.into_iter().next() {
             let source = NamedSource::new("lsp.flo", change.text.clone());
-            if let Ok(ast) = floc::parser::parse(source.clone()) {
+            if let Ok(ast) = floc_parser::parse(source.clone()) {
                 let document = Arc::new(Document {
                     program: ast,
                     text: source.clone(),
                 });
 
-                // Keep the analyzer (which is not `Send`) confined to this block
-                // so it is dropped before the `.await` points below.
+                // Confine the non-`Send` analyzer so it drops before the `.await`s.
                 let diagnostics = {
                     let mut analyzer = Analyzer::new(source);
                     analyzer.analyze_program(&document.program);

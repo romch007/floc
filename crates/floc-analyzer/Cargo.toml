@@ -1,0 +1,13 @@
+[package]
+name = "floc-analyzer"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "floc_analyzer"
+
+[dependencies]
+floc-ast = { path = "../floc-ast" }
+floc-span = { path = "../floc-span" }
+miette = "7.6.0"
+thiserror = "2.0.3"

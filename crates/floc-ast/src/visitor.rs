@@ -1,4 +1,4 @@
-use crate::ast::{
+use crate::{
     Argument, Assignment, Declaration, Expression, FunctionCall, FunctionDeclaration, Identifier,
     If, Program, Return, Span, Statement, While, Write,
 };
