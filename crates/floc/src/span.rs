@@ -33,11 +33,11 @@ impl From<std::ops::Range<usize>> for Span {
     }
 }
 
-impl<'a> From<pest::Span<'a>> for Span {
-    fn from(value: pest::Span<'a>) -> Self {
+impl From<chumsky::span::SimpleSpan> for Span {
+    fn from(value: chumsky::span::SimpleSpan) -> Self {
         Self {
-            start: value.start(),
-            end: value.end(),
+            start: value.start,
+            end: value.end,
         }
     }
 }

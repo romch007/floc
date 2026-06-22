@@ -1,24 +1,15 @@
-//! This lexer is only used for syntax highlighting in error reports as of now
-
 use logos::Logos;
+use std::fmt;
 
-#[derive(Debug, Default, Clone, PartialEq)]
-pub enum Error {
-    InvalidToken(char),
-    #[default]
-    Other,
-}
-
-impl Error {
-    pub fn from_lexer<'source>(lex: &mut logos::Lexer<'source, Token<'source>>) -> Self {
-        Self::InvalidToken(lex.slice().chars().next().unwrap())
-    }
-}
-
-#[derive(Debug, Logos, PartialEq)]
-#[logos(error(Error, Error::from_lexer))]
-#[logos(skip r"[ \t\n\f]+")]
+#[derive(Debug, Clone, PartialEq, Logos)]
+#[logos(skip r"[ \t\r\n\f]+")]
 pub enum Token<'source> {
+    // Sentinel substituted for lexing errors so parsing stays recoverable.
+    Error,
+
+    #[regex(r"#[^\n]*", logos::skip, allow_greedy = true)]
+    Comment,
+
     #[token("+")]
     Add,
 
@@ -40,25 +31,25 @@ pub enum Token<'source> {
     #[token("!=")]
     Neq,
 
-    #[token("<")]
-    Lt,
-
-    #[token(">")]
-    Gt,
-
     #[token("<=")]
     Lte,
 
     #[token(">=")]
     Gte,
 
-    #[token("||")]
+    #[token("<")]
+    Lt,
+
+    #[token(">")]
+    Gt,
+
+    #[token("ou")]
     LogicOr,
 
-    #[token("&&")]
+    #[token("et")]
     LogicAnd,
 
-    #[token("not")]
+    #[token("non")]
     LogicNot,
 
     #[token("(")]
@@ -81,16 +72,6 @@ pub enum Token<'source> {
 
     #[token(";")]
     SemiColon,
-
-    #[regex("[A-Za-z0-9_]+", |lex| lex.slice())]
-    Identifier(&'source str),
-
-    #[regex("[0-9]+", |lex| lex.slice().parse::<u64>().unwrap(), priority = 3)]
-    Integer(u64),
-
-    #[token("Faux", |_| false)]
-    #[token("Vrai", |_| true)]
-    Boolean(bool),
 
     #[token("entier")]
     IntegerType,
@@ -115,4 +96,55 @@ pub enum Token<'source> {
 
     #[token("tantque")]
     While,
+
+    #[token("Vrai", |_| true)]
+    #[token("Faux", |_| false)]
+    Boolean(bool),
+
+    #[regex("[0-9]+", |lex| lex.slice().parse::<u64>().unwrap())]
+    Integer(u64),
+
+    #[regex("[A-Za-z_][A-Za-z0-9_]*", |lex| lex.slice())]
+    Identifier(&'source str),
+}
+
+impl fmt::Display for Token<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Token::Error => write!(f, "<invalid token>"),
+            Token::Comment => write!(f, "<comment>"),
+            Token::Add => write!(f, "+"),
+            Token::Sub => write!(f, "-"),
+            Token::Mul => write!(f, "*"),
+            Token::Div => write!(f, "/"),
+            Token::Mod => write!(f, "%"),
+            Token::Eq => write!(f, "=="),
+            Token::Neq => write!(f, "!="),
+            Token::Lte => write!(f, "<="),
+            Token::Gte => write!(f, ">="),
+            Token::Lt => write!(f, "<"),
+            Token::Gt => write!(f, ">"),
+            Token::LogicOr => write!(f, "ou"),
+            Token::LogicAnd => write!(f, "et"),
+            Token::LogicNot => write!(f, "non"),
+            Token::LParen => write!(f, "("),
+            Token::RParen => write!(f, ")"),
+            Token::LBrace => write!(f, "{{"),
+            Token::RBrace => write!(f, "}}"),
+            Token::Assignment => write!(f, "="),
+            Token::Comma => write!(f, ","),
+            Token::SemiColon => write!(f, ";"),
+            Token::IntegerType => write!(f, "entier"),
+            Token::BooleanType => write!(f, "booleen"),
+            Token::Read => write!(f, "lire"),
+            Token::Write => write!(f, "ecrire"),
+            Token::If => write!(f, "si"),
+            Token::Else => write!(f, "sinon"),
+            Token::Return => write!(f, "retourner"),
+            Token::While => write!(f, "tantque"),
+            Token::Boolean(b) => write!(f, "{}", if *b { "Vrai" } else { "Faux" }),
+            Token::Integer(n) => write!(f, "{n}"),
+            Token::Identifier(name) => write!(f, "{name}"),
+        }
+    }
 }

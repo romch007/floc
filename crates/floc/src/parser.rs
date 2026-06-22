@@ -3,386 +3,343 @@ use crate::ast::{
     FunctionDeclaration, Identifier, If, Program, Return, Statement, Type, TypeKind, UnaryOp,
     UnaryOpKind, While, Write,
 };
-use crate::span::Span;
-use miette::Context;
-use pest::{Parser, iterators::Pair, pratt_parser::PrattParser};
-use pest_derive::Parser;
-use std::sync::OnceLock;
+use crate::lexer::Token;
+use chumsky::input::{Stream, ValueInput};
+use chumsky::pratt::{infix, left, prefix};
+use chumsky::prelude::*;
+use chumsky::span::SimpleSpan;
+use logos::Logos;
 
-static PRATT_PARSER: OnceLock<PrattParser<Rule>> = OnceLock::new();
+type Extra<'tok, 'src> = extra::Err<Rich<'tok, Token<'src>>>;
 
-fn initialize_pratt_parser() -> PrattParser<Rule> {
-    use crate::parser::Rule;
-    use pest::pratt_parser::Assoc::Left;
-    use pest::pratt_parser::Op;
-
-    PrattParser::new()
-        .op(Op::infix(Rule::logic_or, Left) | Op::infix(Rule::logic_and, Left))
-        .op(Op::prefix(Rule::logic_not))
-        .op(Op::infix(Rule::r#eq, Left) | Op::infix(Rule::neq, Left))
-        .op(Op::infix(Rule::lt, Left)
-            | Op::infix(Rule::lte, Left)
-            | Op::infix(Rule::gt, Left)
-            | Op::infix(Rule::gte, Left))
-        .op(Op::infix(Rule::add, Left) | Op::infix(Rule::sub, Left))
-        .op(Op::infix(Rule::mul, Left) | Op::infix(Rule::div, Left) | Op::infix(Rule::r#mod, Left))
-        .op(Op::prefix(Rule::neg))
+// Concrete `SimpleSpan` parameter forces normalisation of `I::Span` that a bare
+// `.into()` won't trigger.
+#[inline]
+fn to_span(span: SimpleSpan) -> crate::span::Span {
+    span.into()
 }
 
-#[derive(Parser)]
-#[grammar = "src/grammar.pest"]
-struct PestParser;
+fn program_parser<'tok, 'src: 'tok, I>() -> impl Parser<'tok, I, Program, Extra<'tok, 'src>>
+where
+    I: ValueInput<'tok, Token = Token<'src>, Span = SimpleSpan>,
+{
+    let ident = select! { Token::Identifier(name) => name }
+        .map_with(|name, e| Identifier {
+            ident: name.to_string(),
+            span: to_span(e.span()),
+        })
+        .labelled("identifier");
 
-fn parse_bool(input: &str) -> Option<bool> {
-    match input {
-        "Vrai" => Some(true),
-        "Faux" => Some(false),
-        _ => None,
+    let r#type = select! {
+        Token::IntegerType => TypeKind::Integer,
+        Token::BooleanType => TypeKind::Boolean,
     }
-}
+    .map_with(|kind, e| Type {
+        kind,
+        span: to_span(e.span()),
+    })
+    .labelled("type");
 
-trait Node {
-    fn parse(pair: Pair<Rule>) -> Self;
-}
+    let expr = recursive(|expr| {
+        let call_args = expr
+            .clone()
+            .separated_by(just(Token::Comma))
+            .collect::<Vec<_>>();
 
-impl Node for Identifier {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let span = pair.as_span().into();
-        let name = pair.as_str().to_string();
+        let function_call = ident
+            .clone()
+            .then(call_args.delimited_by(just(Token::LParen), just(Token::RParen)))
+            .map_with(|(name, arguments), e| FunctionCall {
+                name,
+                arguments,
+                span: to_span(e.span()),
+            });
 
-        Self { ident: name, span }
-    }
-}
+        let read = just(Token::Read)
+            .then(just(Token::LParen))
+            .then(just(Token::RParen))
+            .map_with(|_, e| Expression::Read(to_span(e.span())));
 
-impl Node for Type {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let span = pair.as_span().into();
+        let atom = choice((
+            // must precede `ident`: both start with an identifier
+            function_call.map(Expression::FunctionCall),
+            read,
+            select! { Token::Integer(n) => n }
+                .map_with(|n, e| Expression::Integer(n, to_span(e.span()))),
+            select! { Token::Boolean(b) => b }
+                .map_with(|b, e| Expression::Boolean(b, to_span(e.span()))),
+            ident.clone().map(Expression::Variable),
+            expr.delimited_by(just(Token::LParen), just(Token::RParen)),
+        ));
 
-        let kind = match pair.as_str() {
-            "entier" => TypeKind::Integer,
-            "booleen" => TypeKind::Boolean,
-            pair => unreachable!("invalid type '{pair}'"),
-        };
-
-        Self { kind, span }
-    }
-}
-
-impl Node for FunctionCall {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let span = pair.as_span().into();
-        let mut pairs = pair.into_inner();
-
-        let name = Identifier::parse(pairs.next().unwrap());
-        let arguments = pairs
-            .next()
-            .unwrap()
-            .into_inner()
-            .map(Expression::parse)
-            .collect();
-
-        Self {
-            name,
-            arguments,
-            span,
+        macro_rules! binary {
+            ($prec:expr, $tok:expr, $kind:expr) => {
+                infix(
+                    left($prec),
+                    just($tok).map_with(|_, e| -> SimpleSpan { e.span() }),
+                    |left, op_span: SimpleSpan, right, e| {
+                        Expression::BinaryOp(BinaryOp {
+                            left: Box::new(left),
+                            kind: $kind,
+                            right: Box::new(right),
+                            span: to_span(e.span()),
+                            operator_span: to_span(op_span),
+                        })
+                    },
+                )
+            };
         }
-    }
-}
 
-impl Node for BinaryOpKind {
-    fn parse(pair: Pair<Rule>) -> Self {
-        match pair.as_rule() {
-            Rule::add => Self::Add,
-            Rule::sub => Self::Sub,
-            Rule::mul => Self::Mul,
-            Rule::div => Self::Div,
-            Rule::r#mod => Self::Mod,
-            Rule::r#eq => Self::Eq,
-            Rule::neq => Self::Neq,
-            Rule::lt => Self::Lt,
-            Rule::lte => Self::Lte,
-            Rule::gt => Self::Gt,
-            Rule::gte => Self::Gte,
-            Rule::logic_or => Self::LogicOr,
-            Rule::logic_and => Self::LogicAnd,
-            rule => unreachable!("invalid binary op {rule:?}"),
+        macro_rules! unary {
+            ($prec:expr, $tok:expr, $kind:expr) => {
+                prefix(
+                    $prec,
+                    just($tok).map_with(|_, e| -> SimpleSpan { e.span() }),
+                    |op_span: SimpleSpan, operand, e| {
+                        Expression::UnaryOp(UnaryOp {
+                            kind: $kind,
+                            operand: Box::new(operand),
+                            span: to_span(e.span()),
+                            operator_span: to_span(op_span),
+                        })
+                    },
+                )
+            };
         }
-    }
-}
 
-impl Node for UnaryOpKind {
-    fn parse(pair: Pair<Rule>) -> Self {
-        match pair.as_rule() {
-            Rule::neg => Self::Neg,
-            Rule::logic_not => Self::LogicNot,
-            rule => unreachable!("invalid unary op {rule:?}"),
-        }
-    }
-}
+        atom.pratt((
+            binary!(1, Token::LogicOr, BinaryOpKind::LogicOr),
+            binary!(1, Token::LogicAnd, BinaryOpKind::LogicAnd),
+            unary!(2, Token::LogicNot, UnaryOpKind::LogicNot),
+            binary!(3, Token::Eq, BinaryOpKind::Eq),
+            binary!(3, Token::Neq, BinaryOpKind::Neq),
+            binary!(4, Token::Lt, BinaryOpKind::Lt),
+            binary!(4, Token::Lte, BinaryOpKind::Lte),
+            binary!(4, Token::Gt, BinaryOpKind::Gt),
+            binary!(4, Token::Gte, BinaryOpKind::Gte),
+            binary!(5, Token::Add, BinaryOpKind::Add),
+            binary!(5, Token::Sub, BinaryOpKind::Sub),
+            binary!(6, Token::Mul, BinaryOpKind::Mul),
+            binary!(6, Token::Div, BinaryOpKind::Div),
+            binary!(6, Token::Mod, BinaryOpKind::Mod),
+            unary!(7, Token::Sub, UnaryOpKind::Neg),
+        ))
+        .labelled("expression")
+    });
 
-impl Node for Expression {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let pairs = pair.into_inner();
+    let stmt = recursive(|stmt| {
+        let braced = stmt
+            .clone()
+            .repeated()
+            .at_least(1)
+            .collect::<Vec<_>>()
+            .delimited_by(just(Token::LBrace), just(Token::RBrace));
 
-        PRATT_PARSER
-            .get_or_init(initialize_pratt_parser)
-            .map_primary(|primary| match primary.as_rule() {
-                Rule::expr => Expression::parse(primary), // from "(" ~ expr ~ ")"
-                Rule::integer => {
-                    Self::Integer(primary.as_str().parse().unwrap(), primary.as_span().into())
-                }
-                Rule::ident => Self::Variable(Identifier::parse(primary)),
-                Rule::boolean => Self::Boolean(
-                    parse_bool(primary.as_str()).unwrap(),
-                    primary.as_span().into(),
-                ),
-                Rule::read => Self::Read(primary.as_span().into()),
-                Rule::function_call => Self::FunctionCall(FunctionCall::parse(primary)),
-                rule => unreachable!("invalid primary expr '{rule:?}'"),
-            })
-            .map_prefix(|op, rhs| {
-                let operator_span: Span = op.as_span().into();
-                let span = Span {
-                    start: operator_span.start,
-                    end: rhs.span().end,
-                };
-
-                Self::UnaryOp(UnaryOp {
-                    kind: UnaryOpKind::parse(op),
-                    operand: Box::new(rhs),
-                    span,
-                    operator_span,
+        let declaration = r#type
+            .clone()
+            .then(ident.clone())
+            .then(just(Token::Assignment).ignore_then(expr.clone()).or_not())
+            .then_ignore(just(Token::SemiColon))
+            .map_with(|((r#type, variable), value), e| {
+                Statement::Declaration(Declaration {
+                    r#type,
+                    variable,
+                    value,
+                    span: to_span(e.span()),
                 })
-            })
-            .map_infix(|lhs, op, rhs| {
-                let operator_span: Span = op.as_span().into();
-                let span = Span {
-                    start: lhs.span().start,
-                    end: rhs.span().end,
-                };
+            });
 
-                Self::BinaryOp(BinaryOp {
-                    left: Box::new(lhs),
-                    kind: BinaryOpKind::parse(op),
-                    right: Box::new(rhs),
-                    span,
-                    operator_span,
+        let assignment = ident
+            .clone()
+            .then_ignore(just(Token::Assignment))
+            .then(expr.clone())
+            .then_ignore(just(Token::SemiColon))
+            .map_with(|(variable, value), e| {
+                Statement::Assignment(Assignment {
+                    variable,
+                    value,
+                    span: to_span(e.span()),
                 })
+            });
+
+        let write = just(Token::Write)
+            .ignore_then(
+                expr.clone()
+                    .delimited_by(just(Token::LParen), just(Token::RParen)),
+            )
+            .then_ignore(just(Token::SemiColon))
+            .map_with(|value, e| {
+                Statement::Write(Write {
+                    value,
+                    span: to_span(e.span()),
+                })
+            });
+
+        let r#return = just(Token::Return)
+            .ignore_then(expr.clone())
+            .then_ignore(just(Token::SemiColon))
+            .map_with(|value, e| {
+                Statement::Return(Return {
+                    value,
+                    span: to_span(e.span()),
+                })
+            });
+
+        let r#while = just(Token::While)
+            .ignore_then(
+                expr.clone()
+                    .delimited_by(just(Token::LParen), just(Token::RParen)),
+            )
+            .then(braced.clone())
+            .map_with(|(condition, statements), e| {
+                Statement::While(While {
+                    condition,
+                    statements,
+                    span: to_span(e.span()),
+                })
+            });
+
+        let r#if = recursive(|r#if| {
+            just(Token::If)
+                .ignore_then(
+                    expr.clone()
+                        .delimited_by(just(Token::LParen), just(Token::RParen)),
+                )
+                .then(braced.clone())
+                .then(
+                    just(Token::Else)
+                        .ignore_then(braced.clone().or(r#if.map(|s| vec![s])))
+                        .or_not(),
+                )
+                .map_with(|((condition, statements), statements_else), e| {
+                    Statement::If(If {
+                        condition,
+                        statements,
+                        statements_else,
+                        span: to_span(e.span()),
+                    })
+                })
+        });
+
+        let discard_fn_call = ident
+            .clone()
+            .then(
+                expr.clone()
+                    .separated_by(just(Token::Comma))
+                    .collect::<Vec<_>>()
+                    .delimited_by(just(Token::LParen), just(Token::RParen)),
+            )
+            .map_with(|(name, arguments), e| FunctionCall {
+                name,
+                arguments,
+                span: to_span(e.span()),
             })
-            .parse(pairs)
-    }
-}
+            .then_ignore(just(Token::SemiColon))
+            .map(Statement::DiscardFunctionCall);
 
-impl Node for Assignment {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let span = pair.as_span().into();
-        let mut pairs = pair.into_inner();
+        choice((
+            declaration,
+            r#while,
+            r#if,
+            write,
+            r#return,
+            discard_fn_call,
+            assignment,
+        ))
+    });
 
-        let variable = Identifier::parse(pairs.next().unwrap());
-        let value = Expression::parse(pairs.next().unwrap());
-
-        Self {
-            variable,
-            value,
-            span,
-        }
-    }
-}
-
-impl Node for Declaration {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let span = pair.as_span().into();
-        let mut pairs = pair.into_inner();
-
-        let r#type = Type::parse(pairs.next().unwrap());
-        let variable = Identifier::parse(pairs.next().unwrap());
-        let mut value = None;
-
-        if matches!(pairs.peek().map(|pair| pair.as_rule()), Some(Rule::expr)) {
-            value = Some(Expression::parse(pairs.next().unwrap()));
-        }
-
-        Self {
+    let argument = r#type
+        .clone()
+        .then(ident.clone())
+        .map_with(|(r#type, name), e| Argument {
             r#type,
-            variable,
-            value,
-            span,
-        }
-    }
-}
-
-impl Node for While {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let span = pair.as_span().into();
-        let mut pairs = pair.into_inner();
-
-        let condition = Expression::parse(pairs.next().unwrap());
-        let statements = pairs
-            .next()
-            .unwrap()
-            .into_inner()
-            .map(Statement::parse)
-            .collect();
-
-        Self {
-            condition,
-            statements,
-            span,
-        }
-    }
-}
-
-impl Node for If {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let span = pair.as_span().into();
-        let mut pairs = pair.into_inner();
-
-        let condition = Expression::parse(pairs.next().unwrap());
-        let statements = pairs
-            .next()
-            .unwrap()
-            .into_inner()
-            .map(Statement::parse)
-            .collect();
-        let mut statements_else = None;
-
-        let next_pair = pairs.peek().map(|pair| pair.as_rule());
-
-        match next_pair {
-            Some(Rule::stmt_list) => {
-                statements_else = Some(
-                    pairs
-                        .next()
-                        .unwrap()
-                        .into_inner()
-                        .map(Statement::parse)
-                        .collect(),
-                );
-            }
-            Some(Rule::r#if) => {
-                statements_else = Some(vec![Statement::If(If::parse(pairs.next().unwrap()))]);
-            }
-            _ => {}
-        }
-
-        Self {
-            condition,
-            statements,
-            statements_else,
-            span,
-        }
-    }
-}
-
-impl Node for Write {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let span = pair.as_span().into();
-        let value = Expression::parse(pair.into_inner().next().unwrap());
-
-        Self { value, span }
-    }
-}
-
-impl Node for Return {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let span = pair.as_span().into();
-        let value = Expression::parse(pair.into_inner().next().unwrap());
-
-        Self { value, span }
-    }
-}
-
-impl Node for Statement {
-    fn parse(pair: Pair<Rule>) -> Self {
-        match pair.as_rule() {
-            Rule::assignment => Self::Assignment(Assignment::parse(pair)),
-            Rule::declaration => Self::Declaration(Declaration::parse(pair)),
-            Rule::write => Self::Write(Write::parse(pair)),
-            Rule::r#return => Self::Return(Return::parse(pair)),
-            Rule::r#while => Self::While(While::parse(pair)),
-            Rule::r#if => Self::If(If::parse(pair)),
-            Rule::discard_fn_call => {
-                Self::DiscardFunctionCall(FunctionCall::parse(pair.into_inner().next().unwrap()))
-            }
-            rule => unreachable!("invalid statement '{rule:?}'"),
-        }
-    }
-}
-
-impl Node for Argument {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let span = pair.as_span().into();
-        let mut pairs = pair.into_inner();
-
-        let r#type = Type::parse(pairs.next().unwrap());
-        let name = Identifier::parse(pairs.next().unwrap());
-
-        Self { r#type, name, span }
-    }
-}
-
-impl Node for FunctionDeclaration {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let span = pair.as_span().into();
-        let mut pairs = pair.into_inner();
-
-        let return_type = Type::parse(pairs.next().unwrap());
-        let name = Identifier::parse(pairs.next().unwrap());
-        let arguments = pairs
-            .next()
-            .unwrap()
-            .into_inner()
-            .map(Argument::parse)
-            .collect();
-        let statements = pairs
-            .next()
-            .unwrap()
-            .into_inner()
-            .map(Statement::parse)
-            .collect();
-
-        Self {
-            return_type,
             name,
-            arguments,
-            statements,
-            span,
-        }
-    }
-}
+            span: to_span(e.span()),
+        });
 
-impl Node for Program {
-    fn parse(pair: Pair<Rule>) -> Self {
-        let mut pairs = pair.into_inner();
+    let function_decl = r#type
+        .then(ident)
+        .then(
+            argument
+                .separated_by(just(Token::Comma))
+                .collect::<Vec<_>>()
+                .delimited_by(just(Token::LParen), just(Token::RParen)),
+        )
+        .then(
+            stmt.clone()
+                .repeated()
+                .at_least(1)
+                .collect::<Vec<_>>()
+                .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+        )
+        .map_with(
+            |(((return_type, name), arguments), statements), e| FunctionDeclaration {
+                return_type,
+                name,
+                arguments,
+                statements,
+                span: to_span(e.span()),
+            },
+        );
 
-        let function_decls = pairs
-            .next()
-            .unwrap()
-            .into_inner()
-            .map(FunctionDeclaration::parse)
-            .collect();
-        let statements = pairs
-            .next()
-            .unwrap()
-            .into_inner()
-            .map(Statement::parse)
-            .collect();
-
-        Self {
+    function_decl
+        .repeated()
+        .collect::<Vec<_>>()
+        .then(stmt.repeated().at_least(1).collect::<Vec<_>>())
+        .map(|(function_decls, statements)| Program {
             function_decls,
             statements,
-        }
-    }
+        })
+        .then_ignore(end())
+}
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[error("cannot parse program")]
+#[diagnostic(code(floc::parse_error))]
+pub struct ParseError {
+    #[source_code]
+    src: miette::NamedSource<String>,
+
+    #[label(collection)]
+    labels: Vec<miette::LabeledSpan>,
 }
 
 pub fn parse(named_source: miette::NamedSource<String>) -> miette::Result<Program> {
-    let mut pest_output = PestParser::parse(Rule::prog, named_source.inner())
-        .map_err(pest::error::Error::into_miette)
-        .wrap_err("cannot parse program")?;
+    let result = {
+        let source = named_source.inner().as_str();
 
-    let program = Program::parse(pest_output.next().unwrap());
+        let token_iter = Token::lexer(source).spanned().map(|(tok, span)| match tok {
+            Ok(tok) => (tok, span.into()),
+            Err(()) => (Token::Error, span.into()),
+        });
 
-    Ok(program)
+        let token_stream =
+            Stream::from_iter(token_iter).map((0..source.len()).into(), |(t, s)| (t, s));
+
+        program_parser()
+            .parse(token_stream)
+            .into_result()
+            .map_err(|errors| {
+                errors
+                    .into_iter()
+                    .map(|error| {
+                        let span = error.span();
+                        miette::LabeledSpan::new(
+                            Some(error.to_string()),
+                            span.start,
+                            span.end - span.start,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+    };
+
+    result.map_err(|labels| {
+        miette::Report::new(ParseError {
+            src: named_source,
+            labels,
+        })
+    })
 }
 
 #[cfg(test)]
