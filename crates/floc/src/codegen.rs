@@ -399,8 +399,10 @@ impl<'ctx> Compiler<'ctx> {
 
                 Ok(false)
             } else {
-                // Every code path returned, so we don't need the end basic block
-                end_bb.remove_from_function().unwrap();
+                // Every code path returned, so we don't need the end basic block.
+                // SAFETY: end_bb is unused (no branches/references to it) and not
+                // referenced anywhere else, so deleting it is sound.
+                unsafe { end_bb.delete().unwrap() };
 
                 Ok(true)
             }
