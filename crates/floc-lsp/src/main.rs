@@ -22,7 +22,7 @@ use tower_lsp::lsp_types::{
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
-use crate::completions::keyword_completion_items;
+use crate::completions::{keyword_completion_items, variable_completion_items};
 use crate::finder::Finder;
 use crate::references::{RefKind, References};
 
@@ -192,6 +192,10 @@ impl LanguageServer for Backend {
         if let Some(doc) = self.get_document(&uri).await {
             let mut analyzer = Analyzer::new(doc.text.clone());
             analyzer.analyze_program(&doc.program);
+
+            // Add the variables in scope at the cursor
+            let offset = doc.pos_to_offset(params.text_document_position.position);
+            completions.extend(variable_completion_items(&doc.program, offset));
 
             // Add all functions to completion
             for (name, function) in analyzer.functions() {
