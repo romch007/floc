@@ -18,6 +18,9 @@ pub enum Error {
     #[error("Builder error: {0}")]
     Builer(#[from] inkwell::builder::BuilderError),
 
+    #[error("Inkwell error: {0}")]
+    Inkwell(#[from] inkwell::Error),
+
     #[error("Verification error: {0}")]
     Verification(String),
 
@@ -135,9 +138,7 @@ impl<'ctx> Compiler<'ctx> {
         let md_string = self.context.metadata_string(&comment);
         let md_node = self.context.metadata_node(&[md_string.into()]);
 
-        self.module
-            .add_global_metadata("llvm.ident", &md_node)
-            .unwrap();
+        self.module.add_global_metadata("llvm.ident", &md_node)?;
 
         for fn_decl in &prog.function_decls {
             self.emit_function_declaration(fn_decl)?;
