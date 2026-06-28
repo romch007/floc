@@ -1,6 +1,6 @@
 use floc_ast as ast;
 use floc_span::{Span, SpanIterExt};
-use std::{cell::Cell, collections::HashMap};
+use std::{cell::Cell, collections::HashMap, sync::Arc};
 
 mod util;
 
@@ -59,7 +59,7 @@ pub enum Error {
     #[diagnostic(code(floc::invalid_types_in_op))]
     TypeMismatchInOperation {
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         operand_type: ast::TypeKind,
 
@@ -75,7 +75,7 @@ pub enum Error {
     #[diagnostic(code(floc::invalid_types_in_eq_or_neq))]
     TypeMismatchInEqOrNeq {
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         left_operand_type: ast::TypeKind,
 
@@ -97,7 +97,7 @@ pub enum Error {
     #[diagnostic(code(floc::invalid_types_in_assign))]
     TypeMismatchInAssign {
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         expected_type: ast::TypeKind,
 
@@ -114,7 +114,7 @@ pub enum Error {
     #[diagnostic(code(floc::invalid_types_ret_stmt))]
     TypeMismatchInReturn {
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         expected_type: ast::TypeKind,
 
@@ -131,7 +131,7 @@ pub enum Error {
     #[diagnostic(code(floc::invalid_types_in_condition))]
     TypeMismatchInCondition {
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         wrong_value_type: ast::TypeKind,
 
@@ -143,7 +143,7 @@ pub enum Error {
     #[diagnostic(code(floc::invalid_types_in_fn_arg))]
     TypeMismatchInFnArg {
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         expected_type: ast::TypeKind,
 
@@ -165,7 +165,7 @@ pub enum Error {
         var_name: String,
 
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         #[label("variable used here")]
         here: Span,
@@ -180,7 +180,7 @@ pub enum Error {
         varname: String,
 
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         #[label("here")]
         here: Span,
@@ -195,7 +195,7 @@ pub enum Error {
         fn_name: String,
 
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         #[label("here")]
         here: Span,
@@ -210,7 +210,7 @@ pub enum Error {
         fn_name: String,
 
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         #[label("used here")]
         here: Span,
@@ -223,7 +223,7 @@ pub enum Error {
     #[diagnostic(code(floc::return_statement_outside_fn_body))]
     ReturnOutsideFunction {
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         #[label("here")]
         here: Span,
@@ -237,7 +237,7 @@ pub enum Error {
     #[diagnostic(code(floc::extra_stmts_after_return))]
     ExtraStmtsAfterReturn {
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         #[label("here")]
         stmt_span: Span,
@@ -253,7 +253,7 @@ pub enum Error {
         got: usize,
 
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         #[label("arguments to this function are incorrect")]
         fn_call_name: Span,
@@ -297,7 +297,7 @@ pub enum Warning {
         varname: String,
 
         #[source_code]
-        src: miette::NamedSource<String>,
+        src: Arc<miette::NamedSource<String>>,
 
         #[label("defined here")]
         varname_decl_span: Span,
@@ -319,7 +319,7 @@ pub struct Analyzer {
     variables: Vec<HashMap<String, Variable>>,
     functions: HashMap<String, Function>,
     parent_function: Option<String>,
-    source_code: miette::NamedSource<String>,
+    source_code: Arc<miette::NamedSource<String>>,
     errors: Vec<Error>,
     warnings: Vec<Warning>,
 }
@@ -327,7 +327,7 @@ pub struct Analyzer {
 impl Analyzer {
     #[inline]
     #[must_use]
-    pub fn new(source_code: miette::NamedSource<String>) -> Self {
+    pub fn new(source_code: Arc<miette::NamedSource<String>>) -> Self {
         Self {
             variables: Vec::with_capacity(1),
             functions: HashMap::new(),

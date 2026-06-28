@@ -1,4 +1,4 @@
-use std::{fs, io::Read, path::Path};
+use std::{fs, io::Read, path::Path, sync::Arc};
 
 use clap::CommandFactory;
 use inkwell::targets::TargetMachine;
@@ -143,7 +143,7 @@ fn main() -> miette::Result<()> {
 
     let analyzer_timer = utils::Timer::start(args.verbose);
 
-    let mut analyzer = analyzer::Analyzer::new(named_source.clone());
+    let mut analyzer = analyzer::Analyzer::new(Arc::new(named_source));
     analyzer.analyze_program(&ast_prog);
 
     analyzer_timer.stop();

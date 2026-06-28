@@ -190,7 +190,7 @@ impl LanguageServer for Backend {
 
         let uri = params.text_document_position.text_document.uri;
         if let Some(doc) = self.get_document(&uri).await {
-            let mut analyzer = Analyzer::new(doc.text.clone());
+            let mut analyzer = Analyzer::new(Arc::new(doc.text.clone()));
             analyzer.analyze_program(&doc.program);
 
             // Add the variables in scope at the cursor
@@ -244,7 +244,7 @@ impl LanguageServer for Backend {
         {
             // TODO: cache this?
             // Il veut jouer à cache-cache ?
-            let mut analyzer = Analyzer::new(doc.text.clone());
+            let mut analyzer = Analyzer::new(Arc::new(doc.text.clone()));
             analyzer.analyze_program(&doc.program);
 
             let offset = doc.pos_to_offset(params.text_document_position_params.position);
@@ -280,7 +280,7 @@ fn analyze_source(text: String) -> (Arc<Document>, Vec<Diagnostic>) {
 
     let diagnostics = if parse_diagnostics.is_empty() {
         // The non-`Send` analyzer stays in this sync function, away from awaits.
-        let mut analyzer = Analyzer::new(source);
+        let mut analyzer = Analyzer::new(Arc::new(source));
         analyzer.analyze_program(&document.program);
         collect_diagnostics(&analyzer, &document)
     } else {
