@@ -9,3 +9,7 @@ members = [
     "crates/floc-lsp",
 ]
 resolver = "3"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
