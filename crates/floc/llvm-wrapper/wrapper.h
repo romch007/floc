@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#define ARCH_LIST                                                              \
+#define ARCH_LIST_COMMON                                                       \
   X(arm)                                                                       \
   X(armeb)                                                                     \
   X(aarch64)                                                                   \
@@ -33,9 +33,10 @@ extern "C" {
   X(ppc64)                                                                     \
   X(ppc64le)                                                                   \
   X(r600)                                                                      \
-  X(amdgcn)                                                                    \
   X(riscv32)                                                                   \
   X(riscv64)                                                                   \
+  X(riscv32be)                                                                 \
+  X(riscv64be)                                                                 \
   X(sparc)                                                                     \
   X(sparcv9)                                                                   \
   X(sparcel)                                                                   \
@@ -67,6 +68,17 @@ extern "C" {
   X(renderscript32)                                                            \
   X(renderscript64)                                                            \
   X(ve)
+
+#define ARCH_LIST_AMDGPU                                                       \
+  X(amdgpu)
+
+#define ARCH_LIST_LLVM_23                                                      \
+  X(tcele64)
+
+#define ARCH_LIST                                                              \
+  ARCH_LIST_COMMON                                                             \
+  ARCH_LIST_AMDGPU                                                             \
+  ARCH_LIST_LLVM_23
 
 typedef enum {
 #define X(name) arch_##name,

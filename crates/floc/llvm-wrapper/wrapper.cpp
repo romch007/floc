@@ -1,5 +1,6 @@
 #include "wrapper.h"
 
+#include <llvm/Config/llvm-config.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/Module.h>
@@ -16,8 +17,19 @@ arch_t arch_from_target_triple(const char *target_triple) {
 #define X(name)                                                                \
   case Triple::name:                                                           \
     return arch_##name;
-    ARCH_LIST
+    ARCH_LIST_COMMON
+#if LLVM_VERSION_MAJOR >= 23
+    ARCH_LIST_LLVM_23
+#endif
 #undef X
+
+#if LLVM_VERSION_MAJOR >= 23
+  case Triple::amdgpu:
+#else
+  case Triple::amdgcn:
+#endif
+    return arch_amdgpu;
+
   default:
     return arch_unknown;
   }
