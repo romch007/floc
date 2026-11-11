@@ -7,5 +7,5 @@ edition = "2024"
 name = "floc_span"
 
 [dependencies]
-chumsky = "0.13"
-miette = "7.6.0"
+chumsky = { workspace = true }
+miette = { workspace = true }

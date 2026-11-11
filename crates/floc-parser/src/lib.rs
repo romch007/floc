@@ -114,20 +114,20 @@ where
 
         atom.pratt((
             binary!(1, Token::LogicOr, BinaryOpKind::LogicOr),
-            binary!(1, Token::LogicAnd, BinaryOpKind::LogicAnd),
-            unary!(2, Token::LogicNot, UnaryOpKind::LogicNot),
-            binary!(3, Token::Eq, BinaryOpKind::Eq),
-            binary!(3, Token::Neq, BinaryOpKind::Neq),
-            binary!(4, Token::Lt, BinaryOpKind::Lt),
-            binary!(4, Token::Lte, BinaryOpKind::Lte),
-            binary!(4, Token::Gt, BinaryOpKind::Gt),
-            binary!(4, Token::Gte, BinaryOpKind::Gte),
-            binary!(5, Token::Add, BinaryOpKind::Add),
-            binary!(5, Token::Sub, BinaryOpKind::Sub),
-            binary!(6, Token::Mul, BinaryOpKind::Mul),
-            binary!(6, Token::Div, BinaryOpKind::Div),
-            binary!(6, Token::Mod, BinaryOpKind::Mod),
-            unary!(7, Token::Sub, UnaryOpKind::Neg),
+            binary!(2, Token::LogicAnd, BinaryOpKind::LogicAnd),
+            unary!(3, Token::LogicNot, UnaryOpKind::LogicNot),
+            binary!(4, Token::Eq, BinaryOpKind::Eq),
+            binary!(4, Token::Neq, BinaryOpKind::Neq),
+            binary!(5, Token::Lt, BinaryOpKind::Lt),
+            binary!(5, Token::Lte, BinaryOpKind::Lte),
+            binary!(5, Token::Gt, BinaryOpKind::Gt),
+            binary!(5, Token::Gte, BinaryOpKind::Gte),
+            binary!(6, Token::Add, BinaryOpKind::Add),
+            binary!(6, Token::Sub, BinaryOpKind::Sub),
+            binary!(7, Token::Mul, BinaryOpKind::Mul),
+            binary!(7, Token::Div, BinaryOpKind::Div),
+            binary!(7, Token::Mod, BinaryOpKind::Mod),
+            unary!(8, Token::Sub, UnaryOpKind::Neg),
         ))
         .labelled("expression")
     });
@@ -149,7 +149,11 @@ where
 
         let declaration = r#type
             .then(ident)
-            .then(just(Token::Assignment).ignore_then(value_expr.clone()).or_not())
+            .then(
+                just(Token::Assignment)
+                    .ignore_then(value_expr.clone())
+                    .or_not(),
+            )
             .then_ignore(just(Token::SemiColon))
             .map_with(|((r#type, variable), value), e| {
                 Statement::Declaration(Declaration {
@@ -398,12 +402,14 @@ pub fn parse(named_source: miette::NamedSource<String>) -> miette::Result<Progra
         return Ok(program);
     }
 
-    Err(diagnostics_report(named_source.clone(), diagnostics).unwrap_or_else(|| {
-        miette::Report::new(ParseError {
-            src: named_source,
-            labels: Vec::new(),
-        })
-    }))
+    Err(
+        diagnostics_report(named_source.clone(), diagnostics).unwrap_or_else(|| {
+            miette::Report::new(ParseError {
+                src: named_source,
+                labels: Vec::new(),
+            })
+        }),
+    )
 }
 
 #[cfg(test)]
@@ -501,6 +507,33 @@ mod tests {
         } else {
             panic!("Write statement argument is not a logical 'ou' expression");
         }
+    }
+
+    #[test]
+    fn et_binds_tighter_than_ou() {
+        let source = NamedSource::new("test.flo", "ecrire(a ou b et c);".to_string());
+        let prog = parse(source).unwrap();
+
+        let Statement::Write(write_stmt) = &prog.statements[0] else {
+            panic!("not a write statement");
+        };
+
+        let Expression::BinaryOp(BinaryOp {
+            kind: BinaryOpKind::LogicOr,
+            right,
+            ..
+        }) = &write_stmt.value
+        else {
+            panic!("top-level operator is not 'ou'");
+        };
+
+        assert!(matches!(
+            **right,
+            Expression::BinaryOp(BinaryOp {
+                kind: BinaryOpKind::LogicAnd,
+                ..
+            })
+        ));
     }
 
     #[test]

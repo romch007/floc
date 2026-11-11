@@ -219,7 +219,7 @@ pub enum Error {
         advice: Option<String>,
     },
 
-    #[error("feturn statement outside of function body")]
+    #[error("return statement outside of function body")]
     #[diagnostic(code(floc::return_statement_outside_fn_body))]
     ReturnOutsideFunction {
         #[source_code]
@@ -231,7 +231,13 @@ pub enum Error {
 
     #[error("not all code paths return")]
     #[diagnostic(code(floc::missing_return))]
-    MissingReturn,
+    MissingReturn {
+        #[source_code]
+        src: Arc<miette::NamedSource<String>>,
+
+        #[label("this function may end without returning a value")]
+        fn_name: Span,
+    },
 
     #[error("extra statements after return")]
     #[diagnostic(code(floc::extra_stmts_after_return))]
@@ -264,6 +270,28 @@ pub enum Error {
         #[label("expected {expected} arguments(s)")]
         fn_def_args: Option<Span>,
     },
+
+    #[error("function name '{fn_name}' is reserved")]
+    #[diagnostic(code(floc::reserved_function_name))]
+    ReservedFunctionName {
+        fn_name: String,
+
+        #[source_code]
+        src: Arc<miette::NamedSource<String>>,
+
+        #[label("this name is reserved for the program entry point")]
+        here: Span,
+    },
+
+    #[error("integer literal out of range")]
+    #[diagnostic(code(floc::integer_literal_out_of_range))]
+    IntegerLiteralOutOfRange {
+        #[source_code]
+        src: Arc<miette::NamedSource<String>>,
+
+        #[label("does not fit in 'entier' (range is -9223372036854775808 to 9223372036854775807)")]
+        here: Span,
+    },
 }
 
 impl Error {
@@ -281,9 +309,35 @@ impl Error {
             Error::FunctionAlreadyDefined { here, .. } => Some(here),
             Error::FunctionNotFound { here, .. } => Some(here),
             Error::ReturnOutsideFunction { here, .. } => Some(here),
-            Error::MissingReturn => None,
+            Error::MissingReturn { fn_name, .. } => Some(fn_name),
             Error::ExtraStmtsAfterReturn { stmt_span, .. } => Some(stmt_span),
-            Error::ArgumentCountMismatch { fn_call_args, .. } => fn_call_args.as_ref(),
+            Error::ArgumentCountMismatch {
+                fn_call_args,
+                fn_call_name,
+                ..
+            } => Some(fn_call_args.as_ref().unwrap_or(fn_call_name)),
+            Error::ReservedFunctionName { here, .. } => Some(here),
+            Error::IntegerLiteralOutOfRange { here, .. } => Some(here),
+        }
+    }
+}
+
+/// How control leaves a statement or a block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Flow {
+    Continues,
+    Returns,
+    /// Never completes: an endless loop, possibly alongside returns.
+    Diverges,
+}
+
+impl Flow {
+    /// Flow of a branch whose two arms flow as `self` and `other`.
+    fn join(self, other: Flow) -> Flow {
+        match (self, other) {
+            (Flow::Continues, _) | (_, Flow::Continues) => Flow::Continues,
+            (Flow::Returns, Flow::Returns) => Flow::Returns,
+            _ => Flow::Diverges,
         }
     }
 }
@@ -302,6 +356,20 @@ pub enum Warning {
         #[label("defined here")]
         varname_decl_span: Span,
     },
+
+    #[error("unreachable statement")]
+    #[diagnostic(code(floc::unreachable_statement))]
+    #[diagnostic(severity(Warning))]
+    UnreachableStatement {
+        #[source_code]
+        src: Arc<miette::NamedSource<String>>,
+
+        #[label("unreachable statement")]
+        stmt_span: Span,
+
+        #[label("any code following this statement is unreachable")]
+        cause: Span,
+    },
 }
 
 impl Warning {
@@ -311,6 +379,7 @@ impl Warning {
             Warning::UnusedVariable {
                 varname_decl_span, ..
             } => Some(varname_decl_span),
+            Warning::UnreachableStatement { stmt_span, .. } => Some(stmt_span),
         }
     }
 }
@@ -431,6 +500,15 @@ impl Analyzer {
                 continue;
             }
 
+            // Would clash with the generated entry point.
+            if fn_decl.name.ident == "main" {
+                self.push_error(Error::ReservedFunctionName {
+                    fn_name: fn_decl.name.ident.clone(),
+                    src: self.source_code.clone(),
+                    here: fn_decl.name.span,
+                });
+            }
+
             let args = fn_decl
                 .arguments
                 .iter()
@@ -463,14 +541,32 @@ impl Analyzer {
         self.enter_block();
 
         for arg in &fn_decl.arguments {
+            let previous_def = self
+                .get_variable(&arg.name)
+                .map(|previous_arg| previous_arg.declaration_span);
+
+            if let Some(previous_def) = previous_def {
+                self.push_error(Error::VariableAlreadyDefined {
+                    varname: arg.name.ident.clone(),
+                    src: self.source_code.clone(),
+                    here: arg.span,
+                    previous_def,
+                });
+
+                continue;
+            }
+
             self.declare_variable(&arg.name, arg.r#type.clone(), arg.span);
         }
 
         // Arguments share the body's block, so analyze the statements directly.
-        let does_return = self.analyze_statements(&fn_decl.statements);
+        let flow = self.analyze_statements(&fn_decl.statements);
 
-        if !does_return {
-            self.push_error(Error::MissingReturn);
+        if flow == Flow::Continues {
+            self.push_error(Error::MissingReturn {
+                src: self.source_code.clone(),
+                fn_name: fn_decl.name.span,
+            });
         }
 
         self.leave_block();
@@ -478,30 +574,44 @@ impl Analyzer {
         self.parent_function = None;
     }
 
-    fn analyze_statements(&mut self, stmts: &[ast::Statement]) -> bool {
-        let mut does_return = false;
-        let mut reported_extra = false;
+    fn analyze_statements(&mut self, stmts: &[ast::Statement]) -> Flow {
+        let mut flow = Flow::Continues;
+        let mut cause = None;
+        let mut reported_dead_code = false;
 
         for stmt in stmts {
-            // Report dead code after a return once, but keep analyzing the rest.
-            if does_return && !reported_extra {
-                self.push_error(Error::ExtraStmtsAfterReturn {
-                    src: self.source_code.clone(),
-                    stmt_span: *stmt.span(),
-                });
+            // Report dead code once, but keep analyzing the rest.
+            if let Some(cause) = cause
+                && !reported_dead_code
+            {
+                if flow == Flow::Returns {
+                    self.push_error(Error::ExtraStmtsAfterReturn {
+                        src: self.source_code.clone(),
+                        stmt_span: *stmt.span(),
+                    });
+                } else {
+                    self.warnings.push(Warning::UnreachableStatement {
+                        src: self.source_code.clone(),
+                        stmt_span: *stmt.span(),
+                        cause,
+                    });
+                }
 
-                reported_extra = true;
+                reported_dead_code = true;
             }
 
-            if self.analyze_statement(stmt) {
-                does_return = true;
+            let stmt_flow = self.analyze_statement(stmt);
+
+            if flow == Flow::Continues && stmt_flow != Flow::Continues {
+                flow = stmt_flow;
+                cause = Some(*stmt.span());
             }
         }
 
-        does_return
+        flow
     }
 
-    fn analyze_statement(&mut self, stmt: &ast::Statement) -> bool {
+    fn analyze_statement(&mut self, stmt: &ast::Statement) -> Flow {
         match stmt {
             ast::Statement::Assignment(assign) => self.analyze_assignment(assign),
             ast::Statement::Declaration(decl) => self.analyze_declaration(decl),
@@ -511,20 +621,20 @@ impl Analyzer {
             ast::Statement::If(i) => self.analyze_if(i),
             ast::Statement::DiscardFunctionCall(fn_call) => {
                 self.analyze_function_call(fn_call);
-                false
+                Flow::Continues
             }
-            ast::Statement::Error(_) => false,
+            ast::Statement::Error(_) => Flow::Continues,
         }
     }
 
-    fn analyze_block(&mut self, stmts: &[ast::Statement]) -> bool {
+    fn analyze_block(&mut self, stmts: &[ast::Statement]) -> Flow {
         self.enter_block();
 
-        let does_return = self.analyze_statements(stmts);
+        let flow = self.analyze_statements(stmts);
 
         self.leave_block();
 
-        does_return
+        flow
     }
 
     fn check_condition(&mut self, condition_type: &Option<ast::Type>) {
@@ -539,7 +649,7 @@ impl Analyzer {
         }
     }
 
-    fn analyze_return(&mut self, ret: &ast::Return) -> bool {
+    fn analyze_return(&mut self, ret: &ast::Return) -> Flow {
         let value_type = self.analyze_expr(&ret.value);
 
         let Some(current_function_name) = self.parent_function.clone() else {
@@ -548,7 +658,7 @@ impl Analyzer {
                 here: ret.span,
             });
 
-            return true;
+            return Flow::Continues;
         };
 
         let defined_function = self.functions.get(&current_function_name).unwrap().clone();
@@ -565,35 +675,36 @@ impl Analyzer {
             });
         }
 
-        true
+        Flow::Returns
     }
 
-    fn analyze_if(&mut self, i: &ast::If) -> bool {
+    fn analyze_if(&mut self, i: &ast::If) -> Flow {
         let condition_type = self.analyze_expr(&i.condition);
         self.check_condition(&condition_type);
 
-        let then_block_returns = self.analyze_block(&i.statements);
+        let then_flow = self.analyze_block(&i.statements);
 
-        if let Some(stmts_else) = &i.statements_else {
-            let else_block_returns = self.analyze_block(stmts_else);
-
-            then_block_returns && else_block_returns
-        } else {
-            // The else body contains no statement, so it doesn't return
-            false
+        match &i.statements_else {
+            Some(stmts_else) => then_flow.join(self.analyze_block(stmts_else)),
+            None => Flow::Continues,
         }
     }
 
-    fn analyze_while(&mut self, whil: &ast::While) -> bool {
+    fn analyze_while(&mut self, whil: &ast::While) -> Flow {
         let condition_type = self.analyze_expr(&whil.condition);
         self.check_condition(&condition_type);
 
         self.analyze_block(&whil.statements);
 
-        false
+        // Without `break`, a loop on an always-true condition never exits.
+        if whil.condition.const_bool() == Some(true) {
+            Flow::Diverges
+        } else {
+            Flow::Continues
+        }
     }
 
-    fn analyze_declaration(&mut self, declaration: &ast::Declaration) -> bool {
+    fn analyze_declaration(&mut self, declaration: &ast::Declaration) -> Flow {
         let previous_def = self
             .get_variable(&declaration.variable)
             .map(|previous_var| previous_var.declaration_span);
@@ -630,10 +741,10 @@ impl Analyzer {
             declaration.span,
         );
 
-        false
+        Flow::Continues
     }
 
-    fn analyze_assignment(&mut self, assignment: &ast::Assignment) -> bool {
+    fn analyze_assignment(&mut self, assignment: &ast::Assignment) -> Flow {
         let variable = self.get_variable(&assignment.variable).cloned();
 
         let expr_type = self.analyze_expr(&assignment.value);
@@ -664,22 +775,31 @@ impl Analyzer {
             }
         }
 
-        false
+        Flow::Continues
     }
 
-    fn analyze_write(&mut self, write: &ast::Write) -> bool {
+    fn analyze_write(&mut self, write: &ast::Write) -> Flow {
         self.analyze_expr(&write.value);
-        false
+        Flow::Continues
     }
 
     /// `None` means the type is unknown (error already reported); callers use it
     /// to suppress cascading type errors.
     fn analyze_expr(&mut self, expr: &ast::Expression) -> Option<ast::Type> {
         match expr {
-            ast::Expression::Integer(_, span) => Some(ast::Type {
-                kind: ast::TypeKind::Integer,
-                span: *span,
-            }),
+            ast::Expression::Integer(value, span) => {
+                if i64::try_from(*value).is_err() {
+                    self.push_error(Error::IntegerLiteralOutOfRange {
+                        src: self.source_code.clone(),
+                        here: *span,
+                    });
+                }
+
+                Some(ast::Type {
+                    kind: ast::TypeKind::Integer,
+                    span: *span,
+                })
+            }
             ast::Expression::Read(span) => Some(ast::Type {
                 kind: ast::TypeKind::Integer,
                 span: *span,
@@ -803,6 +923,17 @@ impl Analyzer {
             ast::UnaryOpKind::LogicNot => ast::TypeKind::Boolean,
         };
 
+        // Allow `-9223372036854775808` (i64::MIN), whose literal alone overflows.
+        if let ast::UnaryOpKind::Neg = unary_op.kind
+            && let ast::Expression::Integer(value, _) = *unary_op.operand
+            && value == i64::MIN.unsigned_abs()
+        {
+            return Some(ast::Type {
+                kind: ast::TypeKind::Integer,
+                span: unary_op.span,
+            });
+        }
+
         let operand_type = self.analyze_expr(&unary_op.operand);
 
         if let Some(operand_type) = operand_type
@@ -900,5 +1031,160 @@ impl Analyzer {
             kind: result_type,
             span: binary_op.span,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn analyze_full(source: &str) -> Analyzer {
+        let named_source = miette::NamedSource::new("test.flo", source.to_string());
+        let program = floc_parser::parse(named_source.clone()).unwrap();
+        let mut analyzer = Analyzer::new(Arc::new(named_source));
+        analyzer.analyze_program(&program);
+        analyzer
+    }
+
+    fn analyze(source: &str) -> Vec<Error> {
+        analyze_full(source).errors().to_vec()
+    }
+
+    #[test]
+    fn endless_loop_counts_as_returning() {
+        for condition in [
+            "Vrai",
+            "1 == 1",
+            "non Faux",
+            "Vrai ou n > 0",
+            "2 * 3 > 5 et Vrai",
+        ] {
+            let source = format!(
+                "entier f(entier n) {{
+  tantque ({condition}) {{
+    si (n > 3) {{ retourner n; }}
+    n = n + 1;
+  }}
+}}
+ecrire(f(1));"
+            );
+            assert!(analyze(&source).is_empty(), "condition: {condition}");
+        }
+    }
+
+    #[test]
+    fn non_constant_loop_does_not_count_as_returning() {
+        for condition in ["n > 0", "Faux", "Faux et Vrai", "n == n"] {
+            let source = format!(
+                "entier f(entier n) {{
+  tantque ({condition}) {{ retourner n; }}
+}}
+ecrire(f(1));"
+            );
+            let errors = analyze(&source);
+            assert!(
+                matches!(errors[..], [Error::MissingReturn { .. }]),
+                "condition: {condition}"
+            );
+        }
+    }
+
+    #[test]
+    fn if_with_returning_and_endless_branches_returns() {
+        let errors = analyze(
+            "entier f(entier n) {
+  si (n > 0) { retourner n; } sinon { tantque (Vrai) { n = n; } }
+}
+ecrire(f(1));",
+        );
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn statements_after_endless_loop_are_a_warning() {
+        let analyzer = analyze_full(
+            "tantque (Vrai) { ecrire(1); }
+ecrire(2);
+ecrire(3);",
+        );
+        assert!(analyzer.errors().is_empty());
+        assert!(matches!(
+            analyzer.warnings(),
+            [Warning::UnreachableStatement { .. }]
+        ));
+    }
+
+    #[test]
+    fn statements_after_return_are_an_error() {
+        let errors = analyze(
+            "entier f() {
+  retourner 1;
+  ecrire(2);
+}
+ecrire(f());",
+        );
+        assert!(matches!(errors[..], [Error::ExtraStmtsAfterReturn { .. }]));
+    }
+
+    #[test]
+    fn rejects_function_named_main() {
+        let errors = analyze("entier main() { retourner 1; }\necrire(main());");
+        assert!(matches!(errors[..], [Error::ReservedFunctionName { .. }]));
+    }
+
+    #[test]
+    fn rejects_duplicate_parameters() {
+        let errors = analyze("entier f(entier a, booleen a) { retourner a; }\necrire(f(1, Vrai));");
+        assert!(matches!(errors[..], [Error::VariableAlreadyDefined { .. }]));
+    }
+
+    #[test]
+    fn missing_return_points_at_function() {
+        let errors = analyze("entier f() { si (Vrai) { retourner 1; } }\necrire(f());");
+        assert!(matches!(errors[..], [Error::MissingReturn { .. }]));
+        assert!(errors[0].main_span().is_some());
+    }
+
+    #[test]
+    fn argument_count_mismatch_without_arguments_has_span() {
+        let errors = analyze("entier f(entier a) { retourner a; }\necrire(f());");
+        assert!(matches!(errors[..], [Error::ArgumentCountMismatch { .. }]));
+        assert!(errors[0].main_span().is_some());
+    }
+
+    #[test]
+    fn top_level_return_does_not_cascade() {
+        let errors = analyze(
+            "retourner 1;
+ecrire(2);
+ecrire(3);",
+        );
+        assert!(matches!(errors[..], [Error::ReturnOutsideFunction { .. }]));
+    }
+
+    #[test]
+    fn rejects_out_of_range_literals() {
+        for literal in ["9223372036854775808", "99999999999999999999"] {
+            let errors = analyze(&format!("ecrire({literal});"));
+            assert!(matches!(
+                errors[..],
+                [Error::IntegerLiteralOutOfRange { .. }]
+            ));
+        }
+    }
+
+    #[test]
+    fn accepts_integer_bounds() {
+        assert!(analyze("ecrire(9223372036854775807);").is_empty());
+        assert!(analyze("ecrire(-9223372036854775808);").is_empty());
+    }
+
+    #[test]
+    fn rejects_negated_literal_below_min() {
+        let errors = analyze("ecrire(-9223372036854775809);");
+        assert!(matches!(
+            errors[..],
+            [Error::IntegerLiteralOutOfRange { .. }]
+        ));
     }
 }

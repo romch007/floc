@@ -15,35 +15,35 @@ path = "src/lib.rs"
 name = "floc"
 
 [dependencies]
-floc-span = { path = "../floc-span" }
-floc-lexer = { path = "../floc-lexer" }
-floc-ast = { path = "../floc-ast" }
-floc-parser = { path = "../floc-parser" }
-floc-analyzer = { path = "../floc-analyzer" }
-cc = "1.2.24"
-clap = { version = "4.5.4", features = ["derive", "cargo"] }
-fastrand = "2.3.0"
-miette = { version = "7.6.0", features = ["fancy"] }
-scopeguard = "1.2.0"
-thiserror = "2.0.3"
-llvm-sys = "221.0.1"
-clap_complete = "4.5.5"
-logos = "0.16.1"
-owo-colors = "4.2.3"
+floc-span = { workspace = true }
+floc-lexer = { workspace = true }
+floc-ast = { workspace = true }
+floc-parser = { workspace = true }
+floc-analyzer = { workspace = true }
+cc = { workspace = true }
+clap = { workspace = true, features = ["derive", "cargo"] }
+fastrand = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
+scopeguard = { workspace = true }
+thiserror = { workspace = true }
+llvm-sys = { workspace = true }
+clap_complete = { workspace = true }
+logos = { workspace = true }
+owo-colors = { workspace = true }
 
 [target.'cfg(not(windows))'.dependencies]
-inkwell = { version = "0.9.0", features = ["llvm22-1-prefer-dynamic"] }
+inkwell = { workspace = true, features = ["llvm23-1-prefer-dynamic", "target-all"] }
 
 [target.'cfg(windows)'.dependencies]
-inkwell = { version = "0.9.0", features = [
-    "llvm22-1-force-static",
+inkwell = { workspace = true, features = [
+    "llvm23-1-force-static",
     "target-x86",
     "target-aarch64",
-], default-features = false }
+] }
 
 [build-dependencies]
-bindgen = "0.72.1"
-cc = "1.2.24"
-clap = { version = "4.5.4", features = ["derive"] }
-clap_complete = "4.5.5"
-clap_mangen = "0.2.26"
+bindgen = { workspace = true }
+cc = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+clap_complete = { workspace = true }
+clap_mangen = { workspace = true }

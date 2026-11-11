@@ -10,17 +10,17 @@ use floc_ast::{self as ast, visitor::Visitor};
 use floc_span::Span;
 use miette::NamedSource;
 use tokio::sync::RwLock;
-use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::{
+use tower_lsp_server::jsonrpc::Result;
+use tower_lsp_server::ls_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionOptions,
     CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, DocumentHighlight,
     DocumentHighlightKind, DocumentHighlightParams, Hover, HoverContents, HoverParams,
     HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams,
     InsertTextFormat, MarkupContent, MarkupKind, MessageType, OneOf, Position, Range,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Uri,
 };
-use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tower_lsp_server::{Client, LanguageServer, LspService, Server};
 
 use crate::completions::{keyword_completion_items, variable_completion_items};
 use crate::finder::Finder;
@@ -33,16 +33,28 @@ struct Document {
 }
 
 impl Document {
+    /// LSP positions count UTF-16 code units; spans are byte offsets.
     fn pos_to_offset(&self, position: Position) -> usize {
-        let mut offset = 0;
-        for (line_idx, line) in self.text.inner().lines().enumerate() {
-            if line_idx == position.line as usize {
-                offset += position.character as usize;
-                break;
+        let text = self.text.inner();
+        let mut line = 0;
+        let mut character = 0;
+
+        for (offset, ch) in text.char_indices() {
+            if line == position.line
+                && (character >= position.character || ch == '\r' || ch == '\n')
+            {
+                return offset;
             }
-            offset += line.len() + 1; // +1 for newline
+
+            if ch == '\n' {
+                line += 1;
+                character = 0;
+            } else {
+                character += ch.len_utf16() as u32;
+            }
         }
-        offset
+
+        text.len()
     }
 
     fn offset_to_pos_utf16(&self, offset: usize) -> Position {
@@ -79,7 +91,7 @@ impl Document {
 #[derive(Debug)]
 struct Backend {
     client: Client,
-    documents: RwLock<HashMap<Url, Arc<Document>>>,
+    documents: RwLock<HashMap<Uri, Arc<Document>>>,
 }
 
 impl Backend {
@@ -90,14 +102,14 @@ impl Backend {
         }
     }
 
-    async fn get_document(&self, uri: &Url) -> Option<Arc<Document>> {
+    async fn get_document(&self, uri: &Uri) -> Option<Arc<Document>> {
         let docs = self.documents.read().await;
         docs.get(uri).map(Arc::clone)
     }
 }
 
 impl Backend {
-    async fn update_diagnostic(&self, diagnostics: Vec<Diagnostic>, uri: Url) {
+    async fn update_diagnostic(&self, diagnostics: Vec<Diagnostic>, uri: Uri) {
         // An empty list clears previously reported diagnostics.
         self.client
             .publish_diagnostics(uri, diagnostics, None)
@@ -105,7 +117,6 @@ impl Backend {
     }
 }
 
-#[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         Ok(InitializeResult {
@@ -375,4 +386,79 @@ async fn main() {
 
     let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn document(text: &str) -> Document {
+        Document {
+            text: NamedSource::new("test.flo", text.to_string()),
+            program: ast::Program {
+                function_decls: Vec::new(),
+                statements: Vec::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn pos_to_offset_handles_crlf() {
+        let text = "entier a = 1;\r\nentier b = 2;\r\necrire(b);";
+        let doc = document(text);
+
+        let offset = doc.pos_to_offset(Position {
+            line: 2,
+            character: 7,
+        });
+        assert_eq!(offset, text.find("b);").unwrap());
+    }
+
+    #[test]
+    fn pos_to_offset_counts_utf16_units() {
+        // `é` is 2 bytes in UTF-8 but 1 UTF-16 unit; `😀` is 4 bytes and 2 units.
+        let text = "# é😀\necrire(x);";
+        let doc = document(text);
+
+        assert_eq!(
+            doc.pos_to_offset(Position {
+                line: 0,
+                character: 3
+            }),
+            4
+        );
+        assert_eq!(
+            doc.pos_to_offset(Position {
+                line: 0,
+                character: 5
+            }),
+            8
+        );
+        assert_eq!(
+            doc.pos_to_offset(Position {
+                line: 1,
+                character: 7
+            }),
+            text.find("x);").unwrap()
+        );
+    }
+
+    #[test]
+    fn pos_to_offset_clamps_to_line_end() {
+        let doc = document("ab\r\ncd");
+        assert_eq!(
+            doc.pos_to_offset(Position {
+                line: 0,
+                character: 10
+            }),
+            2
+        );
+        assert_eq!(
+            doc.pos_to_offset(Position {
+                line: 5,
+                character: 0
+            }),
+            6
+        );
+    }
 }

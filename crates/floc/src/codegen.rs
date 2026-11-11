@@ -4,7 +4,8 @@ use inkwell::{
     AddressSpace, IntPredicate,
     builder::Builder,
     context::Context,
-    module::Module,
+    intrinsics::Intrinsic,
+    module::{Linkage, Module},
     passes::PassBuilderOptions,
     targets::{CodeModel, FileType, RelocMode, Target, TargetMachine, TargetTriple},
     types::{BasicMetadataTypeEnum, IntType},
@@ -41,6 +42,8 @@ pub struct Compiler<'ctx> {
 
     printf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
     scanf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
+    read_fn: FunctionValue<'ctx>,
+    fflush: FunctionValue<'ctx>,
 }
 
 impl<'ctx> Compiler<'ctx> {
@@ -50,6 +53,18 @@ impl<'ctx> Compiler<'ctx> {
         let builder = context.create_builder();
         let printf = Compiler::create_printf(context, &module);
         let scanf = Compiler::create_scanf(context, &module);
+        let fflush = module.add_function(
+            "fflush",
+            context
+                .i32_type()
+                .fn_type(&[context.ptr_type(AddressSpace::default()).into()], false),
+            None,
+        );
+        let read_fn = module.add_function(
+            "floc_read",
+            context.i64_type().fn_type(&[], false),
+            Some(Linkage::Internal),
+        );
 
         Self {
             context,
@@ -57,6 +72,8 @@ impl<'ctx> Compiler<'ctx> {
             builder,
             printf,
             scanf,
+            read_fn,
+            fflush,
             current_function: None,
             variables: HashMap::default(),
             functions: HashMap::default(),
@@ -94,7 +111,12 @@ impl<'ctx> Compiler<'ctx> {
                 RelocMode::PIC,
                 CodeModel::Default,
             )
-            .unwrap();
+            .ok_or_else(|| {
+                Error::Other(format!(
+                    "cannot create target machine for {}",
+                    target_triple.as_str().to_string_lossy()
+                ))
+            })?;
 
         Ok(target_machine)
     }
@@ -140,11 +162,13 @@ impl<'ctx> Compiler<'ctx> {
 
         self.module.add_global_metadata("llvm.ident", &md_node)?;
 
+        self.emit_read_function()?;
+
         for fn_decl in &prog.function_decls {
             self.emit_function_declaration(fn_decl)?;
         }
 
-        let main_function_type = self.context.i64_type().fn_type(&[], false);
+        let main_function_type = self.context.i32_type().fn_type(&[], false);
         let main_function = self.module.add_function("main", main_function_type, None);
 
         let bb = self.context.append_basic_block(main_function, "entry");
@@ -152,12 +176,10 @@ impl<'ctx> Compiler<'ctx> {
 
         self.current_function = Some(main_function);
 
-        for stmt in &prog.statements {
-            self.emit_statement(stmt)?;
+        if !self.emit_block(&prog.statements)? {
+            self.builder
+                .build_return(Some(&self.context.i32_type().const_zero()))?;
         }
-
-        self.builder
-            .build_return(Some(&self.context.i64_type().const_int(0, false)))?;
 
         Ok(())
     }
@@ -176,7 +198,7 @@ impl<'ctx> Compiler<'ctx> {
 
         let printf_args = [context.ptr_type(AddressSpace::default()).into()];
 
-        let printf_type = context.i64_type().fn_type(&printf_args, true);
+        let printf_type = context.i32_type().fn_type(&printf_args, true);
         let printf_fn = module.add_function("printf", printf_type, None);
 
         (printf_fn, printf_format_global)
@@ -196,10 +218,51 @@ impl<'ctx> Compiler<'ctx> {
 
         let scanf_args = [context.ptr_type(AddressSpace::default()).into()];
 
-        let scanf_type = context.i64_type().fn_type(&scanf_args, true);
+        let scanf_type = context.i32_type().fn_type(&scanf_args, true);
         let scanf_fn = module.add_function("scanf", scanf_type, None);
 
         (scanf_fn, scanf_format_global)
+    }
+
+    /// Body of `floc_read`: returns 0 when `scanf` fails (EOF, non-numeric input).
+    fn emit_read_function(&mut self) -> Result<(), Error> {
+        let i64_type = self.context.i64_type();
+
+        let entry = self.context.append_basic_block(self.read_fn, "entry");
+        self.builder.position_at_end(entry);
+
+        let result = self.builder.build_alloca(i64_type, "read_result")?;
+        self.builder.build_store(result, i64_type.const_zero())?;
+
+        let args: &[BasicMetadataValueEnum<'ctx>] =
+            &[self.scanf.1.as_pointer_value().into(), result.into()];
+        self.builder.build_call(self.scanf.0, args, "read_call")?;
+
+        let value = self.builder.build_load(i64_type, result, "read_value")?;
+        self.builder.build_return(Some(&value))?;
+
+        Ok(())
+    }
+
+    /// Allocas outside the entry block grow the stack on every loop iteration
+    /// and are not promoted to registers.
+    fn build_entry_alloca(
+        &self,
+        ty: IntType<'ctx>,
+        name: &str,
+    ) -> Result<PointerValue<'ctx>, Error> {
+        let entry = self
+            .current_function
+            .and_then(FunctionValue::get_first_basic_block)
+            .unwrap();
+
+        let builder = self.context.create_builder();
+        match entry.get_first_instruction() {
+            Some(first) => builder.position_before(&first),
+            None => builder.position_at_end(entry),
+        }
+
+        Ok(builder.build_alloca(ty, name)?)
     }
 
     pub fn declare_functions(&mut self, functions: &[&analyzer::Function]) {
@@ -215,9 +278,9 @@ impl<'ctx> Compiler<'ctx> {
                 .to_llvm(self.context)
                 .fn_type(&function_params, false);
 
-            let llvm_function = self
-                .module
-                .add_function(&function.name, function_type, None);
+            let llvm_function =
+                self.module
+                    .add_function(&function.name, function_type, Some(Linkage::Internal));
 
             self.functions
                 .insert(function.name.clone(), Function { ptr: llvm_function });
@@ -239,9 +302,8 @@ impl<'ctx> Compiler<'ctx> {
         for (idx, arg) in fn_decl.arguments.iter().enumerate() {
             let value = function.get_nth_param(idx as u32).unwrap();
 
-            let alloca_ptr = self
-                .builder
-                .build_alloca(self.context.i64_type(), &arg.name)?;
+            let alloca_ptr =
+                self.build_entry_alloca(arg.r#type.to_llvm(self.context), &arg.name)?;
 
             self.builder.build_store(alloca_ptr, value)?;
             self.variables.insert(
@@ -253,17 +315,21 @@ impl<'ctx> Compiler<'ctx> {
             );
         }
 
-        for stmt in &fn_decl.statements {
-            self.emit_statement(stmt)?;
-        }
+        self.emit_block(&fn_decl.statements)?;
 
         Ok(())
     }
 
+    /// Returns whether the block never falls through. Statements after one
+    /// that never falls through are unreachable and not emitted.
     pub fn emit_block(&mut self, block: &[ast::Statement]) -> Result<bool, Error> {
-        block.iter().try_fold(false, |acc, stmt| {
-            self.emit_statement(stmt).map(|result| acc || result)
-        })
+        for stmt in block {
+            if self.emit_statement(stmt)? {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 
     pub fn emit_statement(&mut self, stmt: &ast::Statement) -> Result<bool, Error> {
@@ -286,7 +352,7 @@ impl<'ctx> Compiler<'ctx> {
     pub fn emit_declaration(&mut self, decl: &ast::Declaration) -> Result<bool, Error> {
         let int_type = decl.r#type.to_llvm(self.context);
 
-        let alloca_ptr = self.builder.build_alloca(int_type, &decl.variable)?;
+        let alloca_ptr = self.build_entry_alloca(int_type, &decl.variable)?;
 
         self.variables.insert(
             decl.variable.ident.clone(),
@@ -296,11 +362,14 @@ impl<'ctx> Compiler<'ctx> {
             },
         );
 
-        if let Some(default_value) = &decl.value {
-            let init_val = self.emit_expression(default_value)?;
+        // Zero-initialize so a declaration in a loop doesn't see the previous
+        // iteration's value.
+        let init_val = match &decl.value {
+            Some(default_value) => self.emit_expression(default_value)?,
+            None => int_type.const_zero(),
+        };
 
-            self.builder.build_store(alloca_ptr, init_val)?;
-        }
+        self.builder.build_store(alloca_ptr, init_val)?;
 
         Ok(false)
     }
@@ -356,6 +425,11 @@ impl<'ctx> Compiler<'ctx> {
             .build_conditional_branch(condition, body_bb, end_bb)?;
 
         self.builder.position_at_end(end_bb);
+
+        if whil.condition.const_bool() == Some(true) {
+            self.builder.build_unreachable()?;
+            return Ok(true);
+        }
 
         Ok(false)
     }
@@ -432,6 +506,15 @@ impl<'ctx> Compiler<'ctx> {
     pub fn emit_write(&mut self, write: &ast::Write) -> Result<bool, Error> {
         let value = self.emit_expression(&write.value)?;
 
+        // `%lld` reads a full i64; booleans are i1.
+        let i64_type = self.context.i64_type();
+        let value = if value.get_type() == i64_type {
+            value
+        } else {
+            self.builder
+                .build_int_z_extend(value, i64_type, "write_zext")?
+        };
+
         let args: &[BasicMetadataValueEnum<'ctx>] =
             &[self.printf.1.as_pointer_value().into(), value.into()];
 
@@ -486,30 +569,26 @@ impl<'ctx> Compiler<'ctx> {
         let retval = self.builder.build_call(
             function.ptr,
             &exprs,
-            &format!("{}_call", &fn_call.name.ident),
+            &format!("{}_call", fn_call.name.ident),
         )?;
 
         Ok(retval.try_as_basic_value().unwrap_basic().into_int_value())
     }
 
     pub fn emit_read(&mut self) -> Result<IntValue<'ctx>, Error> {
-        let result_value = self
-            .builder
-            .build_alloca(self.context.i64_type(), "read_result")?;
+        let value = self.builder.build_call(self.read_fn, &[], "read_call")?;
 
-        let args: &[BasicMetadataValueEnum<'ctx>] =
-            &[self.scanf.1.as_pointer_value().into(), result_value.into()];
-
-        self.builder.build_call(self.scanf.0, args, "read_call")?;
-
-        let value =
-            self.builder
-                .build_load(self.context.i64_type(), result_value, "read_result")?;
-
-        Ok(value.into_int_value())
+        Ok(value.try_as_basic_value().unwrap_basic().into_int_value())
     }
 
     pub fn emit_binary_op(&mut self, binary_op: &ast::BinaryOp) -> Result<IntValue<'ctx>, Error> {
+        if matches!(
+            binary_op.kind,
+            ast::BinaryOpKind::LogicAnd | ast::BinaryOpKind::LogicOr
+        ) {
+            return self.emit_short_circuit(binary_op);
+        }
+
         let left = self.emit_expression(&binary_op.left)?;
         let right = self.emit_expression(&binary_op.right)?;
 
@@ -517,8 +596,9 @@ impl<'ctx> Compiler<'ctx> {
             ast::BinaryOpKind::Add => self.builder.build_int_add(left, right, "add")?,
             ast::BinaryOpKind::Sub => self.builder.build_int_sub(left, right, "sub")?,
             ast::BinaryOpKind::Mul => self.builder.build_int_mul(left, right, "mul")?,
-            ast::BinaryOpKind::Div => self.builder.build_int_signed_div(left, right, "div")?,
-            ast::BinaryOpKind::Mod => self.builder.build_int_signed_rem(left, right, "mod")?,
+            ast::BinaryOpKind::Div | ast::BinaryOpKind::Mod => {
+                self.emit_division(&binary_op.kind, left, right)?
+            }
             ast::BinaryOpKind::Eq => {
                 self.builder
                     .build_int_compare(IntPredicate::EQ, left, right, "eq")?
@@ -543,11 +623,108 @@ impl<'ctx> Compiler<'ctx> {
                 self.builder
                     .build_int_compare(IntPredicate::SGE, left, right, "gte")?
             }
-            ast::BinaryOpKind::LogicAnd => self.builder.build_and(left, right, "and")?,
-            ast::BinaryOpKind::LogicOr => self.builder.build_or(left, right, "or")?,
+            ast::BinaryOpKind::LogicAnd | ast::BinaryOpKind::LogicOr => unreachable!(),
         };
 
         Ok(result)
+    }
+
+    fn emit_short_circuit(&mut self, binary_op: &ast::BinaryOp) -> Result<IntValue<'ctx>, Error> {
+        let is_and = matches!(binary_op.kind, ast::BinaryOpKind::LogicAnd);
+        let function = self.current_function.unwrap();
+        let bool_type = self.context.bool_type();
+
+        let left = self.emit_expression(&binary_op.left)?;
+        let left_end = self.builder.get_insert_block().unwrap();
+
+        let right_bb = self.context.append_basic_block(function, "logic.rhs");
+        let end_bb = self.context.append_basic_block(function, "logic.end");
+
+        if is_and {
+            self.builder
+                .build_conditional_branch(left, right_bb, end_bb)?;
+        } else {
+            self.builder
+                .build_conditional_branch(left, end_bb, right_bb)?;
+        }
+
+        self.builder.position_at_end(right_bb);
+        let right = self.emit_expression(&binary_op.right)?;
+        let right_end = self.builder.get_insert_block().unwrap();
+        self.builder.build_unconditional_branch(end_bb)?;
+
+        self.builder.position_at_end(end_bb);
+        let phi = self.builder.build_phi(bool_type, "logic")?;
+        // Skipping the right side means the result is `left`: false for `et`, true for `ou`.
+        let short_circuit_value = bool_type.const_int(u64::from(!is_and), false);
+        phi.add_incoming(&[(&short_circuit_value, left_end), (&right, right_end)]);
+
+        Ok(phi.as_basic_value().into_int_value())
+    }
+
+    /// Traps on a zero divisor; `i64::MIN / -1` wraps like other arithmetic.
+    fn emit_division(
+        &mut self,
+        kind: &ast::BinaryOpKind,
+        left: IntValue<'ctx>,
+        right: IntValue<'ctx>,
+    ) -> Result<IntValue<'ctx>, Error> {
+        let function = self.current_function.unwrap();
+        let i64_type = self.context.i64_type();
+
+        let is_zero = self.builder.build_int_compare(
+            IntPredicate::EQ,
+            right,
+            i64_type.const_zero(),
+            "div.is_zero",
+        )?;
+
+        let trap_bb = self.context.append_basic_block(function, "div.zero");
+        let ok_bb = self.context.append_basic_block(function, "div.ok");
+        self.builder
+            .build_conditional_branch(is_zero, trap_bb, ok_bb)?;
+
+        self.builder.position_at_end(trap_bb);
+        let trap = Intrinsic::find("llvm.trap")
+            .and_then(|trap| trap.get_declaration(&self.module, &[]))
+            .ok_or_else(|| Error::Other("cannot find llvm.trap".to_string()))?;
+        // The trap would discard buffered output.
+        let all_streams = self.context.ptr_type(AddressSpace::default()).const_null();
+        self.builder
+            .build_call(self.fflush, &[all_streams.into()], "")?;
+        self.builder.build_call(trap, &[], "")?;
+        self.builder.build_unreachable()?;
+
+        self.builder.position_at_end(ok_bb);
+
+        // Divide by 1 instead of -1, then negate: `left % 1` is already 0.
+        let is_minus_one = self.builder.build_int_compare(
+            IntPredicate::EQ,
+            right,
+            i64_type.const_all_ones(),
+            "div.is_minus_one",
+        )?;
+        let divisor = self
+            .builder
+            .build_select(
+                is_minus_one,
+                i64_type.const_int(1, false),
+                right,
+                "div.divisor",
+            )?
+            .into_int_value();
+
+        Ok(match kind {
+            ast::BinaryOpKind::Div => {
+                let quotient = self.builder.build_int_signed_div(left, divisor, "div")?;
+                let negated = self.builder.build_int_neg(left, "div.neg")?;
+                self.builder
+                    .build_select(is_minus_one, negated, quotient, "div.result")?
+                    .into_int_value()
+            }
+            ast::BinaryOpKind::Mod => self.builder.build_int_signed_rem(left, divisor, "mod")?,
+            _ => unreachable!(),
+        })
     }
 
     pub fn emit_unary_op(&mut self, unary_op: &ast::UnaryOp) -> Result<IntValue<'ctx>, Error> {

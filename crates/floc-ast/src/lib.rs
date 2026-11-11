@@ -118,6 +118,74 @@ impl Expression {
             Expression::Error(span) => span,
         }
     }
+
+    /// Value of a boolean expression known at compile time, following the
+    /// runtime semantics (short-circuiting `et`/`ou`).
+    #[must_use]
+    pub fn const_bool(&self) -> Option<bool> {
+        match self {
+            Expression::Boolean(value, _) => Some(*value),
+            Expression::UnaryOp(UnaryOp {
+                kind: UnaryOpKind::LogicNot,
+                operand,
+                ..
+            }) => operand.const_bool().map(|value| !value),
+            Expression::BinaryOp(BinaryOp {
+                left, kind, right, ..
+            }) => match kind {
+                BinaryOpKind::LogicAnd => match left.const_bool()? {
+                    false => Some(false),
+                    true => right.const_bool(),
+                },
+                BinaryOpKind::LogicOr => match left.const_bool()? {
+                    true => Some(true),
+                    false => right.const_bool(),
+                },
+                BinaryOpKind::Eq | BinaryOpKind::Neq => {
+                    let equal = match (left.const_bool(), right.const_bool()) {
+                        (Some(left), Some(right)) => left == right,
+                        _ => left.const_int()? == right.const_int()?,
+                    };
+                    Some(equal == matches!(kind, BinaryOpKind::Eq))
+                }
+                BinaryOpKind::Lt => Some(left.const_int()? < right.const_int()?),
+                BinaryOpKind::Lte => Some(left.const_int()? <= right.const_int()?),
+                BinaryOpKind::Gt => Some(left.const_int()? > right.const_int()?),
+                BinaryOpKind::Gte => Some(left.const_int()? >= right.const_int()?),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Value of an integer expression known at compile time, wrapping like the
+    /// generated code. `None` for division by zero, which traps at runtime.
+    #[must_use]
+    pub fn const_int(&self) -> Option<i64> {
+        match self {
+            #[allow(clippy::cast_possible_wrap)]
+            Expression::Integer(value, _) => Some(*value as i64),
+            Expression::UnaryOp(UnaryOp {
+                kind: UnaryOpKind::Neg,
+                operand,
+                ..
+            }) => operand.const_int().map(i64::wrapping_neg),
+            Expression::BinaryOp(BinaryOp {
+                left, kind, right, ..
+            }) => {
+                let (left, right) = (left.const_int()?, right.const_int()?);
+                match kind {
+                    BinaryOpKind::Add => Some(left.wrapping_add(right)),
+                    BinaryOpKind::Sub => Some(left.wrapping_sub(right)),
+                    BinaryOpKind::Mul => Some(left.wrapping_mul(right)),
+                    BinaryOpKind::Div if right != 0 => Some(left.wrapping_div(right)),
+                    BinaryOpKind::Mod if right != 0 => Some(left.wrapping_rem(right)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]

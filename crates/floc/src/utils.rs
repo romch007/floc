@@ -2,7 +2,7 @@ use std::ffi::{OsStr, OsString};
 use std::iter::repeat_with;
 use std::time::Instant;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::cli;
 use crate::lexer;
@@ -73,6 +73,14 @@ pub fn get_output_files(
     }
 }
 
+#[must_use]
+pub fn is_same_file(a: &Path, b: &Path) -> bool {
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
+}
+
 pub struct Timer {
     start: Instant,
     verbose: bool,
@@ -91,7 +99,7 @@ impl Timer {
         if self.verbose {
             let elapsed = self.start.elapsed();
 
-            println!("++ took {elapsed:?}");
+            eprintln!("++ took {elapsed:?}");
         }
     }
 }
@@ -129,9 +137,8 @@ impl miette::highlighters::HighlighterState for SyntaxHighlighterState {
             let slice = &line[lexer.span()];
             let span = lexer.span();
 
-            if last_end < span.end {
-                let skipped = &line[last_end..span.start];
-                styled.push(DEFAULT_STYLE.style(skipped));
+            if last_end < span.start {
+                styled.push(DEFAULT_STYLE.style(&line[last_end..span.start]));
             }
 
             let style = match res {
@@ -169,6 +176,11 @@ impl miette::highlighters::HighlighterState for SyntaxHighlighterState {
             last_end = span.end;
         }
 
+        // Skipped text after the last token, e.g. a trailing comment.
+        if last_end < line.len() {
+            styled.push(DEFAULT_STYLE.style(&line[last_end..]));
+        }
+
         styled
     }
 }
@@ -181,6 +193,31 @@ mod tests {
 
     use super::*;
     use crate::cli;
+
+    #[test]
+    fn highlighter_keeps_trailing_comment() {
+        use miette::highlighters::HighlighterState;
+
+        let line = "ecrire(1);  # commentaire";
+        let rendered = SyntaxHighlighterState
+            .highlight_line(line)
+            .iter()
+            .map(ToString::to_string)
+            .collect::<String>();
+
+        // Drop ANSI escape sequences (`ESC [ ... m`).
+        let mut plain = String::new();
+        let mut chars = rendered.chars();
+        while let Some(c) = chars.next() {
+            if c == '\u{1b}' {
+                let _ = chars.by_ref().find(|&c| c == 'm');
+            } else {
+                plain.push(c);
+            }
+        }
+
+        assert_eq!(plain, line);
+    }
 
     #[test]
     fn get_output_file_assembly() {

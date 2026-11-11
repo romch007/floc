@@ -4,7 +4,7 @@ where
 {
     let mut distances = iter
         .map(|existing_name| (existing_name, levenshtein(existing_name, name)))
-        .filter(|pair| pair.1 < max_distance)
+        .filter(|pair| pair.1 <= max_distance)
         .collect::<Vec<_>>();
 
     distances.sort_unstable_by_key(|pair| pair.1);
@@ -71,4 +71,19 @@ pub fn levenshtein(a: &str, b: &str) -> usize {
     }
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn closest_str_includes_max_distance() {
+        let names = ["counter"];
+        assert_eq!(
+            closest_str(names.into_iter(), "cxxnter", 2),
+            Some("counter")
+        );
+        assert_eq!(closest_str(names.into_iter(), "cxxxter", 2), None);
+    }
 }

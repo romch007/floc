@@ -115,7 +115,7 @@ mod codegen {
 }
 
 fn main() {
-    let llvm_config_path = std::env::var("DEP_LLVM_22_CONFIG_PATH").unwrap();
+    let llvm_config_path = std::env::var("DEP_LLVM_23_CONFIG_PATH").unwrap();
     codegen::generate_wrapper(&llvm_config_path);
     codegen::compile_wrapper(&llvm_config_path);
 

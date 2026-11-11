@@ -2,7 +2,7 @@ use std::{fs, io::Read, path::Path, sync::Arc};
 
 use clap::CommandFactory;
 use inkwell::targets::TargetMachine;
-use miette::{IntoDiagnostic, WrapErr};
+use miette::{IntoDiagnostic, WrapErr, bail, miette};
 use scopeguard::defer;
 
 use floc::{analyzer, ast, cli, codegen, linker, llvm, parser, utils};
@@ -83,9 +83,8 @@ fn main() -> miette::Result<()> {
 
         let filename = Path::new(&source_file)
             .file_name()
-            .expect("no filename")
-            .to_str()
-            .expect("invalid filename");
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| miette!("invalid source file name '{}'", source_file.display()))?;
 
         (source, filename)
     };
@@ -227,6 +226,15 @@ fn main() -> miette::Result<()> {
 
     let (llvm_file_type, llvm_output_file, exec_output_file) =
         utils::get_output_files(&args, module_name, is_msvc);
+
+    for output_file in std::iter::once(&llvm_output_file).chain(&exec_output_file) {
+        if utils::is_same_file(output_file, &source_file) {
+            bail!(
+                "output file '{}' would overwrite the source file",
+                output_file.display()
+            );
+        }
+    }
 
     if args.verbose {
         eprintln!("output file is {}", llvm_output_file.display());

@@ -101,7 +101,8 @@ pub enum Token<'source> {
     #[token("Faux", |_| false)]
     Boolean(bool),
 
-    #[regex("[0-9]+", |lex| lex.slice().parse::<u64>().unwrap())]
+    // Saturate on overflow; the analyzer rejects anything above i64::MAX.
+    #[regex("[0-9]+", |lex| lex.slice().parse::<u64>().unwrap_or(u64::MAX))]
     Integer(u64),
 
     #[regex("[A-Za-z_][A-Za-z0-9_]*", |lex| lex.slice())]
@@ -146,5 +147,16 @@ impl fmt::Display for Token<'_> {
             Token::Integer(n) => write!(f, "{n}"),
             Token::Identifier(name) => write!(f, "{name}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn overflowing_integer_does_not_panic() {
+        let tokens = Token::lexer("99999999999999999999").collect::<Vec<_>>();
+        assert_eq!(tokens, [Ok(Token::Integer(u64::MAX))]);
     }
 }

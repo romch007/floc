@@ -23,7 +23,7 @@ pub fn link_msvc(
         llvm::Arch::x86_64 => "x64",
         llvm::Arch::x86 => "x86",
         llvm::Arch::aarch64 => "arm64",
-        _ => bail!("invalid arch {arch:?} for MSVC"),
+        _ => return Err(miette::miette!("invalid arch {arch:?} for MSVC")),
     };
 
     if verbose {

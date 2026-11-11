@@ -7,4 +7,4 @@ edition = "2024"
 name = "floc_ast"
 
 [dependencies]
-floc-span = { path = "../floc-span" }
+floc-span = { workspace = true }

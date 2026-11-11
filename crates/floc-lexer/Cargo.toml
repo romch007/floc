@@ -7,4 +7,4 @@ edition = "2024"
 name = "floc_lexer"
 
 [dependencies]
-logos = "0.16.1"
+logos = { workspace = true }

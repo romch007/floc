@@ -224,7 +224,8 @@ mod tests {
 
     #[test]
     fn shadowed_variable_is_a_distinct_binding() {
-        let source = "entier x = 1;\ntantque (Vrai) {\n  entier x = 2;\n  ecrire(x);\n}\necrire(x);\n";
+        let source =
+            "entier x = 1;\ntantque (Vrai) {\n  entier x = 2;\n  ecrire(x);\n}\necrire(x);\n";
         let refs = references(source);
 
         // Inner `x`: its declaration + the `ecrire(x)` inside the loop.
@@ -238,8 +239,7 @@ mod tests {
 
     #[test]
     fn same_name_in_different_functions_does_not_merge() {
-        let source =
-            "entier f(entier a) { retourner a; }\nentier g(entier a) { retourner a; }\necrire(1);\n";
+        let source = "entier f(entier a) { retourner a; }\nentier g(entier a) { retourner a; }\necrire(1);\n";
         let refs = references(source);
 
         // First function's `a`: the parameter + the single use.

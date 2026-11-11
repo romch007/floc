@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use floc_ast::{self as ast, Statement, TypeKind};
-use tower_lsp::lsp_types::{
+use tower_lsp_server::ls_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation, InsertTextFormat,
 };
 
