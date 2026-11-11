@@ -1,27 +1,13 @@
 use std::{
     env,
-    ffi::{OsStr, OsString},
+    ffi::OsStr,
     fs,
     io::Write,
-    iter::repeat_with,
     path::PathBuf,
     process::{Command, Stdio},
 };
 
-pub fn tmpname(prefix: &OsStr, suffix: &OsStr, rand_len: usize) -> OsString {
-    let capacity = prefix
-        .len()
-        .saturating_add(suffix.len())
-        .saturating_add(rand_len);
-    let mut buf = OsString::with_capacity(capacity);
-    buf.push(prefix);
-    let mut char_buf = [0u8; 4];
-    for c in repeat_with(fastrand::alphanumeric).take(rand_len) {
-        buf.push(c.encode_utf8(&mut char_buf));
-    }
-    buf.push(suffix);
-    buf
-}
+use floc::utils::tmpname;
 
 fn random_exec_name() -> PathBuf {
     let temp_dir = env::temp_dir();
@@ -118,7 +104,7 @@ testprogram! { simple_read, "ecrire(-lire());", [5], [-5] }
 testprogram! { big_expr_ints, "ecrire(25 * 2 + 10 / 5 - 40 % 7 + 15 * 2 - 8 * 3 + 12 * 2 - 10 / 4 + 5 + 100 / 25 - 18 % 5 + 9 * 2 - 45 / 9 + 3 * 3);", [103] }
 testprogram! { big_expr_bools, "ecrire(Vrai et Faux ou non Vrai et (Faux ou Vrai) et (non (Vrai ou Faux)) et (Faux et non Vrai) ou (Vrai et (Faux ou Vrai)) et non (Faux ou Vrai) et Vrai);", [0] }
 
-testprogram! { example_ackermann, include_str!("../flo-examples/ackermann.flo"), [1021] }
+testprogram! { example_ackermann, include_str!("../../../flo-examples/ackermann.flo"), [1021] }
 
 testprogram! { nested_ifs, "
 entier test_case(entier m, entier n) {
@@ -150,4 +136,4 @@ entier test_case(entier m, entier n) {
 
 ecrire(test_case(3, 3));", [50, 10, 100] }
 
-testprogram! { example_power, include_str!("../flo-examples/power.flo"), [65536], [2, 16] }
+testprogram! { example_power, include_str!("../../../flo-examples/power.flo"), [65536], [2, 16] }
