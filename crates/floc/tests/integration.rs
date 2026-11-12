@@ -26,6 +26,12 @@ fn random_exec_name() -> PathBuf {
 type TempFile = scopeguard::ScopeGuard<PathBuf, fn(PathBuf)>;
 
 fn remove_file(path: PathBuf) {
+    // `-g` also leaves a .pdb (MSVC) or a .dSYM bundle (macOS) behind.
+    let _ = fs::remove_file(path.with_extension("pdb"));
+    let mut dsym = path.clone().into_os_string();
+    dsym.push(".dSYM");
+    let _ = fs::remove_dir_all(dsym);
+
     let _ = fs::remove_file(path);
 }
 
@@ -323,3 +329,42 @@ entier f(entier n) {
 }
 
 ecrire(f(1));", [4] }
+
+const DEBUG_INFO_PROGRAM: &str = "
+entier somme(entier n, booleen double) {
+  entier s = 0;
+  tantque (n > 0) {
+    entier x = n;
+    s = s + x;
+    n = n - 1;
+  }
+  si (double) {
+    retourner s * 2;
+  }
+  retourner s;
+}
+
+booleen d = lire() == 1;
+ecrire(somme(lire(), d));";
+
+testprogram! { debug_info_unoptimized, flags = ["-g"], DEBUG_INFO_PROGRAM, [110], [1, 10] }
+testprogram! { debug_info_optimized, flags = ["-g", "-O", "2"], DEBUG_INFO_PROGRAM, [55], [0, 10] }
+
+#[test]
+fn debug_info_in_ir() {
+    let output = Command::new(env!("CARGO_BIN_EXE_floc"))
+        .args(["-g", "--emit-ir", "../../flo-examples/factorial.flo"])
+        .output()
+        .expect("cannot run compiler");
+
+    assert!(output.status.success());
+
+    // --emit-ir prints to stderr
+    let ir = String::from_utf8(output.stderr).expect("invalid UTF-8 in IR");
+
+    assert!(ir.contains("!DICompileUnit("));
+    assert!(ir.contains("!DIFile(filename: \"factorial.flo\""));
+    assert!(ir.contains("!DISubprogram(name: \"factorial\""));
+    assert!(ir.contains("!DILocalVariable(name: \"n\", arg: 1"));
+    assert!(ir.contains("#dbg_declare("));
+}

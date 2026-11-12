@@ -17,6 +17,7 @@ pub fn link_msvc(
     output_file: &Path,
     link_static: bool,
     arch: &llvm::Arch,
+    debug_info: bool,
     verbose: bool,
 ) -> miette::Result<()> {
     let msvc_arch = match arch {
@@ -36,7 +37,7 @@ pub fn link_msvc(
     let mut out_arg = OsString::from("/OUT:");
     out_arg.push(output_file.as_os_str());
 
-    let args = [
+    let mut args = vec![
         object_file.as_os_str(),
         os!("legacy_stdio_definitions.lib"),
         if link_static {
@@ -47,6 +48,12 @@ pub fn link_msvc(
         os!("/SUBSYSTEM:CONSOLE"),
         out_arg.as_os_str(),
     ];
+
+    if debug_info {
+        // Writes <output>.pdb next to the executable. /DEBUG turns on
+        // incremental linking, which would also leave a .ilk file behind.
+        args.extend([os!("/DEBUG"), os!("/INCREMENTAL:NO")]);
+    }
 
     if verbose {
         eprintln!("calling {} with args {args:?}", linker.path().display());
@@ -120,6 +127,26 @@ pub fn link_cc(
 
     if !res.success() {
         bail!("`{LINK_WRAPPER}` returned a non-zero exit code");
+    }
+
+    Ok(())
+}
+
+/// Collects the DWARF of `executable` into `<executable>.dSYM`.
+pub fn run_dsymutil(executable: &Path, verbose: bool) -> miette::Result<()> {
+    if verbose {
+        eprintln!("calling dsymutil on {}", executable.display());
+    }
+
+    let res = Command::new("dsymutil")
+        .arg(executable)
+        .stderr(Stdio::inherit())
+        .status()
+        .into_diagnostic()
+        .wrap_err("`dsymutil` failed to start")?;
+
+    if !res.success() {
+        bail!("`dsymutil` returned a non-zero exit code");
     }
 
     Ok(())

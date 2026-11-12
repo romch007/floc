@@ -4,15 +4,26 @@ use inkwell::{
     AddressSpace, IntPredicate,
     builder::Builder,
     context::Context,
+    debug_info::{
+        AsDIScope, DIFile, DIFlags, DIFlagsConstants, DIScope, DIType, DWARFEmissionKind,
+        DWARFSourceLanguage, DebugInfoBuilder, debug_metadata_version,
+    },
     intrinsics::Intrinsic,
-    module::{Linkage, Module},
+    module::{FlagBehavior, Linkage, Module},
     passes::PassBuilderOptions,
     targets::{CodeModel, FileType, RelocMode, Target, TargetMachine, TargetTriple},
     types::{BasicMetadataTypeEnum, IntType},
-    values::{BasicMetadataValueEnum, FunctionValue, GlobalValue, IntValue, PointerValue},
+    values::{
+        AsValueRef, BasicMetadataValueEnum, FunctionValue, GlobalValue, InstructionValue, IntValue,
+        PointerValue,
+    },
 };
 
-use crate::{analyzer, ast, cli};
+use crate::{analyzer, ast, cli, span::Span};
+
+// DWARF base type encodings (`DW_ATE_*`).
+const DW_ATE_BOOLEAN: u32 = 0x02;
+const DW_ATE_SIGNED: u32 = 0x05;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -44,6 +55,56 @@ pub struct Compiler<'ctx> {
     scanf: (FunctionValue<'ctx>, GlobalValue<'ctx>),
     read_fn: FunctionValue<'ctx>,
     fflush: FunctionValue<'ctx>,
+
+    debug: Option<DebugInfo<'ctx>>,
+}
+
+/// Options for [`Compiler::enable_debug_info`].
+#[derive(Debug)]
+pub struct DebugInfoOptions<'a> {
+    /// Source file name, as recorded in the debug info.
+    pub filename: &'a str,
+    /// Directory containing the source file.
+    pub directory: &'a str,
+    /// Source text, used to turn byte offsets into line/column pairs.
+    pub source: &'a str,
+    pub is_optimized: bool,
+    /// Emit CodeView (MSVC targets) instead of DWARF.
+    pub codeview: bool,
+}
+
+#[derive(Debug)]
+struct DebugInfo<'ctx> {
+    builder: DebugInfoBuilder<'ctx>,
+    file: DIFile<'ctx>,
+    lines: LineIndex,
+    is_optimized: bool,
+    int_type: DIType<'ctx>,
+    bool_type: DIType<'ctx>,
+    main_ret_type: DIType<'ctx>,
+    /// Scope of the function being emitted.
+    scope: Option<DIScope<'ctx>>,
+}
+
+/// Maps byte offsets to 1-based line/column pairs.
+#[derive(Debug)]
+struct LineIndex {
+    line_starts: Vec<usize>,
+}
+
+impl LineIndex {
+    fn new(source: &str) -> Self {
+        let mut line_starts = vec![0];
+        line_starts.extend(source.match_indices('\n').map(|(i, _)| i + 1));
+        Self { line_starts }
+    }
+
+    fn line_col(&self, offset: usize) -> (u32, u32) {
+        let line = self.line_starts.partition_point(|&start| start <= offset) - 1;
+        let col = offset - self.line_starts[line];
+
+        ((line + 1) as u32, (col + 1) as u32)
+    }
 }
 
 impl<'ctx> Compiler<'ctx> {
@@ -77,6 +138,212 @@ impl<'ctx> Compiler<'ctx> {
             current_function: None,
             variables: HashMap::default(),
             functions: HashMap::default(),
+            debug: None,
+        }
+    }
+
+    /// Must be called before any code is emitted.
+    pub fn enable_debug_info(&mut self, opts: &DebugInfoOptions<'_>) -> Result<(), Error> {
+        let i32_type = self.context.i32_type();
+
+        self.module.add_basic_value_flag(
+            "Debug Info Version",
+            FlagBehavior::Warning,
+            i32_type.const_int(debug_metadata_version().into(), false),
+        );
+
+        if opts.codeview {
+            self.module.add_basic_value_flag(
+                "CodeView",
+                FlagBehavior::Warning,
+                i32_type.const_int(1, false),
+            );
+        } else {
+            self.module.add_basic_value_flag(
+                "Dwarf Version",
+                FlagBehavior::Warning,
+                i32_type.const_int(4, false),
+            );
+        }
+
+        let (builder, compile_unit) = self.module.create_debug_info_builder(
+            true,
+            // There is no DWARF language code for Flo; C is the closest.
+            DWARFSourceLanguage::C,
+            opts.filename,
+            opts.directory,
+            &format!("floc {}", cli::get_version()),
+            opts.is_optimized,
+            "",
+            0,
+            "",
+            DWARFEmissionKind::Full,
+            0,
+            false,
+            false,
+            "",
+            "",
+        );
+
+        let basic_type = |name: &str, bits: u64, encoding: u32| {
+            builder
+                .create_basic_type(name, bits, encoding, DIFlags::ZERO)
+                .map(|ty| ty.as_type())
+        };
+
+        let int_type = basic_type("entier", 64, DW_ATE_SIGNED)?;
+        let bool_type = basic_type("booleen", 8, DW_ATE_BOOLEAN)?;
+        let main_ret_type = basic_type("int", 32, DW_ATE_SIGNED)?;
+
+        self.debug = Some(DebugInfo {
+            file: compile_unit.get_file(),
+            builder,
+            lines: LineIndex::new(opts.source),
+            is_optimized: opts.is_optimized,
+            int_type,
+            bool_type,
+            main_ret_type,
+            scope: None,
+        });
+
+        Ok(())
+    }
+
+    fn debug_type(&self, ty: &ast::Type) -> Option<DIType<'ctx>> {
+        let debug = self.debug.as_ref()?;
+
+        Some(match ty.kind {
+            ast::TypeKind::Integer => debug.int_type,
+            ast::TypeKind::Boolean => debug.bool_type,
+        })
+    }
+
+    /// Attaches a subprogram to `function` and makes it the current scope.
+    fn begin_debug_function(
+        &mut self,
+        function: FunctionValue<'ctx>,
+        name: &str,
+        ret_type: DIType<'ctx>,
+        param_types: &[DIType<'ctx>],
+        span: Option<Span>,
+    ) {
+        let Some(debug) = &mut self.debug else {
+            return;
+        };
+
+        let line = span.map_or(1, |span| debug.lines.line_col(span.start).0);
+        let subroutine_type = debug.builder.create_subroutine_type(
+            debug.file,
+            Some(ret_type),
+            param_types,
+            DIFlags::ZERO,
+        );
+        let subprogram = debug.builder.create_function(
+            debug.file.as_debug_info_scope(),
+            name,
+            None,
+            debug.file,
+            line,
+            subroutine_type,
+            name != "main",
+            true,
+            line,
+            DIFlags::ZERO,
+            debug.is_optimized,
+        );
+
+        function.set_subprogram(subprogram);
+        debug.scope = Some(subprogram.as_debug_info_scope());
+
+        // Don't let the previous function's location leak into this one.
+        self.builder.unset_current_debug_location();
+    }
+
+    fn end_debug_function(&mut self) {
+        if let Some(debug) = &mut self.debug {
+            debug.scope = None;
+            self.builder.unset_current_debug_location();
+        }
+    }
+
+    /// Attributes the instructions emitted from now on to `span`.
+    fn set_debug_location(&self, span: &Span) {
+        let Some(debug) = &self.debug else {
+            return;
+        };
+        let Some(scope) = debug.scope else {
+            return;
+        };
+
+        let (line, col) = debug.lines.line_col(span.start);
+        let location = debug
+            .builder
+            .create_debug_location(self.context, line, col, scope, None);
+
+        self.builder.set_current_debug_location(location);
+    }
+
+    /// Describes the variable stored in `ptr` to the debugger. `arg_no` is
+    /// 1-based for parameters and `None` for locals. `store` is the first
+    /// store to `ptr`.
+    fn declare_debug_variable(
+        &self,
+        ptr: PointerValue<'ctx>,
+        name: &ast::Identifier,
+        ty: &ast::Type,
+        arg_no: Option<u32>,
+        store: InstructionValue<'ctx>,
+    ) {
+        let Some(debug) = &self.debug else {
+            return;
+        };
+        let Some(scope) = debug.scope else {
+            return;
+        };
+        let di_type = self.debug_type(ty).unwrap();
+
+        let (line, col) = debug.lines.line_col(name.span.start);
+        let variable = match arg_no {
+            Some(arg_no) => debug.builder.create_parameter_variable(
+                scope,
+                name,
+                arg_no,
+                debug.file,
+                line,
+                di_type,
+                true,
+                DIFlags::ZERO,
+            ),
+            None => debug.builder.create_auto_variable(
+                scope,
+                name,
+                debug.file,
+                line,
+                di_type,
+                true,
+                DIFlags::ZERO,
+                0,
+            ),
+        };
+        let location = debug
+            .builder
+            .create_debug_location(self.context, line, col, scope, None);
+
+        let expression = debug.builder.create_expression(vec![]);
+
+        // Not `DebugInfoBuilder::insert_declare_before_instruction`: since LLVM 19
+        // this returns a debug record, which inkwell wraps as an `InstructionValue`
+        // (unsound, and trips a debug assertion). The record isn't needed anyway.
+        // SAFETY: every handle comes from this module's live context and builder.
+        unsafe {
+            llvm_sys::debuginfo::LLVMDIBuilderInsertDeclareRecordBefore(
+                debug.builder.as_mut_ptr(),
+                ptr.as_value_ref(),
+                variable.as_mut_ptr(),
+                expression.as_mut_ptr(),
+                location.as_mut_ptr(),
+                store.as_value_ref(),
+            );
         }
     }
 
@@ -176,9 +443,20 @@ impl<'ctx> Compiler<'ctx> {
 
         self.current_function = Some(main_function);
 
+        if let Some(ret_type) = self.debug.as_ref().map(|debug| debug.main_ret_type) {
+            let span = prog.statements.first().map(|stmt| *stmt.span());
+            self.begin_debug_function(main_function, "main", ret_type, &[], span);
+        }
+
         if !self.emit_block(&prog.statements)? {
             self.builder
                 .build_return(Some(&self.context.i32_type().const_zero()))?;
+        }
+
+        self.end_debug_function();
+
+        if let Some(debug) = &self.debug {
+            debug.builder.finalize();
         }
 
         Ok(())
@@ -299,13 +577,37 @@ impl<'ctx> Compiler<'ctx> {
 
         self.builder.position_at_end(entry_bb);
 
+        if let Some(ret_type) = self.debug_type(&fn_decl.return_type) {
+            let param_types = fn_decl
+                .arguments
+                .iter()
+                .map(|arg| self.debug_type(&arg.r#type).unwrap())
+                .collect::<Vec<_>>();
+
+            self.begin_debug_function(
+                function,
+                &fn_decl.name,
+                ret_type,
+                &param_types,
+                Some(fn_decl.span),
+            );
+        }
+
         for (idx, arg) in fn_decl.arguments.iter().enumerate() {
             let value = function.get_nth_param(idx as u32).unwrap();
 
             let alloca_ptr =
                 self.build_entry_alloca(arg.r#type.to_llvm(self.context), &arg.name)?;
 
-            self.builder.build_store(alloca_ptr, value)?;
+            self.set_debug_location(&arg.span);
+            let store = self.builder.build_store(alloca_ptr, value)?;
+            self.declare_debug_variable(
+                alloca_ptr,
+                &arg.name,
+                &arg.r#type,
+                Some(idx as u32 + 1),
+                store,
+            );
             self.variables.insert(
                 arg.name.ident.clone(),
                 Variable {
@@ -316,6 +618,8 @@ impl<'ctx> Compiler<'ctx> {
         }
 
         self.emit_block(&fn_decl.statements)?;
+
+        self.end_debug_function();
 
         Ok(())
     }
@@ -333,6 +637,8 @@ impl<'ctx> Compiler<'ctx> {
     }
 
     pub fn emit_statement(&mut self, stmt: &ast::Statement) -> Result<bool, Error> {
+        self.set_debug_location(stmt.span());
+
         match stmt {
             ast::Statement::Declaration(decl) => self.emit_declaration(decl),
             ast::Statement::Return(ret) => self.emit_return(ret),
@@ -369,7 +675,8 @@ impl<'ctx> Compiler<'ctx> {
             None => int_type.const_zero(),
         };
 
-        self.builder.build_store(alloca_ptr, init_val)?;
+        let store = self.builder.build_store(alloca_ptr, init_val)?;
+        self.declare_debug_variable(alloca_ptr, &decl.variable, &decl.r#type, None, store);
 
         Ok(false)
     }
@@ -419,6 +726,7 @@ impl<'ctx> Compiler<'ctx> {
         self.builder.position_at_end(condition_bb);
 
         // Evaluate condition
+        self.set_debug_location(whil.condition.span());
         let condition = self.emit_expression(&whil.condition)?;
 
         self.builder

@@ -42,9 +42,13 @@ pub struct Args {
     #[arg(long)]
     pub target_features: Option<String>,
 
-    /// Optimization level
-    #[arg(short = 'O', long, value_enum, default_value_t = OptimizationLevel::Default)]
-    pub optimization_level: OptimizationLevel,
+    /// Optimization level [default: 2, or 0 with --debug-info]
+    #[arg(short = 'O', long, value_enum)]
+    pub optimization_level: Option<OptimizationLevel>,
+
+    /// Generate debug information (DWARF, or CodeView + PDB on MSVC)
+    #[arg(short = 'g', long)]
+    pub debug_info: bool,
 
     /// Only compile, do not link
     #[arg(short, long)]
@@ -72,6 +76,18 @@ pub struct Args {
 
     /// Source file to compile
     pub source_file: Option<PathBuf>,
+}
+
+impl Args {
+    /// Debug builds default to `-O0` so variables aren't optimized out.
+    #[must_use]
+    pub fn optimization_level(&self) -> OptimizationLevel {
+        self.optimization_level.unwrap_or(if self.debug_info {
+            OptimizationLevel::None
+        } else {
+            OptimizationLevel::Default
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]

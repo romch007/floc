@@ -142,7 +142,8 @@ fn main() -> miette::Result<()> {
 
     let analyzer_timer = utils::Timer::start(args.verbose);
 
-    let mut analyzer = analyzer::Analyzer::new(Arc::new(named_source));
+    let named_source = Arc::new(named_source);
+    let mut analyzer = analyzer::Analyzer::new(Arc::clone(&named_source));
     analyzer.analyze_program(&ast_prog);
 
     analyzer_timer.stop();
@@ -175,8 +176,34 @@ fn main() -> miette::Result<()> {
         .as_deref()
         .unwrap_or_else(|| default_target_triple.as_str().to_str().unwrap());
 
+    let optimization_level = args.optimization_level();
+    let is_msvc = llvm::is_msvc(target_triple);
+
     let llvm_context = inkwell::context::Context::create();
     let mut codegen = codegen::Compiler::new(&llvm_context, module_name);
+
+    if args.debug_info {
+        let source_dir = if source_file.as_os_str() == "-" {
+            std::env::current_dir().into_diagnostic()?
+        } else {
+            std::path::absolute(&source_file)
+                .into_diagnostic()?
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_default()
+        };
+
+        codegen
+            .enable_debug_info(&codegen::DebugInfoOptions {
+                filename,
+                directory: &source_dir.to_string_lossy(),
+                source: named_source.inner(),
+                is_optimized: !matches!(optimization_level, cli::args::OptimizationLevel::None),
+                codeview: is_msvc,
+            })
+            .into_diagnostic()
+            .wrap_err("cannot generate debug info")?;
+    }
 
     let declared_functions = analyzer.functions().values().collect::<Vec<_>>();
 
@@ -200,13 +227,13 @@ fn main() -> miette::Result<()> {
         args.target_triple.as_deref(),
         args.target_cpu.as_deref(),
         args.target_features.as_deref(),
-        args.optimization_level.into(),
+        optimization_level.into(),
     )
     .into_diagnostic()
     .wrap_err("cannot create target matchine")?;
 
     codegen
-        .optimize(&target_machine, args.optimization_level)
+        .optimize(&target_machine, optimization_level)
         .into_diagnostic()
         .wrap_err("cannot compile program")?;
 
@@ -221,8 +248,6 @@ fn main() -> miette::Result<()> {
 
     let target_arch = llvm::get_arch_from_target_triple(target_triple)
         .wrap_err_with(|| format!("unknown arch from target triple {target_triple}"))?;
-
-    let is_msvc = llvm::is_msvc(target_triple);
 
     let (llvm_file_type, llvm_output_file, exec_output_file) =
         utils::get_output_files(&args, module_name, is_msvc);
@@ -265,6 +290,7 @@ fn main() -> miette::Result<()> {
                 &exec_output_file,
                 args.link_static,
                 &target_arch,
+                args.debug_info,
                 args.verbose,
             )
         } else {
@@ -277,6 +303,14 @@ fn main() -> miette::Result<()> {
             )
         }
         .wrap_err("cannot link")?;
+
+        // On Apple platforms the DWARF stays in the object file, which is
+        // about to be deleted: collect it into a .dSYM bundle first.
+        if args.debug_info && (target_triple.contains("apple") || target_triple.contains("darwin"))
+        {
+            linker::run_dsymutil(&exec_output_file, args.verbose)
+                .wrap_err("cannot generate .dSYM bundle")?;
+        }
 
         linker_timer.stop();
     }
